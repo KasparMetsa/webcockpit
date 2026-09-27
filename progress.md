@@ -1,14 +1,14 @@
 # Progress
 
-Current stage: **2 — Look and layout** (owner testing).
+Current stage: **3 — Script engine and profile editor** (not started).
 
 ## Stages
 
 | # | Stage | Status | Stage file |
 |---|---|---|---|
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
-| 2 | Look and layout | Owner testing | `docs/stages/02-look-and-layout.md` |
-| 3 | Script engine and profile editor | — | — |
+| 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
+| 3 | Script engine and profile editor | Next | — |
 | 4 | GMCP panes | — | — |
 | 5 | Timers and trackers | — | — |
 | 6 | Runs | — | — |
@@ -32,8 +32,9 @@ Newest first.
   profiles (import/export), Options (Panes, Appearance), About, ESC menu
   with auto-open. 334 unit, 60 e2e tests; bench passes; cold start
   ~0.3 s throttled.
-- **Next:** owner tests stage 2 (test guide in the stage file), then
-  stage 3.
+- **Next:** start stage 3. Write `docs/stages/03-…md` from spec §5 and
+  carry over the live checks (idle timeout, auto-open on a real
+  disconnect).
 - **Open issues:** idle-timeout live check still open; Chromium burst
   worst frame borderline (39–57 ms vs 50 ms); chrome not light-themed
   on "paper"; Panes grid clipped near 60 cols.
@@ -44,7 +45,8 @@ Newest first.
 - **Owner test 2:** input line always directly under the game pane
   (side docks full height, bottom dock under the input); a docked pane
   dragged out floats at 36 × 14. Done (ADR 0014 amendment); 350 unit,
-  70 e2e, bench passes. Owner retests; then close stage 2.
+  70 e2e, bench passes.
+- **Owner test 3:** approved; stage 2 closed.
 - **Commits:** c815295…(this commit).
 
 ### 2026-09-27 — Stage 1 build

@@ -1,7 +1,7 @@
 # Stage 2 — Look and layout
 
-> Status: Owner testing (build done 2026-09-27; feedback round 1 done,
-> ADR 0014).
+> Status: Done 2026-09-27. Live checks 1–2 (idle timeout, auto-open on a
+> real disconnect) carried over to stage 3.
 > Source: spec §5 row 2, §1.3 (cell grid, cold start), §1.4, §2.3, §2.5,
 > §2.6 (skeleton), Inv §2.1, §3, §4, §10. ADR 0010.
 
@@ -94,7 +94,7 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
 - [x] Main-session verification in a browser (334 unit, 60 e2e;
       screenshots of start page, profile, cockpit, frames, ESC menu).
 - [x] Test guide ready.
-- [ ] Owner test.
+- [x] Owner test (two feedback rounds, approved 2026-09-27).
 
 ## Live checks for the owner
 
@@ -206,3 +206,7 @@ Follow-up tasks:
 - [x] Centre column = top dock, game, input, bottom dock; side docks
       full height.
 - [x] Standard size when a docked pane starts floating.
+
+### 2026-09-27 — third test
+
+Approved: "ser bra ut". Stage 2 closed.
