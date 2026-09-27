@@ -177,3 +177,15 @@ disagrees with Cockpit's own code); MSSP game day is taken as 0-based
    fixture, not the client. Real MUME sends an empty line before every
    prompt, and unsolicited output is framed by empty lines (checked
    against Cockpit's run logs). The generator is being fixed in P1.
+
+### 2026-09-27 — first test
+
+1. Group pane follows the fight in group PvP.
+2. Comm talker names: the owner prefers Cockpit's short names ("too
+   spammy otherwise"). Fixed: cut at the first `" the "` as in Cockpit,
+   without the dangling `of`. Full channel names and enemy stars were
+   not objected to and stay.
+3. `[SYSTEM]` lines stay both in the game output and in the UI pane.
+4. Live checks: the link survives 5+ minutes idle and `Link:` keeps
+   updating; the ESC menu opens by itself on disconnect. Both carried
+   checks are closed.

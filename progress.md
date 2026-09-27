@@ -36,6 +36,10 @@ Newest first.
 - **Next:** owner tests (guide in the stage file), then stage 5.
 - **Open issues:** live checks 1–2 still open; MSSP day base unchecked;
   Comm header over the drag grip when borderless.
+- **Owner test 1:** group pane follows the fight; carried live checks
+  (idle timeout, ESC auto-open) pass; `[SYSTEM]` lines stay in both
+  places. Comm talker names shortened as in Cockpit (fixed). Waiting
+  for the owner's verdict on the stage.
 - **Commits:** e93638a…(this commit).
 
 ### 2026-09-27 — Stage 3 build

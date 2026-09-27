@@ -116,7 +116,9 @@ describe('cleanName', () => {
     expect(cleanName('kormock the orkish armourer')).toBe('Kormock');
     expect(cleanName('a dwarven sergeant')).toBe('A dwarven sergeant');
     expect(cleanName('the gate guard')).toBe('The gate guard');
-    expect(cleanName('Grumsh of the Burning Eye')).toBe('Grumsh of the Burning Eye');
+    expect(cleanName('Grumsh of the Burning Eye')).toBe('Grumsh');
+    expect(cleanName('Thrakghash of the Mordor Flame')).toBe('Thrakghash');
+    expect(cleanName('Gorbag Snaga the Orc')).toBe('Gorbag Snaga');
     expect(cleanName('you')).toBe('You');
     expect(cleanName('*Orcbane the Zaugurz Orc*')).toBe('*Orcbane*');
     expect(cleanName('*an Elf*')).toBe('*An Elf*');

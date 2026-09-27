@@ -263,11 +263,12 @@ const ARTICLE_RE = /^(a|an|the|some)\s/i;
 const capFirst = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
- * A talker or destination name for display: `you` → `You`; `" the
- * <descriptor>"` dropped after a one-word proper name (`Vit the innkeeper`
- * → `Vit`), kept for article names (`a dwarven sergeant`) and longer names
- * (`Thrakghash of the Mordor Flame`); an enemy's stars kept around the
- * short name (`*Throzghul the Orc*` → `*Throzghul*`); first character
+ * A talker or destination name for display: `you` → `You`; everything
+ * from the first `" the "` dropped, as in Cockpit (owner, stage 4), so
+ * `Vit the innkeeper` → `Vit`, plus a dangling `of` (`Thrakghash of the
+ * Mordor Flame` → `Thrakghash`, where Cockpit showed `Thrakghash of`);
+ * article names kept (`a dwarven sergeant`); an enemy's stars kept around
+ * the short name (`*Throzghul the Orc*` → `*Throzghul*`); first character
  * upper case.
  */
 export function cleanName(name: string): string {
@@ -277,7 +278,7 @@ export function cleanName(name: string): string {
   if (star) return '*' + cleanName(star[1]!) + '*';
   if (ARTICLE_RE.test(n)) return capFirst(n);
   const i = n.indexOf(' the ');
-  if (i > 0 && !n.slice(0, i).includes(' ')) return capFirst(n.slice(0, i));
+  if (i > 0) return capFirst(n.slice(0, i).replace(/\s+of$/i, ''));
   return capFirst(n);
 }
 

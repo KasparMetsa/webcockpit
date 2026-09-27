@@ -313,9 +313,10 @@ clickable and the pane is dragged by the gaps only.
 - Header widths: natural when the labels fit the budget. Cockpit's rule
   (even share ≥ longest label) truncated `Whispers`/`Questions` at 80
   columns where the full names fit; the regimes are otherwise as ADR 0098.
-- Talker cleanup: `" the …"` is dropped only after a one-word name
-  (`Thrakghash of the Mordor Flame` stays whole instead of becoming
-  `Thrakghash of`), and an enemy's stars survive (`*Throzghul the Orc*` →
+- Talker cleanup: everything from the first `" the "` is dropped, as in
+  Cockpit (owner feedback 2026-09-27: long names are too spammy), plus
+  a dangling `of` (`Thrakghash of the Mordor Flame` → `Thrakghash`,
+  Cockpit showed `Thrakghash of`). An enemy's stars survive (`*Throzghul the Orc*` →
   `*Throzghul*`, Cockpit gave `*Throzghul`). Action channels: a text that
   starts with `*Name…* ` is split there when the talker field differs
   (MUME sends `*Throzghul the Zaugurz Orc*` with text `*Throzghul the
