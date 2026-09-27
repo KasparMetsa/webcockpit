@@ -203,3 +203,124 @@ TypeScript, unit tested in Node.
   line (and the native text field) does with a key, for the editor's
   shadow warning. AltGr on Windows arrives as Ctrl+Alt: P2 should ignore
   keydowns with `getModifierState('AltGraph')` when matching macros.
+
+### P2 — script engine, display pipeline, app wiring
+
+- **Layout** (`src/script/engine/`): `text.ts` (splitting, arguments,
+  `%N`/`$var` expansion, escapes), `pattern.ts`, `expr.ts` (#if/#math),
+  `format.ts`, `color.ts` + `runs.ts` (colour codes → style runs),
+  `store.ts` (RuleStore), `timers.ts` (injectable `Scheduler`,
+  `FakeScheduler`), `engine.ts` (ScriptEngine). No DOM.
+- **Splitting.** A command list splits at `;` outside braces; newlines are
+  whitespace (a profile's top-level commands come one per document node).
+  A backslash protects the next character and stays in the text until the
+  text is used (sent, shown), so nested levels still see it; then
+  `\\ \; \{ \} \$ \% \&` lose the backslash and a line break inside a
+  command becomes one space. Parsed lists are cached by text.
+- **`%` rule (Inv §5.9, Cockpit ADR 0081).** `%0`–`%99` are replaced in a
+  rule body before it is split, as tt++ does. A run of n > 1 `%` before
+  digits loses one `%` and is not replaced (`%%1` → `%1`, one level
+  later), which is how an alias defines an action with captures. A `%`
+  not followed by a digit is never touched, so `#format` codes pass
+  through; a code with a width inside a body needs doubling (`%%5d`).
+  Missing arguments are ''.
+- **Variables.** `$name`, `${name}`; an unknown variable stays as written.
+  `&name` is `1` for a defined variable and stays as written otherwise
+  (the evaluator reads a leftover `&name` as 0). `$$name` → `$name`.
+  Expanded per command at run time in: game text, `#variable` name and
+  value, `#showme`, `#if` conditions, `#math`, `#format`, timer times,
+  client-command arguments, substitute text. Definition bodies are stored
+  raw. Patterns with `$var` are compiled at match time (cached by text).
+  User variables are looked up before system ones.
+- **Aliases.** Matched on the variable-expanded command. `_send` is
+  checked first and cannot be shadowed. Then the first alias by priority
+  (ties: definition order) among (a) plain names — the first word equals
+  the name (a name with spaces must be followed by a space or the end);
+  `%0` is the rest, `%1`… its words (a `{…}` group is one word); when the
+  body has no `%N`, the rest is appended (tt++ unused-argument append) —
+  and (b) pattern aliases, matched anchored at the start, arguments from
+  the captures, no append. An alias never re-enters itself: its own name
+  in its body goes to the game (`#alias {look} {look;exits}` works).
+  Nesting stops at 32.
+- **Patterns.** Explicit `%N` fills argument N; every other wildcard
+  (`%*`, `%d`, `{regex}` …) fills the argument after the highest used so
+  far (tt++'s numbering; in `{a|b} %1` both land in %1). `%N`/`%*`/`%+`
+  are lazy unless they end the pattern. `%+n..mX` = n to m of X, `%+n..X`
+  = n or more, `%+nX` = exactly n. `%i` makes the whole pattern
+  case-insensitive. Word characters include U+00C0 and up (`é`, `ẃ`).
+  Each pattern keeps its longest literal for an `indexOf` pre-check, which
+  is what keeps 500 rules at ~20 µs per line.
+- **#if.** The chain state belongs to the command list: `#if {…} {…};
+  #else {…}` works, and so does `#if {…} {…} #else {…}` without `;` (the
+  text after the branches continues the chain, as tt++ accepts). A quoted
+  or braced operand is a string; `==`/`!=` compare strings when either
+  side is one, with `*` in the right-hand side as a glob; `<`/`>` are
+  lexical for two strings. Unquoted non-numbers are strings. #math keeps
+  tt++ precision: as many decimals as the most precise literal (`7/2` =
+  3, `7.0/2` = 3.5).
+- **Actions** of both stores fan out in priority order, ties by
+  definition order (one counter across both stores). Redefining a key
+  replaces the rule and counts as a new definition. Lists are
+  copy-on-write: a rule defined while a line runs its actions applies from
+  the next line. `%0` is the matched text.
+- **Display copy.** Substitutes replace every match (an anchored pattern:
+  the first). Replacement text starts in the style of the replaced text
+  and its colour codes apply to the end of the replacement only — unlike
+  tt++, where an ANSI code leaks into the rest of the line. A substituted
+  copy has no XML tags. Gags test the substituted text. Highlights set
+  only the fields they name (fg, bg, underline, blink, reverse, bold) on
+  every match. Unknown code-shaped tags (`<900>`) vanish; other `<text>`
+  stays.
+- **Bus (small additions to the contract).** `text.display` carries
+  `local: true` for `#showme` lines: the output pane puts them above a
+  pending partial instead of treating them as the line that completes it.
+  Partials go out as a separate event, `text.displayPartial` (same
+  payload). A gagged line emits an empty `text.displayPartial`, so the
+  partial it completes is cleared.
+- **Guards.** Alias nesting 32; `#showme` → action → `#showme` nesting 8
+  (then actions are skipped, one message); 10 000 commands per entry
+  (typed line, received line, key, timer, event); `#N` repeats at most
+  100; tickers at least 50 ms apart.
+- **Hints.** Inert and unsupported commands give their `CommandEntry.hint`
+  once per command per profile load, and every time when typed. Unknown
+  words: `Unknown command: #x`; one-letter ambiguous words:
+  `Ambiguous command: #s`.
+- **#event** list: `SESSION CONNECTED` (%0 `mume`), `SESSION
+  DISCONNECTED` (%0 `mume`, %1 the reason), `IAC SB GMCP <Package>` (%0
+  the package as sent, %1 the JSON text; case-insensitive) and `IAC SB
+  GMCP` (every message). Replays fire them too.
+- **Macros.** Keys are normalised with `normalizeKey` and must pass
+  `keyBindability` when defined (a profile cannot bind `a` or Ctrl+W).
+  A user macro wins over a system one.
+- **#class** supports open, close and kill (`clear` = kill); kill removes
+  the class's rules, variables and timers. **#delay** takes `{seconds}
+  {commands}` or `{name} {commands} {seconds}`. The rule commands,
+  `#variable`, `#ticker` and `#delay` list what they hold when given no
+  arguments (or only a pattern).
+- **loadProfile.** Refuses unbalanced braces outright (`reason` names the
+  line). Otherwise runs each non-blank document node in order into a new
+  store; commands that would go to the game and client commands are not
+  run while loading, and a top-level line that is not a command is
+  ignored; each is a `line N: …` warning. The old store's timers stop at
+  the swap. Runtime-created rules and variables vanish at the next load.
+- **Echo.** The engine sends each command through `Session.sendCommand`,
+  which emits `cmd.sent`, so every command is echoed as sent — an alias
+  shows its expansion, not the typed word; `_send x` looks like typing
+  `x`.
+- **App.** `App.script` is the engine; `App.applyProfile(text)` as agreed
+  (atomic; `{ ok: false, reason }` leaves the running profile). The
+  selected profile loads at start-up (quietly) and at every live
+  `connecting` (`Profile X loaded.`, or up to 10 warnings). While
+  disconnected, the first command a typed line or a macro would send
+  reconnects (offline: says how to connect) and is dropped; commands from
+  rules and timers are dropped silently. Password mode never reaches the
+  engine. `onMacroKey` in `InputPane` runs before the pane's own keys.
+- **Write-back** (`src/app/writeback.ts`): user-store variable sets at
+  run time are queued for the loaded profile, debounced 1 s, flushed on
+  `pagehide` and disconnect. A flush reads the latest stored text, applies
+  `setVariable` for each queued name (only top-level `#variable` entries
+  change) and saves when the text changed. The target is set only after a
+  successful load from the store (or by `applyProfile` when none was).
+- **Uncertain tt++ details decided here** (revisit if the owner's habits
+  disagree): the GMCP event arguments, `&var` = 1, `%+nX` = exactly n, and
+  glob `*` only on the right-hand side of `==`.
