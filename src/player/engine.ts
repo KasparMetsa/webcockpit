@@ -21,6 +21,12 @@
 // ReplaySocket does, so a burst at 8× still paints every frame. At the end
 // the last run's socket ends and the engine pauses.
 //
+// Edits (stage 7, ADR 0019). A comment entry goes to `target.comment`, then
+// its hold passes at 1× wall rate whatever the speed (`advancePlay`,
+// `wallBetween`); seeks treat holds as playback time. A blank entry goes to
+// `target.blank`. A run whose first entry is older than the replay clock (a
+// spotlight reel) rebases the clock before it connects.
+//
 // Seek. Forward: fast-forward from `pos` to the target in 50 ms slices
 // (a task between slices, so input and the chrome stay alive) with the
 // target's painting off; painting resumes when it arrives. Backward: the
@@ -32,16 +38,20 @@ import { FrameBuilder } from '../net/replay-socket';
 import { ReplayClock } from './clock';
 import { PlayerSocket } from './socket';
 import {
+  ENTRY_BLANK,
+  ENTRY_COMMENT,
   ENTRY_GMCP,
   ENTRY_IN,
   ENTRY_OUT,
   ENTRY_SIZE,
   ENTRY_VIEW,
   type Timeline,
+  advancePlay,
   countAt,
   entryText,
   logUsAt,
   runAt,
+  wallBetween,
 } from './timeline';
 
 /** Playback speeds (keys `1`–`6`). */
@@ -68,6 +78,10 @@ export interface PlayerTarget {
   size(cols: number, rows: number): void;
   /** Painting on or off (off while fast-forwarding). */
   paint(on: boolean): void;
+  /** A comment: shows its wrapped `## ` lines (stage 7). */
+  comment?(text: string): void;
+  /** Blank rows before a spotlight window (stage 7). */
+  blank?(lines: number): void;
   dispose(): void;
 }
 
@@ -293,7 +307,7 @@ export class PlayerEngine {
   // ---------------------------------------------------------------- driver
 
   private livePos(): number {
-    const p = this.anchorPos + (this.wall.now() - this.anchorWall) * this.speedValue;
+    const p = advancePlay(this.timeline, this.anchorPos, this.wall.now() - this.anchorWall, this.speedValue);
     return Math.max(this.pos, Math.min(this.duration, p));
   }
 
@@ -352,7 +366,7 @@ export class PlayerEngine {
     }
     const nextAt = this.next < tl.n ? tl.play[this.next]! : this.duration;
     // At least 1 ms: a float-sized wait would wake at the same wall time.
-    const wait = Math.min(TICK_MS, Math.max(1, (nextAt - p) / this.speedValue));
+    const wait = Math.min(TICK_MS, Math.max(1, wallBetween(tl, p, nextAt, this.speedValue)));
     this.timer = this.wall.after(() => {
       this.timer = null;
       if (t === this.token) this.drive();
@@ -434,6 +448,16 @@ export class PlayerEngine {
       if (s) this.target.size(s.cols, s.rows);
       return;
     }
+    if (k === ENTRY_COMMENT) {
+      this.next = i + 1;
+      this.target.comment?.(entryText(tl, i));
+      return;
+    }
+    if (k === ENTRY_BLANK) {
+      this.next = i + 1;
+      this.target.blank?.(tl.blankLines);
+      return;
+    }
     const fb = this.fb;
     let j = i;
     while (j < limit) {
@@ -450,6 +474,8 @@ export class PlayerEngine {
 
   private openRun(r: number): void {
     this.sock?.end();
+    const t0 = this.timeline.ts[this.next]!;
+    if (t0 < this.clockRef.nowUs()) this.clockRef.rebase(t0);
     const sock = new PlayerSocket();
     this.sock = sock;
     this.sockRun = r;

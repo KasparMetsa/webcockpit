@@ -61,6 +61,8 @@ export type TargetCall =
   | { t: 'view'; json: string }
   | { t: 'size'; cols: number; rows: number }
   | { t: 'paint'; on: boolean }
+  | { t: 'comment'; text: string; clockUs: number }
+  | { t: 'blank'; lines: number }
   | { t: 'dispose' };
 
 /** A target that records what the engine does, per build. */
@@ -95,6 +97,8 @@ export class RecordingTarget {
       view: (json) => calls.push({ t: 'view', json }),
       size: (cols, rows) => calls.push({ t: 'size', cols, rows }),
       paint: (on) => calls.push({ t: 'paint', on }),
+      comment: (text) => calls.push({ t: 'comment', text, clockUs: clock.nowUs() }),
+      blank: (lines) => calls.push({ t: 'blank', lines }),
       dispose: () => calls.push({ t: 'dispose' }),
     };
   };

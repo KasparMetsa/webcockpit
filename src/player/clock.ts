@@ -72,6 +72,17 @@ export class ReplayClock implements Scheduler {
     this.us = us;
   }
 
+  /**
+   * Moves the clock to `us`, backwards too, shifting every pending timer by
+   * the same amount (a spotlight reel's next run is older than the last).
+   */
+  rebase(us: number): void {
+    const d = us - this.us;
+    if (d === 0) return;
+    for (const p of this.pending) p.at += d;
+    this.us = us;
+  }
+
   private runDue(limit: number): void {
     for (;;) {
       let best: Pending | null = null;
