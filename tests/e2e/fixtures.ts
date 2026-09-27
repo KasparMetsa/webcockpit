@@ -29,5 +29,10 @@ export function listFixtures(root = FIXTURES_ROOT): Fixture[] {
   return out.sort((a, b) => a.size - b.size);
 }
 
-export const smallestFixture = (): Fixture | undefined => listFixtures()[0];
+/**
+ * The smallest fixture of at least `minSize` bytes. The floor keeps tests
+ * that need a scrollable pane from picking a near-empty run log.
+ */
+export const smallestFixture = (minSize = 1500): Fixture | undefined =>
+  listFixtures().find((f) => f.size >= minSize);
 export const biggestFixture = (): Fixture | undefined => listFixtures().at(-1);

@@ -36,7 +36,8 @@ Newest first.
   check); Ctrl+W cannot be intercepted in a normal tab.
 - **Owner live test 1:** speed and echo OK, XML confirmed on, `#runlog`
   OK. Fixed after: `Core.Ping` every 10 s so `Link:` shows during play;
-  monotonic capture timestamps. Idle timeout still untested.
+  monotonic capture timestamps; `Link:` shows the 60 s minimum (MUME
+  answers on a ~250 ms pulse). Idle timeout still untested.
 - **Commits:** 1336f54…(this commit).
 
 ### 2026-09-27 — Intent and spec

@@ -154,6 +154,10 @@ login.
 4. Link: the owner did not find the readout. Cause: the ping only went
    out after 30 s without sending, so it showed `—` during play, and the
    status line is faint. Fixed: ping every 10 s (ADR 0007 amended).
+   Follow-up: the owner saw ~250 ms vs Cockpit's ~30 ms. Measured:
+   ICMP 31–37 ms, Core.Ping and TIMING-MARK 48–261 ms, spread over MUME's
+   ~250 ms game pulse. `Link:` now shows the minimum over 60 s
+   (research note §4).
 5. Idle timeout: not tested yet; a short session worked well.
 6. `#runlog` downloaded a file in Cockpit's format. Main-session review
    found non-monotonic timestamps around `change width` after
