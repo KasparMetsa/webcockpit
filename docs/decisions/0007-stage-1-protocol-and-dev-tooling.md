@@ -27,6 +27,11 @@ implementation.
   *Amended 2026-09-27:* originally the ping went out only after 30 s
   without outbound traffic, so `Link:` stayed `—` during active play
   (owner's first live test).
+  *Amended 2026-09-27 (2):* `Link:` shows the minimum RTT over the last
+  60 s (about six samples), because MUME answers on its ~250 ms game
+  pulse, so single samples spread over ~250 ms above the network RTT
+  (see notes/research/mume-websocket.md, "Measured 2026-09-27"). The raw
+  last sample is kept in `link.rtt.last`.
 - **Prompts:** a line ending in `IAC GA`, or wrapped in the XML `prompt`
   tag, is a prompt. Text after the last newline with no GA stays pending
   and is shown when more data or a GA arrives.

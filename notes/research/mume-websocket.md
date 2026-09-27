@@ -141,6 +141,24 @@ default). MMapper forces UTF-8 toward MUME (`MudTelnet` ctor:
   ours, but worth asking MUME if ever relevant.
 - Server does not send `IAC WILL EOR`; prompts end with `IAC GA`.
 
+### Measured 2026-09-27: round-trip times
+
+From the owner's machine, pre-login, 16 samples alternating between the
+two in-band methods:
+
+| Method | RTT |
+| --- | --- |
+| ICMP ping to mume.org (what Cockpit's `Link` shows) | 31–37 ms |
+| GMCP `Core.Ping` over the WebSocket | 82–249 ms |
+| telnet `IAC DO TIMING-MARK` over the WebSocket | 48–261 ms |
+
+Both in-band methods spread roughly uniformly over ~250 ms. This fits
+MUME processing input on game-loop pulses of ~250 ms: a request waits
+0–250 ms for the next pulse before it is answered. The minimum (~48 ms)
+approximates network plus WebSocket gateway. This is a hypothesis, not
+proven. Consequence: the `Link:` readout shows the minimum RTT over the
+last 60 s of `Core.Ping` samples, not the last sample (ADR 0007).
+
 ## 5. XML mode and other options
 
 - **XML mode:** enabled over GMCP, not the legacy `~$#EX` in-band handshake.
