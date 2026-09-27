@@ -1,0 +1,189 @@
+// The HTML replay file (ADR 0019 "Replay payload and the HTML replay"):
+// `buildReplayHtml(payload)` fetches the replay bundle (`replay/replay.js`)
+// and the fonts from the app's own origin and writes one self-contained
+// HTML file:
+//
+//   <!doctype html>
+//   <!-- GPL notice (ADR 0001) -->
+//   <html><head> title, <style> base + @font-face with data: URIs </head>
+//   <body> <div id="app"> <script type="application/json" id="wc-replay-payload">
+//          <script> the bundle (an IIFE with its CSS) </script> </body></html>
+//
+// Fonts: the exporter's family plus any family a recorded VIEW switches to
+// (regular and bold woff2). URLs are relative to the page, so a subpath
+// deploy works. The bundle is only ever read here as text: the app never
+// runs it, and this module does not import the replay runtime.
+
+import { FONTS } from '../theme/fonts';
+import type { FontId } from '../settings/types';
+import { captureEntries } from '../share/capture';
+import type { ReplayPayload } from '../share/payload';
+import { PAYLOAD_ELEMENT_ID, encodePayload, toBase64 } from './codec';
+import { replayTitle } from './title';
+
+declare const __WC_VERSION__: string | undefined;
+
+/** Path of the replay bundle, relative to the app page (vite.config.ts `replayBundle`). */
+export const REPLAY_BUNDLE_PATH = 'replay/replay.js';
+
+export interface FontFile {
+  family: string;
+  weight: 'normal' | 'bold';
+  /** The woff2 bytes. */
+  data: Uint8Array;
+}
+
+export interface ReplayHtmlParts {
+  /** The page title (plain text). */
+  title: string;
+  /** `encodePayload` text. */
+  payload: string;
+  /** The bundle's JavaScript. */
+  script: string;
+  fonts: FontFile[];
+  /** First-paint colours (the exporter's theme). */
+  bg: string;
+  fg: string;
+  version?: string;
+}
+
+/** Escapes text for HTML content and attribute values. */
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/**
+ * Makes JavaScript safe inside an inline `<script>`: every `</script` and
+ * `<!--` gets its `<` as `\x3C`, which means the same inside strings,
+ * template literals and regular expressions (minified code has neither
+ * outside them).
+ */
+export function escapeScript(js: string): string {
+  return js.replace(/<(\/script|!--)/gi, '\\x3C$1');
+}
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** The GPL notice at the top of the file (ADR 0001). No `--` inside. */
+function notice(version: string): string {
+  return [
+    '<!--',
+    `  WebCockpit log replay (WebCockpit ${version}).`,
+    '',
+    '  This file contains a copy of the WebCockpit log player. It is free',
+    '  software: you can redistribute it and/or modify it under the terms of',
+    '  the GNU General Public License as published by the Free Software',
+    '  Foundation, either version 3 of the License, or (at your option) any',
+    '  later version. It is distributed WITHOUT ANY WARRANTY; see',
+    '  https://www.gnu.org/licenses/gpl-3.0.html for details.',
+    '',
+    '  Embedded fonts: DejaVu Sans Mono (Bitstream Vera licence, public',
+    '  domain changes) and JetBrains Mono (SIL Open Font License 1.1), as used.',
+    '-->',
+  ].join('\n');
+}
+
+/** The whole HTML file (pure). */
+export function assembleReplayHtml(p: ReplayHtmlParts): string {
+  const faces = p.fonts
+    .map(
+      (f) =>
+        `@font-face{font-family:"${f.family}";src:url(data:font/woff2;base64,${toBase64(f.data)}) format("woff2");` +
+        `font-weight:${f.weight};font-style:normal;font-display:block}`,
+    )
+    .join('\n');
+  const bg = HEX.test(p.bg) ? p.bg : '#000000';
+  const fg = HEX.test(p.fg) ? p.fg : '#c0c0c0';
+  return [
+    '<!doctype html>',
+    notice(p.version ?? '0.0.0'),
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<meta name="generator" content="WebCockpit">',
+    `<title>${escapeHtml(p.title)}</title>`,
+    '<style>',
+    `html,body{margin:0;height:100%;background:var(--term-bg,${bg});color:var(--term-fg,${fg})}`,
+    '#app{height:100%}',
+    faces,
+    '</style>',
+    '</head>',
+    '<body>',
+    '<div id="app"></div>',
+    `<script type="application/json" id="${PAYLOAD_ELEMENT_ID}">${p.payload}</script>`,
+    `<script>${escapeScript(p.script)}</script>`,
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n');
+}
+
+/**
+ * The font families the replay needs: the exporter's, then every other
+ * family a recorded VIEW sets (the player overlays VIEW appearance).
+ */
+export function replayFonts(p: ReplayPayload): FontId[] {
+  const out = new Set<FontId>([p.settings.appearance.font]);
+  for (const r of p.runs) {
+    for (const e of captureEntries(r.text)) {
+      if (e.kind !== 'view') continue;
+      try {
+        const f = (JSON.parse(e.body) as { appearance?: { font?: unknown } } | null)?.appearance?.font;
+        if (typeof f === 'string' && Object.hasOwn(FONTS, f)) out.add(f as FontId);
+      } catch {
+        /* a damaged VIEW is skipped by the player too */
+      }
+    }
+  }
+  return [...out];
+}
+
+export interface BuildReplayOptions {
+  /** Fetch (tests); default the global one. */
+  fetch?: (url: string) => Promise<Response>;
+  /** Base URL the bundle and font paths resolve against; default the document's. */
+  base?: string;
+}
+
+async function get(f: (url: string) => Promise<Response>, url: string): Promise<Response> {
+  const res = await f(url);
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+  return res;
+}
+
+/** Builds the self-contained HTML replay of `payload` as a Blob (`text/html`). */
+export async function buildReplayHtml(payload: ReplayPayload, opts: BuildReplayOptions = {}): Promise<Blob> {
+  const f = opts.fetch ?? ((url: string) => fetch(url));
+  const base = opts.base ?? globalThis.document?.baseURI ?? '';
+  const url = (rel: string): string => (base ? new URL(rel, base).href : rel);
+  const files = replayFonts(payload).flatMap((id) => {
+    const info = FONTS[id];
+    return [
+      { family: info.family, weight: 'normal' as const, file: info.regular },
+      { family: info.family, weight: 'bold' as const, file: info.bold },
+    ];
+  });
+  const [script, fonts, encoded] = await Promise.all([
+    get(f, url(REPLAY_BUNDLE_PATH)).then((r) => r.text()),
+    Promise.all(
+      files.map(async (x) => ({
+        family: x.family,
+        weight: x.weight,
+        data: new Uint8Array(await (await get(f, url(`fonts/${x.file}`))).arrayBuffer()),
+      })),
+    ),
+    encodePayload(payload),
+  ]);
+  const a = payload.settings.appearance;
+  const html = assembleReplayHtml({
+    title: replayTitle(payload),
+    payload: encoded,
+    script,
+    fonts,
+    bg: a.bg,
+    fg: a.fg,
+    version: typeof __WC_VERSION__ === 'string' ? __WC_VERSION__ : '0.0.0-dev',
+  });
+  return new Blob([html], { type: 'text/html;charset=utf-8' });
+}

@@ -1,0 +1,9 @@
+/* The HTML replay page (src/replay/page.ts). The file's own <style> sets
+ * html/body and the @font-face rules (src/replay/export.ts); the player's
+ * styles come with its modules. */
+
+.wc-replay-error {
+  padding: 1em;
+  font-family: var(--font-mono, monospace);
+  color: var(--term-fg, #c0c0c0);
+}
