@@ -49,6 +49,10 @@ export const UI_TAG_COLORS: Readonly<Record<string, string>> = {
   BLIND: '#00cccc',
   CHARM: '#b388ff',
   HERB: '#9ccc65',
+  // Run lines (ADR 0018): XP green, PvP red, loss red.
+  KILL: '#6fe060',
+  PKILL: '#ff5f5f',
+  DEATH: '#e03c3c',
   AFFECT: '#26c6da',
 };
 
