@@ -5,6 +5,10 @@
 //   bus → OutputPane, AppStatus, Recorder
 //   InputPane → built-in commands | Session.sendCommand
 //
+// The screen is the Cockpit view (src/layout/cockpit.ts): the output pane
+// sits in its game slot, the input pane in its input slot, and the side
+// panes in the docks, laid out from the settings (ADR 0010, ADR 0012).
+//
 // `app.status` is the read-only status observable (connection, character,
 // Link, capture, XML) for the ESC menu header. Its text form is also kept
 // in `data-status` on the app element for the browser tests.
@@ -28,7 +32,9 @@ import { ReplaySocket } from '../net/replay-socket';
 import { REASON_USER_RECONNECT, Session } from '../net/session';
 import { LineAssembler } from '../text/assembler';
 import { InputPane } from '../ui/input-pane';
-import type { CellMetrics } from '../theme/cells';
+import { CellMetrics } from '../theme/cells';
+import { Cockpit } from '../layout/cockpit';
+import { SettingsStore } from '../settings';
 import { OutputPane } from '../ui/output-pane';
 import { AppStatus, type AppStatusView, formatStatus } from './status';
 
@@ -67,6 +73,11 @@ export interface AppOptions {
    * measures its own font.
    */
   cells?: CellMetrics;
+  /**
+   * The settings store (pane layout, toggles, colours). Default: an
+   * in-memory store with the default settings (unit tests).
+   */
+  settings?: SettingsStore;
 }
 
 export class App {
@@ -77,6 +88,8 @@ export class App {
   private readonly statusImpl: AppStatus;
   readonly assembler: LineAssembler;
   readonly session: Session;
+  /** Game pane, docks with the side panes, input line (src/layout/cockpit.ts). */
+  readonly cockpit: Cockpit;
   readonly output: OutputPane;
   readonly input: InputPane;
   readonly recorder: Recorder;
@@ -111,13 +124,19 @@ export class App {
       sink: this.assembler,
       ...(opts.socketFactory ? { socketFactory: opts.socketFactory } : {}),
     });
-    this.output = new OutputPane(bus, this.el, {
+    this.cockpit = new Cockpit({
+      root: this.el,
+      settings: opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null }),
+      cells: cells ?? new CellMetrics({ doc }),
+      onFocusInput: () => this.input.focus(),
+    });
+    this.output = new OutputPane(bus, this.cockpit.gameEl, {
       onResize: (cols, rows) => this.session.setWindowSize(cols, rows),
       onFocusInput: () => this.input.focus(),
       ...(opts.requestFrame ? { requestFrame: opts.requestFrame } : {}),
       ...(cells ? { cellSize: () => cells.get() } : {}),
     });
-    this.input = new InputPane(bus, this.el, {
+    this.input = new InputPane(bus, this.cockpit.inputEl, {
       sender: this.session,
       output: this.output,
       onCommand: (text) => this.onCommand(text),

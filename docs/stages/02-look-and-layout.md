@@ -79,9 +79,11 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
       cell metrics, colour toolkit, custom caret, `?safe`, remove status
       line. Unit tests. (ADR 0011; APIs: `src/settings`, `src/theme/*`,
       `src/layout/types.ts`, `app.status`.)
-- [ ] B. Layout: docking engine (model + allocation, pure and tested),
+- [x] B. Layout: docking engine (model + allocation, pure and tested),
       pane frame, pane shells, drag/resize/toggle, narrow collapse, size
-      gate. Unit + e2e tests.
+      gate. Unit + e2e tests. (ADR 0012; APIs: `src/layout/allocate.ts`,
+      `src/layout/model.ts`, `src/layout/cockpit.ts`, `src/panes/*`,
+      `app.cockpit`.)
 - [ ] C. Chrome: TUI kit (Preact), banner, start page, profiles store and
       frame, Options (Panes grid, Appearance), About, ESC menu, app flow
       start page ↔ cockpit. Unit + e2e tests.
