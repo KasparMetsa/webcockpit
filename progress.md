@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **6 — Runs** (owner testing).
+Current stage: **7 — Sharing** (not started).
 
 ## Stages
 
@@ -11,8 +11,8 @@ Current stage: **6 — Runs** (owner testing).
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
-| 6 | Runs | Owner testing | `docs/stages/06-runs.md` |
-| 7 | Sharing | — | — |
+| 6 | Runs | Done | `docs/stages/06-runs.md` |
+| 7 | Sharing | Next | — |
 | 8 | Hardening → v1 | — | — |
 | 9 | Map (after v1) | — | — |
 
@@ -33,6 +33,15 @@ Newest first.
 - **Next:** owner retest of the player, then stage 7.
 - **Open issues:** as before (Chromium burst frame margin, post-seek
   paint).
+- **Owner test 2:** approved ("looks good"). Stage 6 closed. Next
+  session: write `docs/stages/07-…md` from spec §5 (export editor, HTML
+  replay, Spotlights, Credits). The HTML replay reuses the player core
+  (`src/player/{timeline,clock,socket,engine}.ts`, ADR 0018 P2 notes);
+  Spotlights/Credits read `RunLibrary` events (`logUs` on deaths).
+  Carried open issues: Chromium burst max frame ~49 ms (stage 8 perf
+  pass); the player's output needs ~1 s to paint 20 000 rows after a
+  long seek (owner did not mind); the player's header and control box
+  float over the text by design (Cockpit).
 - **Commits:** fad5cc4…(this commit).
 
 ### 2026-09-27 — Stage 6 build

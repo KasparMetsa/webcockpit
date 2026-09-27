@@ -1,6 +1,6 @@
 # Stage 6 — Runs
 
-> Status: Owner testing.
+> Status: Done 2026-09-28.
 > Source: spec §5 row 6, §2.8, §1.4, §2.5, §2.6. Inv §7.1–7.5, §7.8,
 > §4.6 (Exit + rating), §8.3 (mob_death, pc_death, char_death rows).
 > ADR 0008, 0016, 0017, 0018.
@@ -78,7 +78,7 @@ owner may want to change after testing are listed in the test guide.
       History, Statistics, player playing and paused).
 - [x] Test guide ready.
 - [x] Owner test 1 (2026-09-28): three player fixes, see Owner feedback.
-- [ ] Owner test 2.
+- [x] Owner test 2 (2026-09-28): approved ("looks good"). Stage closed.
 
 ## Live checks for the owner
 
@@ -163,3 +163,6 @@ anything that stutters in the player.
 Retest: open a real session from History (text at once), check the
 layout at your usual window size, and read the header hints.
 
+### Test 2 (2026-09-28)
+
+Approved: "Ser bra ut" (looks good). Stage 6 closed.
