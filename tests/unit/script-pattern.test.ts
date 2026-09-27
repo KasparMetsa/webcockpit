@@ -87,3 +87,32 @@ describe('tt++ patterns', () => {
     expect(compilePattern('^%1$').literal).toBe('');
   });
 });
+
+describe('match pre-checks (whole, lead, tail)', () => {
+  // The fast paths must give exactly what the regex gives.
+  const viaRegex = (p: string, text: string) => {
+    const c = compilePattern(p);
+    const m = c.re.exec(text);
+    if (!m) return null;
+    const args: string[] = new Array<string>(c.maxArg + 1).fill('');
+    args[0] = m[0];
+    for (let g = 1; g < m.length; g++) if (c.groupArg[g]) args[c.groupArg[g]!] = m[g] ?? '';
+    return { args, index: m.index, end: m.index + m[0].length };
+  };
+  const patterns = ['%*', '%0', '%1', '%3', '^Wimpy set to: %1$', '^Wimpy removed.$', '^%1 of the Third Age.$',
+    '^a%1b%2c$', 'abc', '^abc', 'abc$', '^{a|b}c$', '^%iAbc$', '^\\%x%1', '^%d%1$'];
+  const texts = ['', 'abc', 'xabc', 'abcx', 'aXbYc', 'ABC', 'bc', 'Wimpy set to: 40', 'Wimpy removed.',
+    'Wimpy removed. ', 'Afteryule of the Third Age.', '%xyz', '12 z', 'two\nlines', 'cr\rhere', 'ls sep'];
+  it('agree with the plain regex on every pattern and text', () => {
+    for (const p of patterns) for (const t of texts) expect(matchPattern(compilePattern(p), t), `${p} on ${JSON.stringify(t)}`).toEqual(viaRegex(p, t));
+  });
+  it('marks lone wildcards whole and anchored literals as lead / tail', () => {
+    expect(compilePattern('%*').whole).toBe(true);
+    expect(compilePattern('%!*').whole).toBe(false);
+    expect(compilePattern('^%*').whole).toBe(false);
+    expect(compilePattern('^Wimpy set to: %1$')).toMatchObject({ lead: 'Wimpy set to: ', tail: '' });
+    expect(compilePattern('^%1 of the Third Age.$')).toMatchObject({ lead: '', tail: ' of the Third Age.' });
+    expect(compilePattern('abc')).toMatchObject({ lead: '', tail: '' });
+    expect(compilePattern('^%iAbc$')).toMatchObject({ lead: '', tail: '' });
+  });
+});

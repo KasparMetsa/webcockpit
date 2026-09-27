@@ -36,8 +36,21 @@ export interface CompiledPattern {
    * or '' when there is none or the pattern is case-insensitive.
    */
   readonly literal: string;
+  /**
+   * With `^`: the literal text the pattern starts with (a `startsWith`
+   * pre-check), else ''. Case-sensitive patterns only.
+   */
+  readonly lead: string;
+  /** With `$`: the literal text the pattern ends with (`endsWith`), else ''. */
+  readonly tail: string;
   /** The pattern is plain text (no wildcards, anchors or regex). */
   readonly plain: boolean;
+  /**
+   * The pattern is one unanchored wildcard (`%*`, `%0`–`%99`): it matches
+   * every line whole, so `matchPattern` skips the regex (catch-all system
+   * actions run on every line of a burst).
+   */
+  readonly whole: boolean;
 }
 
 export class PatternError extends Error {
@@ -126,7 +139,9 @@ function compileUncached(pattern: string): CompiledPattern {
   let plain = true;
   let lit = '';
   let bestLit = '';
+  let firstLit: string | null = null;
   const endLit = (): void => {
+    if (firstLit === null) firstLit = lit;
     if (lit.length > bestLit.length) bestLit = lit;
     lit = '';
   };
@@ -261,6 +276,7 @@ function compileUncached(pattern: string): CompiledPattern {
     lit += '%';
     i++;
   }
+  const lastLit = lit;
   endLit();
   if (anchored || endAnchor) plain = false;
   const full = (anchored ? '^' : '') + src + (endAnchor ? '$' : '');
@@ -278,6 +294,9 @@ function compileUncached(pattern: string): CompiledPattern {
     anchored,
     literal: icase ? '' : bestLit,
     plain: plain && !icase,
+    lead: anchored && !icase ? firstLit! : '',
+    tail: endAnchor && !icase ? lastLit : '',
+    whole: full === '(.*)' && !icase,
   };
 }
 
@@ -300,13 +319,32 @@ function validate(inner: string, pattern: string): void {
   }
 }
 
+/** What `.` does not match (the `whole` fast path falls back to the regex). */
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+
 /**
  * Matches `text` against a compiled pattern. Returns the arguments
  * (`args[0]` = the whole match) or null. `from`: search start (for
  * repeated matches); `sticky` requires the match to start at `from`.
  */
 export function matchPattern(c: CompiledPattern, text: string): { args: string[]; index: number; end: number } | null {
-  if (c.literal && text.indexOf(c.literal) < 0) return null;
+  if (c.whole && !LINE_BREAK.test(text)) {
+    // `(.*)` on a text without line terminators: the whole text, group 1.
+    const a = c.groupArg[1] ?? 0;
+    let args: string[];
+    if (c.maxArg === 0) args = [text];
+    else if (c.maxArg === 1 && a === 1) args = [text, text];
+    else {
+      args = new Array<string>(c.maxArg + 1).fill('');
+      args[0] = text;
+      if (a) args[a] = text;
+    }
+    return { args, index: 0, end: text.length };
+  }
+  // Necessary conditions first: most rules fail on most lines.
+  if (c.lead && !text.startsWith(c.lead)) return null;
+  if (c.tail && !text.endsWith(c.tail)) return null;
+  if (c.literal && c.literal !== c.lead && c.literal !== c.tail && text.indexOf(c.literal) < 0) return null;
   const m = c.re.exec(text);
   if (!m) return null;
   return { args: argsFrom(c, m), index: m.index, end: m.index + m[0].length };
