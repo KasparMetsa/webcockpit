@@ -13,9 +13,9 @@
 // VIEW records replace their parts as they pass (src/player/fit.ts), so
 // after a seek the settings are those of the latest VIEW before it. The
 // stage is SIZE cols × rows at the largest font size that fits the window
-// (runs without SIZE fill the window at the settings' size). The App's
-// output and side panes paint through a gate the engine closes while it
-// fast-forwards.
+// left of the strip (runs without SIZE fill the window at the settings'
+// size). The App's output and side panes paint through a gate the engine
+// closes while it fast-forwards.
 
 import type { RunLibrary } from '../runs/library';
 import type { RunEvent } from '../runs/events';
@@ -25,7 +25,7 @@ import { applyTheme } from '../theme/apply';
 import { CellMetrics } from '../theme/cells';
 import { PlayerEngine, type PlayerTarget, type Wall } from '../player/engine';
 import { fitFontSize, overlayView, parseView } from '../player/fit';
-import { markersOf } from '../player/strip';
+import { STRIP_COLS, markersOf } from '../player/strip';
 import { type ChainRun, buildTimeline, playAtLogUs } from '../player/timeline';
 import { PlayerView } from '../player/view';
 import type { ReplayClock } from '../player/clock';
@@ -233,7 +233,8 @@ export class PlayerHost {
     const size = this.size;
     const W = this.el.clientWidth;
     const H = this.el.clientHeight;
-    if (size && W > 0 && H > 0) a = { ...a, size: fitFontSize(a, size.cols, size.rows, W, H) };
+    // The strip's columns are kept free, so it never covers a pane.
+    if (size && W > 0 && H > 0) a = { ...a, size: fitFontSize(a, size.cols + STRIP_COLS, size.rows, W, H) };
     const key = JSON.stringify(a);
     if (key !== this.fitKey) {
       this.fitKey = key;
@@ -258,7 +259,7 @@ export class PlayerHost {
     const h = size.rows * c.h;
     st.width = `${w}px`;
     st.height = `${h}px`;
-    st.left = `${Math.max(0, Math.floor((this.el.clientWidth - w) / 2))}px`;
+    st.left = `${Math.max(0, Math.floor((this.el.clientWidth - STRIP_COLS * c.w - w) / 2))}px`;
     st.top = `${Math.max(0, Math.floor((this.el.clientHeight - h) / 2))}px`;
   }
 }

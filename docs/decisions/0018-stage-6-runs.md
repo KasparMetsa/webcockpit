@@ -493,3 +493,159 @@ the end of each slice, the gains in a trailing window of one slice or
 start counts as no gain. A kill early in a run now reads as at most
 6× its XP per hour and fades after 10 min. This departs from Inv §7.3's
 per-slice rate on purpose.
+
+### P2 — log player (2026-09-27)
+
+**Files.** New: `src/player/timeline.ts` (chain → timed entries, gap
+collapse, time mappings), `clock.ts` (`ReplayClock`), `socket.ts`
+(`PlayerSocket`), `engine.ts` (`PlayerEngine`, `SPEEDS`, `Wall`,
+`parseSize`), `strip.ts` (strip/marker/clock maths, `markersOf`),
+`fit.ts` (`fitFontSize`, `parseView`, `overlayView`), `view.ts` +
+`player.css` (in-app chrome), `src/app/player-host.ts` (`PlayerHost`:
+the App target, recorded layout, paint gate). Changed: `src/app/app.ts`
+(`player` and `clockUs` options, `replayOn(socket, label)`, `dispose()`),
+`src/net/session.ts` (`clockUs`, `dispose()`), `src/net/replay-socket.ts`
+(`FrameBuilder`, shared with `logToFrames`), `src/core/bus.ts` (`clear`,
+`total`), `src/ui/output-pane.ts` (replayed echo, `stampRows`),
+`src/app/shell.ts` (`openPlayer`, `openPlayerChain`, `playerHost`),
+`src/main.ts` (`?player=`, `__wc.openPlayer`, `__wc.openPlayerLogs`).
+Tests: `tests/unit/player-{timeline,engine,app}.test.ts`,
+`player-helpers.ts`, `tests/e2e/player.spec.ts`.
+
+**Architecture.**
+
+```
+RunLibrary.chainLog + events ─► buildTimeline ─► PlayerEngine ──► PlayerTarget
+                                  (pure)          (play/pause/     (PlayerHost: a player App
+                                                   seek/speed,      per build, on the engine's
+                                                   ReplayClock)     ReplayClock; VIEW/SIZE → layout)
+                                                        ▲
+                                     PlayerView (chrome) ┘ drives it, reads position
+```
+
+- *Timeline:* every capture line is an entry (IN, OUT, GMCP, VIEW, SIZE)
+  in typed arrays (`ts` µs, `play` ms, run, kind, body offsets). A gap
+  > 10 s (inside a run or between runs) takes 0 playback time; log time
+  keeps it. `countAt`, `logUsAt`, `playAtLogUs`, `runAt` are binary
+  searches.
+- *Clock:* `ReplayClock` is the player App's `now`, `clockUs` (Session
+  frame and `cmd.sent` timestamps, so `Line.ts` and `data-ts` are log
+  time) and `Scheduler` (#ticker, timers hub tick/save, the kill fold).
+  The engine moves it to each entry's log time before delivering it, and
+  to `logUsAt(position)` between entries, so timers fire at their log
+  time relative to the lines at any speed and through a fast-forward.
+  Over a jump > 60 s periodic timers are only ticked through the last 60 s.
+- *Delivery:* IN/GMCP entries < 1 ms apart go as one telnet frame
+  (`FrameBuilder`: prompts get IAC GA, GMCP records IAC SB … SE with the
+  IAC WILL GMCP announce once per connection); OUT entries as
+  `PlayerSocket.sent` (→ `cmd.sent { replay: true }`); VIEW / SIZE to the
+  target. A run's first entry ends the previous run's socket (`replay
+  finished` → `disconnected`) and connects a new one; the chain's end ends
+  the last and pauses.
+- *Play:* `p = anchorPos + (wall − anchorWall) × speed`; the driver sleeps
+  until the next entry (1–250 ms), slices of 8 ms continue after the next
+  frame (as ReplaySocket). Speed changes re-anchor.
+- *Seek:* forward = fast-forward in 50 ms task slices with the target's
+  painting off (the App's output and pane `requestFrame` go through a
+  gate that queues while closed); backward = dispose the App, new clock,
+  new App, fast-forward from 0. A seek during a seek retargets it (or
+  rebuilds when it goes back). No checkpoints: not needed (below).
+- *Player App* (`App({ player: true })`): no capture (the recorder gets a
+  store that never opens and no status lines), no storage (clock,
+  pane database, `localStorage`/`sessionStorage` for the UI ring), no
+  replay `[SYSTEM]` lines, rows stamped with `data-ts`, no profile.
+  `App.dispose()` detaches the session silently and disposes the engine,
+  deriver, game state, recorder, status, clock strip, panes, cockpit and
+  input, removes its window/document listeners and DOM and clears the
+  bus; unit tests check DOM, bus handlers, clock timers and listener
+  balance over repeated builds.
+- *Recorded layout:* each build gets an in-memory `SettingsStore` with the
+  viewer's settings; a VIEW record replaces its parts whole
+  (`overlayView`). After a backward seek the VIEWs are replayed, so the
+  settings are those of the latest VIEW before the playhead. The theme
+  and cell custom properties are set on `.wc-player` (`applyTheme(s, el)`,
+  `CellMetrics({ root: el })`), so the viewer's page is untouched. With a
+  SIZE the stage is `cols × rows` cells at the largest font size where
+  `cols + 2` (the strip) × `rows` fit the window, centred left of the
+  strip; without one it fills the window at the settings' size. The input
+  slot keeps its row but is hidden.
+- *Chrome* (Inv §7.5): header (80 cols centred left of the strip,
+  `<char> (L<lvl>) · Run X of Y · YYYY-MM-DD HH:MM`, `ESC Back`), 2-col
+  strip (`#9a9a9a` played / `#242424` remaining, gold `▀`/`▄` playhead at
+  `half = round(f × (rows×2 − 1))`), markers 5 cols left of it on the same
+  row mapping (`A D K L` + `►`, `#4d4d4d`, click seeks to the row's
+  earliest), control box 8 cols in / 1 row up (`◄◄ Rewind`, `► Play` /
+  `▌▌ Pause`, speed, `MM:SS / MM:SS`), auto-hide after 6 s in play. Keys
+  on a window capture listener that stops every key (the hidden input
+  panes never see them): Space, ↑/↓, PgUp/PgDn (±20), Home/End, `1`–`6`,
+  ESC. Pause cursor: `.wc-player-cursor` (`bg #303030`) on an output row,
+  parked on the last line on pause and after a seek lands in pause; the
+  wheel moves it ±1 in pause; a click on a line sets it; Space resumes
+  from its `data-ts` (a backward seek) unless it is still the last line.
+  Strip: press/drag previews the playhead with an `MM:SS` hint, the seek
+  happens on release.
+- *Shell:* `openPlayer(session)` loads the chain (the player chunk is a
+  dynamic import), hides the start page and shows `.wc-player`; ESC
+  disposes it and calls `start.show({ keep: true })`.
+
+**Seek numbers** (dev server, 1440 × 860, Cockpit log
+`Rasta/2026-09-18T18-11-42.log`: 4.73 MB, 107 941 entries, 5 h 27 min
+logged, 4 h 10 min of playback after gap collapse; no GMCP/VIEW/SIZE):
+
+| | Chromium | Firefox |
+|---|---|---|
+| fetch + parse + first build | 141 ms | 146 ms |
+| seek to the end: fast-forward | 364 ms | 377 ms |
+| … until the output has painted its 20 000 rows | 1.56 s | 0.77 s |
+| backward seek to the middle (rebuild): ff / painted | 158 ms / 571 ms | 171 ms / 534 ms |
+| forward seek by a quarter: ff / painted | 89 ms / 583 ms | 84 ms / 450 ms |
+
+The ≤ 2 s target holds without checkpoints. The fast-forward is cheap
+because nothing paints; most of the time after it is the output pane
+building the last 20 000 rows at 1 000 rows per frame (spec §1.3's frame
+budget), during which the text visibly catches up for a moment.
+
+**Bench** (`npm run bench`, after the merge with P1, with the echo of
+replayed commands): all §1.3 budgets PASS in the recorded run (see
+`bench/results/latest.md`: burst Chromium 1.61 s, longest frame 44.0
+ms; Firefox 1.46 s, 34.7 ms); over four runs Chromium 1.48–1.66 s and
+38–45 ms, Firefox 1.35–1.46 s and 31–35 ms. One earlier Chromium run had a
+single 62.7 ms frame; an A/B with the echo switched off gave 1.55–1.64 s
+and 42–45 ms, so the echo costs nothing measurable (it mostly appends to
+the prompt row) and the outlier was noise.
+
+**Reuse by the stage 7 HTML replay.** `timeline.ts`, `clock.ts`,
+`socket.ts`, `engine.ts`, `strip.ts` and `fit.ts` have no DOM and no
+dependency on the in-app chrome or the shell. The HTML replay embeds the
+chain (capture text per run) and the marker list, builds a timeline, and
+gives `PlayerEngine` its own `TargetFactory` (an App-like renderer in the
+exported page, or the same player App if the export bundles it) and its
+own chrome over `engine.play/pause/seek/setSpeed/position/subscribe`;
+`strip.ts` gives it the same strip, marker rows and clock. Only
+`view.ts`, `player.css` and `player-host.ts` are in-app.
+
+**Echo.** Replayed `cmd.sent` is echoed like a live send (after the
+prompt row, `wc-echo`), for the player, `#replay` and `?fixture=`; the
+two width commands sent on entering `playing` are skipped when replayed
+(live they are sent with `echo: false`). Closes the stage 5 open issue.
+
+**Deviations and choices.**
+- Markers use `pkill` → K as the ADR says; mob kills have no marker.
+- Space at the end restarts from the start (the HTML replay's rule).
+- Rewind keeps play or pause. A marker click keeps the mode.
+- Strip drag seeks on release (a live seek per pointer move would rebuild
+  on every backward move); the playhead and hint follow the pointer.
+- The UI pane keeps the replay wording at run boundaries (`Replay
+  started.` / `Replay finished.`), not the live `Connecting…` lines.
+- The player App has no keep-alive effect: its pings go to a socket that
+  drops them (as `#replay`).
+- Dev: `?player=<backup fixture>[&session=<id>]`, `__wc.openPlayer(id?)`,
+  `__wc.openPlayerLogs([rel…], character?)` (raw `.log` fixtures, not
+  stored; used for the numbers above).
+
+**Open issues.**
+- After a long seek the output catches up over ~0.5–1.2 s (20 000 rows
+  at 1 000 per frame). A shorter scrollback in the player, or building
+  only the last screenful first, would hide it if the owner minds.
+- A window too small for the recorded grid even at font size 6 clips the
+  grid (the player's too-small handling is the cockpit's own notice).
