@@ -174,3 +174,28 @@ describe('export editor items', () => {
     );
   });
 });
+
+describe('export editor on a 5 h chain', () => {
+  it('reads 100 000 lines and rebuilds the items and map quickly', () => {
+    const lines: string[] = [];
+    for (let i = 0; i < 100_000; i++) {
+      lines.push(i % 7 === 0 ? `${ts(i / 5)} > kill orc` : `${ts(i / 5)} \x1b[32mA line of game text number ${i}\x1b[0m`);
+    }
+    const text = chain(lines);
+    const t0 = performance.now();
+    const big = buildEditorLog(text);
+    let doc = defaultExportDoc('Rasta/1');
+    doc = excludeFrom(doc, T + 1000e6);
+    doc = addComment(doc, T + 500e6, 'hello');
+    const items = buildItems(big, doc.comments, 100);
+    mapMarks(items, big, doc, [], 40);
+    expect(big.ts.length).toBe(100_000);
+    expect(items.count).toBe(100_002);
+    expect(performance.now() - t0).toBeLessThan(2000);
+    // An edit's rebuild (items + map) alone.
+    const t1 = performance.now();
+    buildItems(big, addComment(doc, T + 600e6, 'two').comments, 100);
+    mapMarks(items, big, doc, [], 40);
+    expect(performance.now() - t1).toBeLessThan(300);
+  });
+});
