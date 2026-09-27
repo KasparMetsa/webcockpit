@@ -107,6 +107,7 @@ export class PlayerView {
   /** The cursor was moved since the pause (Space then resumes from it). */
   private cursorMoved = false;
   private wasPlaying: boolean;
+  private wasSeeking = false;
   private disposed = false;
 
   constructor(opts: PlayerViewOptions) {
@@ -202,7 +203,11 @@ export class PlayerView {
   // ------------------------------------------------------------- engine
 
   private onEngine(_c: 'state' | 'tick'): void {
-    const playing = this.o.engine.playing;
+    const eng = this.o.engine;
+    const playing = eng.playing;
+    const seeking = eng.seeking;
+    const seekDone = this.wasSeeking && !seeking;
+    this.wasSeeking = seeking;
     if (playing !== this.wasPlaying) {
       this.wasPlaying = playing;
       if (playing) {
@@ -211,11 +216,16 @@ export class PlayerView {
         this.touch();
       } else {
         this.show();
-        // After the output's own flush in the same frame.
-        this.win.requestAnimationFrame(() => {
-          if (!this.disposed && !this.o.engine.playing) this.cursorToEnd();
-        });
       }
+    }
+    // Paused (or a seek landed while paused): the cursor parks on the last
+    // line, after the output's own flush in the same frame.
+    if (!playing && !seeking && (seekDone || !this.cursor)) {
+      this.win.requestAnimationFrame(() => {
+        if (this.disposed || eng.playing || eng.seeking) return;
+        this.o.output()?.toTail();
+        this.cursorToEnd();
+      });
     }
     this.schedule();
   }

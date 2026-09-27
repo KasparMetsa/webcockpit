@@ -31,8 +31,8 @@
 // ChromeServices) loads the chain, hides the start page without touching
 // its frame stack and shows the player (src/app/player-host.ts, a chunk of
 // its own); its ESC closes it and shows the start page as it was
-// (`show({ keep: true })`). Only
-// from the start page, never over the cockpit.
+// (`show({ keep: true })`). Only from the start page, never over the
+// cockpit.
 
 import type { BenchProbe } from './bench-hook';
 import type { ChromeServices, EscMenuHandle, StartPageHandle } from '../chrome';
