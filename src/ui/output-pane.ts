@@ -30,9 +30,6 @@ export const MAX_ROWS_PER_FRAME = 1000;
 /** Default scrollback depth in rows (spec §1.3). */
 export const DEFAULT_SCROLLBACK = 20000;
 
-/** `cmd.sent` plus the `echo` flag builder A adds to the contract. */
-type CmdSent = BusEvents['cmd.sent'] & { echo?: boolean };
-
 const OP_LINE = 0;
 const OP_SYS = 1;
 const OP_ECHO = 2;
@@ -132,7 +129,7 @@ export class OutputPane {
       bus.on('text.line', (line) => this.onLine(line)),
       bus.on('text.partial', (line) => this.onPartial(line)),
       bus.on('sys.message', (m) => this.push(OP_SYS, null, m.text)),
-      bus.on('cmd.sent', (c) => this.onCmdSent(c as CmdSent)),
+      bus.on('cmd.sent', (c) => this.onCmdSent(c)),
     );
 
     this.scroller.addEventListener('scroll', this.onScroll, { passive: true });
@@ -175,7 +172,7 @@ export class OutputPane {
     this.schedule();
   }
 
-  private onCmdSent(c: CmdSent): void {
+  private onCmdSent(c: BusEvents['cmd.sent']): void {
     if (c.secret || c.echo === false || c.text === '') return;
     // An open partial (a prompt without GA, e.g. the login name prompt) gets
     // the echo; it moves onto the completed line when that arrives.
