@@ -4,9 +4,10 @@
 // there is no Apply and Back never discards.
 //
 //   Options hub:  Panes · Appearance · Back
-//   Panes hub:    General · Communication · Group · Back (Cockpit also
-//                 has Timers, stage 5)
+//   Panes hub:    General · Timers · Communication · Group · Back
+//                 (Cockpit's order)
 //   General:      pane × colour grid with a Border column, reset layout
+//   Timers:       options-timers.tsx
 //   Communication: comm-options.tsx
 //   Group:        options-group.tsx
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
@@ -37,6 +38,7 @@ import {
 import { useGrid, useServices, useSettings } from '../kit/hooks';
 import { CommOptionsFrame } from './comm-options';
 import { GroupOptionsFrame } from './options-group';
+import { TimersOptionsFrame } from './options-timers';
 import { centreLeft, cycle, stepValue } from '../kit/nav';
 import { useKeys, useNav } from '../kit/stack';
 import {
@@ -82,6 +84,7 @@ export function PanesHub(): VNode {
   const nav = useNav();
   const items: MenuItem[] = [
     { key: 'general', label: 'General', activate: () => nav.push(<PanesFrame />) },
+    { key: 'timers', label: 'Timers', activate: () => nav.push(<TimersOptionsFrame />) },
     { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
     { key: 'group', label: 'Group', activate: () => nav.push(<GroupOptionsFrame />) },
     { key: 'sp', spacer: true },
