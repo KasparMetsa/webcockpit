@@ -3,7 +3,7 @@
 //
 //   Profile: default  ·  Link: 38ms  ·  capture: recording     (C_HINT)
 //   banner (6 Hz, dropped when short)
-//   Continue (connected) · Reconnect · Profile (stage 3) · Options · Exit session
+//   Continue (connected) · Reconnect · Profile · Options · Exit session
 //   flash row
 //   ↑↓ Navigate · Enter Select · ESC Close
 
@@ -11,11 +11,12 @@ import type { VNode } from 'preact';
 import { type AppStatusState, type AppStatusView, formatLink, isLive } from '../../app/status';
 import { Banner } from '../banner';
 import { BANNER_H, bannerFits } from '../banner-data';
-import { useGrid, useSettings, useStatus } from '../kit/hooks';
+import { useGrid, useServices, useSettings, useStatus } from '../kit/hooks';
 import { cellLen, centreLeft } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
 import { Blank, Centered, FlashRow, Footer, type MenuItem, MenuRows, Page, indent, menuKey, useMenuCursor } from '../kit/widgets';
 import { OptionsHub } from './options';
+import { type ApplyResult, editProfile } from './profile-edit';
 
 export interface EscActions {
   status: AppStatusView;
@@ -25,6 +26,12 @@ export interface EscActions {
   reconnect: () => void;
   /** End the session and return to the start page. */
   exit: () => void;
+  /**
+   * The live profile apply (Inv §4.5), when the running app offers one.
+   * Null: Apply in the editor only saves; the profile loads on the next
+   * connect.
+   */
+  liveApply?: () => ((text: string) => ApplyResult) | null;
 }
 
 export interface EscMainProps extends EscActions {
@@ -54,12 +61,21 @@ export function EscMain(p: EscMainProps): VNode {
   const { cols, rows } = useGrid();
   const st = useStatus(p.status);
   const settings = useSettings();
+  const { profiles } = useServices();
   const connected = isLive(st);
 
   const items: MenuItem[] = [
     ...(connected ? [{ key: 'continue', label: 'Continue', activate: p.close }] : []),
     { key: 'reconnect', label: 'Reconnect', activate: p.reconnect },
-    { key: 'profile', label: 'Profile', dim: true, activate: () => nav.flash('Profile editing comes in stage 3.', 'fail') },
+    {
+      key: 'profile',
+      label: 'Profile',
+      activate: () =>
+        void editProfile(nav, profiles, settings.profile, {
+          isLive: () => isLive(p.status.get()),
+          apply: p.liveApply?.() ?? undefined,
+        }),
+    },
     { key: 'options', label: 'Options', activate: () => nav.push(<OptionsHub />) },
     { key: 'exit', label: 'Exit session', activate: () => nav.push(<ExitConfirm exit={p.exit} />) },
   ];

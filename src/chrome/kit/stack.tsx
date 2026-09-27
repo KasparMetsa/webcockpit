@@ -194,8 +194,13 @@ export function FrameStack(props: FrameStackProps): VNode {
       ref={hostRef}
       class="wc-stack"
       tabIndex={-1}
-      // The game input refocuses itself on document mouseup; not while the chrome is up.
-      onMouseUp={(e) => e.stopPropagation()}
+      // The game input refocuses itself on document mouseup; not while the
+      // chrome is up. Except inside `[data-wc-native-mouse]` (the profile
+      // editor's CodeMirror content), whose drag selection ends on a
+      // document mouseup; the game input ignores editable targets.
+      onMouseUp={(e) => {
+        if (!(e.target as Element | null)?.closest?.('[data-wc-native-mouse]')) e.stopPropagation();
+      }}
     >
       {stack.map((entry, i) => {
         const isTop = i === stack.length - 1;

@@ -203,3 +203,91 @@ TypeScript, unit tested in Node.
   line (and the native text field) does with a key, for the editor's
   shadow warning. AltGr on Windows arrives as Ctrl+Alt: P2 should ignore
   keydowns with `getModifierState('AltGraph')` when matching macros.
+
+### P3 — profile editor
+
+- **Host shape.** `src/editor/` exports `ProfileEditor` (a Preact frame)
+  and `openProfileEditor(nav, host)`, which pushes it on the chrome's frame
+  stack (ADR 0013), so the editor inherits the surface, grid, services,
+  focus trap and flash of whoever opened it: full screen on the start
+  page, inside the 80 % box in the ESC menu (1 blank row above the title
+  there, 2 on the start page, Inv §5.1). The host is
+  `{ name, text, isLive(), save(text) → Promise, apply?(text) → ApplyResult | Promise }`
+  with `ApplyResult = { ok: true; warnings } | { ok: false; reason }`.
+  `src/chrome/frames/profile-edit.ts` builds it from `ProfileStore` for
+  both entry points.
+- **Close (ESC).** The text to save is the buffer (EDITOR) or the
+  serialised document (LITE). Unchanged → pop silently (both hosts; we do
+  not re-save an untouched profile from the start page). Not live → save,
+  pop, flash `Saved <name>.`; on a failed save the editor stays open with
+  `Save failed: <reason>` and a second ESC leaves without saving (edits are
+  never lost silently). Live → `Apply changes to your profile?` modal:
+  `Y` shows `Applying…` (keys swallowed; one task yielded so it paints),
+  calls `apply`, then `save`; success flashes `Profile updated.` (plus the
+  first warning), failure pops with `Profile not applied: <reason> The
+  running profile is unchanged.` `N` discards, ESC keeps editing.
+- **Live apply adapter.** `Shell` passes `liveApply: () => liveApplyOf(app)`
+  to the ESC menu; `liveApplyOf` feature-detects `App.applyProfile` (P2)
+  and returns null without it, in which case Apply only saves and flashes
+  `Saved <name>. It loads on the next connect.` The menu reads the stored
+  text of the selected profile as the live snapshot. To tighten at merge.
+- **Key routing.** The frame stack stops every keydown at window capture
+  (ADR 0013), so CodeMirror's own keydown listener never runs. The frame's
+  handler runs the buffer's bindings with `runScopeHandlers(view, e,
+  'editor')` (CodeMirror's public API for custom key dispatch) and returns
+  its result; unhandled keys keep their default action (the stack does not
+  prevent it inside a contenteditable), so typing reaches CodeMirror as
+  native input, and paste, cut and copy are native events on its content.
+  Lite text fields are native `<input>`/`<textarea>`: the handler takes
+  only Tab, ESC and the fall-through keys (↑ from Pattern, ← at offset 0)
+  and leaves the rest to the field.
+- **Mouse.** The stack stops `mouseup` at its host (the game input
+  refocuses on document mouseup). It now lets it through for targets
+  inside `[data-wc-native-mouse]`, which CodeMirror's content carries, so
+  its drag selection ends normally; the game input ignores editable
+  targets.
+- **CodeMirror set-up** (`cm.ts`): `@codemirror/state`, `view`, `commands`
+  only (no language package; `commands` pulls `@codemirror/language` and
+  Lezer transitively). tt++ highlighting is a ViewPlugin of mark
+  decorations from our own lexer (`syntax.ts`, Inv §5.7 classes, colours
+  from `--c-syn-*`). Brace matching, the balance count and `Ln, Col` come
+  from one structural scan per document change (profiles are small).
+  `history({ minDepth: 200 })` with CodeMirror's time-based grouping
+  (Cockpit had no time boundary; accepted). Alt+↑/↓ is defaultKeymap's
+  moveLineUp/Down, which also moves a selected block (Cockpit swapped one
+  line only). Ctrl+C/X without a selection is CodeMirror's line-wise copy;
+  `Copied`/`Cut` flash from copy/cut observers. Native selection (styled
+  C_SELECTED) and caret; the scrollbar is a 1-cell `█`/`░` column drawn by
+  the frame (track click pages; no hold-repeat). `EditorState.lineSeparator`
+  is the document's dominant line ending, so a CRLF or mixed file
+  round-trips byte for byte (a stray CR stays a character).
+- **Auto-close.** An `inputHandler` turns a typed `{` into `{}` when the
+  next character is the end, whitespace or `}`; a state field keeps the
+  tentative `}` positions (innermost last). Typing `}` on one steps over
+  it, Backspace right after the insert deletes both, and any selection
+  move by the user, undo or redo ends the tracking. Paste never
+  auto-closes.
+- **Inert commands.** A `#word` token that resolves to an inert or
+  unsupported command gets a wavy C_NOTE underline and its hint as a
+  title; with the cursor on that line the footer shows the hint.
+- **Lite model.** A lite edit is a P1 edit (`editEntry`, `addEntry`,
+  `removeEntry`); bodies go through `storeBody(kind, shown, entry.body,
+  doc.eol)`. The Commands box keeps a per-entry draft of what was typed,
+  because `displayBody` trims trailing blank lines (a just-typed Enter
+  would otherwise vanish). Entries created or edited in this lite session
+  whose pattern is still empty are dropped on save and on a flip.
+  New entries sit last in the list until the next flip. Highlight colours
+  map to the settings' ANSI palette (`--ansi-1..7` dark, `--ansi-9..15`
+  bright); `White` is ANSI 15, not Cockpit's grey. Bright colours are
+  written Capitalised (`Red`); bodies with anything else (`bold`, RGB)
+  stay verbatim until a swatch is touched.
+- **Capture overlay.** Rejected keys show `bindability`'s reason (e.g.
+  `The browser keeps that key.`) instead of Cockpit's fixed text; AltGr
+  combinations are rejected. Keys are stored canonically (`F5`, `Ctrl+A`).
+- **Chunks** (production build): the editor is its own chunk, 321 kB
+  (105 kB gzip) + 2.9 kB CSS, fetched when EDIT / Profile is used, or when
+  idle 2 s after the start page is up. The chrome chunk split into chrome
+  (27.5 kB) and the kit shared with the editor (25.8 kB); together the
+  same size as before (+1 request). Cold start (`vite preview`, Chromium,
+  20 Mbit/s, 40 ms RTT, Playwright goto → menu row visible): median 418 ms,
+  with no editor bytes before the menu.
