@@ -15,6 +15,10 @@
 //                     a replay ends the state stays until the next
 //                     connection starts. The clock never resets.
 //
+//   timers          → `game.timers` (src/timers/hub.ts, ADR 0017): the
+//                     trackers behind the Timers pane, attached with the
+//                     rest; App installs their rules (`timers.installRules`)
+//
 // Listeners (`subscribe`) are told which part changed; panes mark
 // themselves dirty and render in the next frame.
 //
@@ -25,11 +29,12 @@ import type { Bus } from '../core/bus';
 import { CharModel } from './char';
 import { ClockModel, loadClockState } from './clock';
 import { GroupModel } from './group';
+import { TimersHub, type TimersHubOptions } from '../timers/hub';
 
 /** localStorage key of the clock state. */
 export const CLOCK_KEY = 'wc.clock';
 
-export type GamePart = 'char' | 'group' | 'clock';
+export type GamePart = 'char' | 'group' | 'clock' | 'timers';
 
 /** What `installRules` needs from a rule store (src/script/engine RuleStore). */
 export interface SystemRules {
@@ -46,12 +51,16 @@ export interface GameStateOptions {
   now?: () => number;
   /** Where the clock is kept (null: memory only). */
   storage?: Storage | null;
+  /** Timers hub options (database, scheduler, window, trackers); `now` is shared. */
+  timers?: Omit<TimersHubOptions, 'now'>;
 }
 
 export class GameState {
   readonly char = new CharModel();
   readonly group = new GroupModel();
   readonly clock: ClockModel;
+  /** Timers trackers and their persistence (ADR 0017). */
+  readonly timers: TimersHub;
   private readonly now: () => number;
   private readonly storage: Storage | null;
   private readonly listeners = new Set<(part: GamePart) => void>();
@@ -67,6 +76,8 @@ export class GameState {
       saved = null;
     }
     this.clock = new ClockModel(loadClockState(saved, this.now()));
+    this.timers = new TimersHub({ ...opts.timers, now: this.now });
+    this.timers.subscribe(() => this.emit('timers'));
   }
 
   /** Follows the bus (GMCP, connection state). Returns this. */
@@ -77,11 +88,13 @@ export class GameState {
         if (s.state === 'connecting' || (s.state === 'disconnected' && !s.replay)) this.resetCharacter();
       }),
     );
+    this.timers.attach(bus);
     return this;
   }
 
   dispose(): void {
     for (const u of this.unsubs.splice(0)) u();
+    this.timers.dispose();
     this.listeners.clear();
   }
 

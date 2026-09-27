@@ -9,6 +9,8 @@ import { createPaneContext } from '../../src/panes/context';
 import { CellLine, centre } from '../../src/panes/grid';
 import { BAR_ORANGE, BAR_RED, GroupPane, barColor, barFill, barWidths, groupLines } from '../../src/panes/group';
 import { paneShade } from '../../src/panes/shade';
+import { PANE_FACTORIES } from '../../src/panes/factories';
+import { TimersPane } from '../../src/panes/timers';
 import { SettingsStore } from '../../src/settings';
 import { defaultSettings } from '../../src/settings/types';
 import { shadeRamp } from '../../src/theme/color';
@@ -214,6 +216,25 @@ describe('panes on the context', () => {
     expect(names()).toEqual([]);
     // Canonical set unchanged.
     expect(t.game.group.list().map((m) => m.id)).toEqual([2, 4]);
+    p.dispose();
+  });
+
+  it('Timers (P0 placeholder) lists the enabled groups’ cells from game.timers', () => {
+    const t = setup();
+    const p = PANE_FACTORIES.timers(t.ctx);
+    expect(p).toBeInstanceOf(TimersPane);
+    place(p, 20, 4);
+    const now = Date.now();
+    const cell = (id: string, group: 'spell' | 'blind') =>
+      ({ id, name: id, group, startedAt: now, expiresAt: now + 60_000, expected: 60_000, tracked: true }) as const;
+    t.game.timers.debugAdd({ ...cell('armour', 'spell') });
+    t.game.timers.debugAdd({ ...cell('2.orc', 'blind') });
+    t.flush();
+    const rows = () => [...p.content.querySelectorAll('.wc-prow')].map((r) => r.textContent!.trimEnd());
+    expect(rows()).toEqual(['ARMOUR', '2.ORC']);
+    t.settings.update({ timers: { groups: { blind: { enabled: false } } } });
+    t.flush();
+    expect(rows()).toEqual(['ARMOUR']);
     p.dispose();
   });
 

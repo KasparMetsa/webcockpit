@@ -120,14 +120,14 @@ export interface AppOptions {
    * runtime variables are written back to it. Default: none (no profile).
    */
   profiles?: ProfileStore;
-  /** Timer clock for #ticker / #delay (tests). */
+  /** Timer clock for #ticker / #delay and the timers hub tick (tests). */
   scheduler?: Scheduler;
   /** Write-back debounce in ms (tests). */
   writeBackDelayMs?: number;
   /** Frame scheduler for the side panes (tests). Default requestAnimationFrame. */
   paneRequestFrame?: (cb: () => void) => void;
   /**
-   * IndexedDB for the side panes' storage (comm history). Default
+   * IndexedDB for the side panes' storage (comm history, timers). Default
    * `globalThis.indexedDB`; null = none.
    */
   paneDb?: IDBFactory | null;
@@ -196,9 +196,15 @@ export class App {
     });
     const cells = opts.cells;
     const now = opts.now ?? Date.now;
+    const openDb = lazyDb(opts.paneDb);
     this.game = new GameState({
       now,
       storage: opts.clockStorage === undefined ? defaultLocalStorage() : opts.clockStorage,
+      timers: {
+        openDb,
+        win: doc.defaultView,
+        ...(opts.scheduler ? { scheduler: opts.scheduler } : {}),
+      },
     });
     this.assembler = new LineAssembler(bus);
     this.session = new Session({
@@ -235,7 +241,7 @@ export class App {
       requestFrame: opts.paneRequestFrame ?? defaultRequestFrame,
       sender: this.session,
       connState: () => this.session.state,
-      openDb: lazyDb(opts.paneDb),
+      openDb,
       now,
       game: this.game,
     });
@@ -276,6 +282,7 @@ export class App {
     });
     this.script.attach(bus);
     this.game.installRules(this.script.system);
+    this.game.timers.installRules(this.script.system);
     this.writeBack = this.profiles
       ? new VariableWriteBack(this.profiles, {
           ...(opts.writeBackDelayMs !== undefined ? { delayMs: opts.writeBackDelayMs } : {}),
