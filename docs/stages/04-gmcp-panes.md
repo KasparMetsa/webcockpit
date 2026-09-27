@@ -90,9 +90,12 @@ Carried: the owner wants per-character state to survive sessions
 - [x] P2. Comm pane (+ options, archive), UI messages pane and its
       emitters. Notes in ADR 0016 (`PANE_FACTORIES` moved to
       `src/panes/factories.ts`).
-- [ ] Merge P1 + P2; bench still passes (§1.3).
-- [ ] Main-session verification in a browser.
-- [ ] Test guide ready.
+- [x] Merge P1 + P2; bench still passes (§1.3): 500 rules 13 µs/line;
+      key → send p99 0.13/0.16 ms; paint p95 19/19 ms, 0 late frames;
+      burst max frame 24/19 ms (Chromium/Firefox).
+- [x] Main-session verification (696 unit, 114 e2e; demo screenshot:
+      all four panes, clock strip, blank lines in the game output).
+- [x] Test guide ready.
 - [ ] Owner test.
 
 ## Live checks for the owner
@@ -106,7 +109,65 @@ Carried: the owner wants per-character state to survive sessions
 
 ## Test guide
 
-(Written when the stage is built.)
+**Start:** `cd ~/proj/webcockpit && npm run dev` (restart it if it was
+already running: the fixture route changed), then open
+http://localhost:5173/.
+
+**Offline demo (no login):**
+http://localhost:5173/?fixture=gmcp-demo.log plays a 58 s synthetic
+session (`&speed=0` jumps to the end, `&speed=2` doubles). The panes keep
+their last picture when it ends. Look at:
+
+1. **Character:** name and `L26`, the XP bar behind the name and the TP
+   bar under it (session gain in a lighter shade after the level-up),
+   SNEAK/RIDE/CLIMB/SWIM boxes, MOOD/ALERTNESS/POSITION gauges with
+   their ticks, the WIMPY caret.
+2. **Group:** three bars per member, `a citizen mercenary (MERC)`,
+   `a large dog (DOG)`; members leave and come back.
+3. **Comm:** the channel header (left-click toggles, right-click solo,
+   right-click again restores), wheel up shows `HH:MM` stamps and
+   `↓ N newer messages`; click it to return.
+4. **UI:** `● SYSTEM:` and `▶ ACHIEVEMENT:` lines.
+5. **Clock:** the input line's right end, e.g. ` 11:52☼`, counts down
+   every second.
+6. **Options:** ESC → Options → Panes is now a hub: General (the old
+   grid), Communication (channels, show header), Group (show players,
+   NPC mode off/labeled/all). Changes apply at once.
+7. Change the terminal to a light background (Appearance): the panes
+   switch to their light shades.
+
+**Live (log in):**
+
+1. Group PvP: the Group pane follows the fight (bars, labels, members
+   in your room only); the mercenary's HP moves mid-fight.
+2. Comm: tells, narrates, says as in Cockpit. Reload the page, log in
+   again: the history is back (kept 7 days per character).
+3. Character: toggles and gauges follow `sneak`, `ride`, mood, wimpy.
+4. Clock: `time` or looking at a clock sets it; the strip counts down
+   to the next sunrise/sunset.
+5. Live checks 1–3 above.
+6. Each run now also records GMCP and your layout (for the full-screen
+   replay in stages 6–7); nothing to test yet.
+
+**Feedback wanted:**
+
+- Does each pane look and behave like Cockpit's? Anything off in
+  colours, shades, order or wording?
+- Comm deviations from Cockpit (chosen on purpose, tell me if you
+  disagree): full channel names whenever they fit; long talker names
+  such as `Thrakghash of the Mordor Flame` are kept whole; enemy
+  stars kept (`*Throzghul*`).
+- The existing `[SYSTEM]` lines stay in the game output next to the UI
+  pane. Keep both, or move them to the UI pane only?
+- The `▀` tick glyphs under the gauges in your font.
+
+Known in stage 4: with the pane border off, Comm's header covers the
+drag grip (drag between the labels); a profile saved from the start
+page before entering the game gives no UI line; the capture warning
+repeats on every load while capture is off; the TP bar shows progress
+through the current level's TP range (Inv §2.2's troll example
+disagrees with Cockpit's own code); MSSP game day is taken as 0-based
+(unchecked live); Timers stays empty until stage 5.
 
 ## Owner feedback
 

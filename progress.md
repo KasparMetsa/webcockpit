@@ -9,7 +9,7 @@ Current stage: **4 — GMCP panes** (in progress).
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
-| 4 | GMCP panes | In progress | `docs/stages/04-gmcp-panes.md` |
+| 4 | GMCP panes | Owner testing | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | — | — |
 | 6 | Runs | — | — |
 | 7 | Sharing | — | — |
@@ -21,6 +21,22 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-27 — Stage 4 build
+
+- **Done:** stage file, ADR 0016. Owner decision: the log player and
+  HTML replay show every pane in the player's layout, so runs now
+  record GMCP, layout snapshots and window size. P0 pane context,
+  comm store, capture records, demo fixture. P1 Character, Group,
+  clock (+MSSP), Options → Panes hub with Group. P2 Comm (archive per
+  character, filters, solo), UI pane and its messages, Communication
+  options. 696 unit, 114 e2e; bench passes.
+- **Owner feedback during build:** the demo lacked MUME's blank lines
+  (fixture only); fixed.
+- **Next:** owner tests (guide in the stage file), then stage 5.
+- **Open issues:** live checks 1–2 still open; MSSP day base unchecked;
+  Comm header over the drag grip when borderless.
+- **Commits:** e93638a…(this commit).
 
 ### 2026-09-27 — Stage 3 build
 
