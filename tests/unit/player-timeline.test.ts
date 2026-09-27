@@ -3,9 +3,12 @@
 import { describe, expect, it } from 'vitest';
 import { CATCH_UP_US, ReplayClock } from '../../src/player/clock';
 import { parseSize } from '../../src/player/engine';
-import { fitFontSize, overlayView, parseView } from '../../src/player/fit';
+import { overlayView, parseView, playerFontSize } from '../../src/player/fit';
+import { MIN_VIEW_COLS, MIN_VIEW_ROWS } from '../../src/layout/allocate';
 import {
+  fitHints,
   fmtClock,
+  hintsWidth,
   markRows,
   markersOf,
   offsetToRow,
@@ -309,6 +312,19 @@ describe('strip maths', () => {
     ]);
   });
 
+  it('fits the header hints, dropping the lowest priority first and keeping ESC Back', () => {
+    const all = ['Space Play/Pause', '1–6 Speed', '↑↓ Cursor', 'ESC Back'];
+    expect(hintsWidth(all)).toBe(51);
+    expect(fitHints(200)).toEqual(all);
+    expect(fitHints(51)).toEqual(all);
+    expect(fitHints(50)).toEqual(['Space Play/Pause', '1–6 Speed', 'ESC Back']);
+    expect(fitHints(39)).toEqual(['Space Play/Pause', '1–6 Speed', 'ESC Back']);
+    expect(fitHints(38)).toEqual(['Space Play/Pause', 'ESC Back']);
+    expect(fitHints(27)).toEqual(['Space Play/Pause', 'ESC Back']);
+    expect(fitHints(26)).toEqual(['ESC Back']);
+    expect(fitHints(0)).toEqual(['ESC Back']);
+  });
+
   it('formats the clock with unbounded minutes', () => {
     expect(fmtClock(0)).toBe('00:00');
     expect(fmtClock(61_999)).toBe('01:01');
@@ -317,15 +333,27 @@ describe('strip maths', () => {
 });
 
 describe('recorded layout', () => {
-  it('fits the recorded grid with the largest font size', () => {
-    const a = defaultSettings().appearance;
-    const size = fitFontSize(a, 120, 40, 1400, 820);
-    const c = nominalCell({ ...a, size });
-    expect(120 * c.w).toBeLessThanOrEqual(1400);
-    expect(40 * c.h).toBeLessThanOrEqual(820);
-    const up = nominalCell({ ...a, size: size + 1 });
-    expect(120 * up.w > 1400 || 40 * up.h > 820).toBe(true);
-    expect(fitFontSize(a, 500, 300, 100, 100)).toBe(6);
+  it('keeps the recorded font size when the grid left of the strip meets the minimum', () => {
+    const a = { ...defaultSettings().appearance, size: 15 };
+    expect(playerFontSize(a, 1440, 860, 2)).toBe(15);
+    expect(playerFontSize(a, 1920, 1080, 2)).toBe(15);
+    expect(playerFontSize({ ...a, size: 22 }, 1920, 1080, 2)).toBe(22);
+  });
+
+  it('falls back to the largest smaller size that meets the minimum grid', () => {
+    const a = { ...defaultSettings().appearance, size: 24 };
+    const W = 700;
+    const H = 400;
+    const size = playerFontSize(a, W, H, 2);
+    expect(size).toBeLessThan(24);
+    const fits = (n: number) => {
+      const c = nominalCell({ ...a, size: n });
+      return Math.floor(W / c.w) - 2 >= MIN_VIEW_COLS && Math.floor(H / c.h) >= MIN_VIEW_ROWS;
+    };
+    expect(fits(size)).toBe(true);
+    expect(fits(size + 1)).toBe(false);
+    // Nothing fits: the smallest size.
+    expect(playerFontSize(a, 100, 100, 2)).toBe(6);
   });
 
   it('parses a VIEW and replaces its parts whole', () => {

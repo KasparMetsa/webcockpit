@@ -46,14 +46,20 @@ test('History → RUN LOG plays the Rasta session; pause, speed, seek, markers, 
   await page.keyboard.press('ArrowDown');
   await expect(cur(page)).toContainText('Rasta');
   await frame(page).locator('[data-btn="RUN LOG"]').click();
+  const opened = Date.now();
+
+  // Text at once: the run's lead-in (login GMCP, VIEW/SIZE) takes no time.
+  await expect(player(page).locator('.wc-output .wc-row').first()).toBeVisible({ timeout: 1000 });
+  expect(Date.now() - opened).toBeLessThan(1500);
+  expect((await engine(page)).position).toBeLessThan(1500);
 
   // Playing from the start, chrome shown, the start page hidden.
   await expect(player(page)).toBeVisible();
   await expect(page.locator('.wc-start')).toBeHidden();
   await expect(chrome(page).locator('.wc-player-header')).toContainText('Rasta (L42) · Run 1 of 2 · 2026-09-26 21:00');
-  await expect(chrome(page).locator('.wc-player-header')).toContainText('ESC Back');
+  await expect(chrome(page).locator('.wc-player-hints')).toHaveText('Space Play/Pause · 1–6 Speed · ↑↓ Cursor · ESC Back');
   await expect(chrome(page).locator('[data-act="play"]')).toHaveText('▌▌ Pause');
-  await expect(chrome(page).locator('.wc-player-clock')).toContainText('/ 02:03');
+  await expect(chrome(page).locator('.wc-player-clock')).toContainText('/ 02:02');
   // K/D/A/L markers from the stored events.
   await expect(chrome(page).locator('.wc-player-mark')).toHaveText(['AL►', 'K►', 'D►']);
   // The panes fill from the recorded GMCP.
@@ -61,6 +67,16 @@ test('History → RUN LOG plays the Rasta session; pause, speed, seek, markers, 
   await expect(player(page).locator('.wc-output')).toContainText('Rivendell Stables');
   // No input line.
   await expect(player(page).locator('.wc-input-slot')).toBeHidden();
+  // The cockpit fills the window left of the strip (no letterbox).
+  const geo = await page.evaluate(() => {
+    const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+    const game = r('.wc-player .wc-output');
+    return { vw: window.innerWidth, stage: r('.wc-player-stage'), strip: r('.wc-player-strip'), game };
+  });
+  expect(geo.stage.left).toBe(0);
+  expect(Math.abs(geo.stage.right - geo.strip.left)).toBeLessThan(1);
+  expect(geo.strip.right).toBeCloseTo(geo.vw, 0);
+  expect(geo.game.width).toBeGreaterThan(geo.vw * 0.4);
 
   // Speed keys.
   await page.keyboard.press('6');
@@ -135,4 +151,20 @@ test('the chrome hides while playing and shows on activity; ?player= opens a dem
   await page.mouse.move(200, 200);
   await expect(chrome(page)).not.toHaveAttribute('data-hidden', '');
   expect(errors).toEqual([]);
+});
+
+test('the header hints give way on a narrow window, never over the left part', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 820 });
+  await page.goto('/?player=runs-demo.jsonl.gz');
+  const hints = chrome(page).locator('.wc-player-hints');
+  await expect(hints).toHaveText('Space Play/Pause · 1–6 Speed · ↑↓ Cursor · ESC Back');
+  await page.setViewportSize({ width: 760, height: 600 });
+  await expect(hints).not.toHaveText(/Cursor/);
+  await expect(hints).toContainText('ESC Back');
+  const gap = await page.evaluate(() => {
+    const l = document.querySelector('.wc-player-head-left')!.getBoundingClientRect();
+    const h = document.querySelector('.wc-player-hints')!.getBoundingClientRect();
+    return h.left - l.right;
+  });
+  expect(gap).toBeGreaterThanOrEqual(0);
 });
