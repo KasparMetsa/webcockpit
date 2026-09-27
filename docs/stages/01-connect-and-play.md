@@ -74,9 +74,9 @@ autosuggest, clock strip, run events and screens.
 ## Tasks
 
 - [x] Stage file and ADR 0007.
-- [ ] Scaffold: Vite + TypeScript + Vitest + Playwright, `npm run dev`,
+- [x] Scaffold: Vite + TypeScript + Vitest + Playwright, `npm run dev`,
       `npm test`, `npm run bench`.
-- [ ] Event bus and shared types (line model, events).
+- [x] Event bus and shared types (line model, events).
 - [ ] Telnet layer + GMCP registry + keep-alive, with unit tests.
 - [ ] Line layer: ANSI + XML parser, with unit tests.
 - [ ] Output pane and input pane.
