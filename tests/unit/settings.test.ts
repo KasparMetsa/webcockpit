@@ -8,8 +8,11 @@ import {
   MIRROR_KEY,
   SettingsStore,
   defaultSettings,
+  migrateComm,
+  migrateGroup,
   migrateSettings,
   readAppearanceMirror,
+  viewSnapshot,
 } from '../../src/settings';
 
 class MemStorage implements Storage {
@@ -110,6 +113,46 @@ describe('migrateSettings', () => {
     });
   });
 
+  it('adds the group and comm options with defaults (older stored data)', () => {
+    const old = { appearance: {}, panes: {}, layout: DEFAULT_SETTINGS.layout, profile: 'pvp' };
+    const s = migrateSettings(old);
+    expect(s.group).toEqual({ showPlayers: true, npcMode: 'labeled' });
+    expect(s.comm).toEqual({ filters: {}, showHeader: true });
+    expect(s.profile).toBe('pvp');
+  });
+
+  it('checks group and comm values; comm filters keep only disabled channels', () => {
+    const s = migrateSettings({
+      group: { showPlayers: 'no', npcMode: 'some' },
+      comm: {
+        filters: { tells: false, says: true, narrates: 0, '': false, ['x'.repeat(65)]: false, yells: false },
+        showHeader: false,
+      },
+    });
+    expect(s.group).toEqual({ showPlayers: true, npcMode: 'labeled' });
+    expect(s.comm).toEqual({ filters: { tells: false, yells: false }, showHeader: false });
+    expect(migrateGroup({ showPlayers: false, npcMode: 'all' })).toEqual({ showPlayers: false, npcMode: 'all' });
+    expect(migrateComm({ filters: [false] }).filters).toEqual({});
+    const many = Object.fromEntries(Array.from({ length: 150 }, (_, i) => [`c${i}`, false]));
+    expect(Object.keys(migrateComm({ filters: many }).filters)).toHaveLength(100);
+  });
+
+  it('a comm filter is re-enabled by patching it to true', () => {
+    const store = new SettingsStore({ factory: null, storage: null, win: null });
+    store.update({ comm: { filters: { tells: false, says: false } } });
+    expect(store.get().comm.filters).toEqual({ tells: false, says: false });
+    store.update({ comm: { filters: { tells: true } } });
+    expect(store.get().comm.filters).toEqual({ says: false });
+    store.update({ group: { npcMode: 'all' } });
+    expect(store.get().group).toEqual({ showPlayers: true, npcMode: 'all' });
+  });
+
+  it('viewSnapshot picks the screen settings', () => {
+    const v = viewSnapshot(DEFAULT_SETTINGS);
+    expect(Object.keys(v).sort()).toEqual(['appearance', 'comm', 'group', 'layout', 'panes']);
+    expect(v.layout).toBe(DEFAULT_SETTINGS.layout);
+  });
+
   it('repairs a damaged layout: duplicates, unknown ids, missing panes', () => {
     const s = migrateSettings({
       layout: {
@@ -183,7 +226,7 @@ describe('database', () => {
     });
     const cap = await CaptureStore.open(factory);
     expect(cap.db.version).toBe(DB_VERSION);
-    expect([...cap.db.objectStoreNames].sort()).toEqual(['profiles', 'runChunks', 'runs', 'settings']);
+    expect([...cap.db.objectStoreNames].sort()).toEqual(['comm', 'profiles', 'runChunks', 'runs', 'settings']);
     expect((await cap.listRuns()).map((r) => r.runId)).toEqual(['A/1']);
     cap.close();
   });

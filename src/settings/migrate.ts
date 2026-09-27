@@ -20,7 +20,12 @@ import { defaultFloatSize } from '../layout/allocate';
 import { normalizeHex } from '../theme/color';
 import {
   type AppearanceSettings,
+  COMM_FILTERS_MAX,
+  COMM_FILTER_KEY_MAX,
+  type CommSettings,
   CURSOR_STYLES,
+  GROUP_NPC_MODES,
+  type GroupSettings,
   FONT_IDS,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
@@ -135,6 +140,32 @@ export function migrateLayout(raw: unknown): LayoutModel {
   return out;
 }
 
+/** Group pane options from anything. */
+export function migrateGroup(raw: unknown): GroupSettings {
+  const d = defaultSettings().group;
+  const g = isObj(raw) ? raw : {};
+  return { showPlayers: bool(g.showPlayers, d.showPlayers), npcMode: oneOf(g.npcMode, GROUP_NPC_MODES, d.npcMode) };
+}
+
+/**
+ * Comm pane options from anything. Filters keep only disabled channels
+ * (`false`) with a sane name; at most `COMM_FILTERS_MAX` of them.
+ */
+export function migrateComm(raw: unknown): CommSettings {
+  const d = defaultSettings().comm;
+  const c = isObj(raw) ? raw : {};
+  const filters: Record<string, boolean> = {};
+  if (isObj(c.filters)) {
+    let n = 0;
+    for (const [k, v] of Object.entries(c.filters)) {
+      if (v !== false || k === '' || k === '__proto__' || k.length > COMM_FILTER_KEY_MAX) continue;
+      if (++n > COMM_FILTERS_MAX) break;
+      filters[k] = false;
+    }
+  }
+  return { filters, showHeader: bool(c.showHeader, d.showHeader) };
+}
+
 /** A complete, valid `Settings` from anything (stored data of any version). */
 export function migrateSettings(raw: unknown): Settings {
   const d = defaultSettings();
@@ -146,5 +177,7 @@ export function migrateSettings(raw: unknown): Settings {
     panes: migratePanes(s.panes),
     layout: migrateLayout(s.layout),
     profile,
+    group: migrateGroup(s.group),
+    comm: migrateComm(s.comm),
   };
 }

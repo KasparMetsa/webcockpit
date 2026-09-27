@@ -1,6 +1,6 @@
 // Public surface of the settings module (ADR 0010 "Settings").
 export * from './types';
-export { migrateAppearance, migrateLayout, migrateSettings } from './migrate';
+export { migrateAppearance, migrateComm, migrateGroup, migrateLayout, migrateSettings } from './migrate';
 export {
   MIRROR_KEY,
   SETTINGS_KEY,

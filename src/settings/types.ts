@@ -45,6 +45,36 @@ export interface PaneSettings {
   border: boolean;
 }
 
+/** Which unlabeled NPCs the Group pane shows (Inv §2.3, ADR 0016). */
+export type GroupNpcMode = 'off' | 'labeled' | 'all';
+export const GROUP_NPC_MODES: readonly GroupNpcMode[] = ['off', 'labeled', 'all'];
+
+/** Options → Panes → Group. */
+export interface GroupSettings {
+  /** Show player allies. */
+  showPlayers: boolean;
+  /** `off`: no NPCs; `labeled`: labeled NPCs only; `all`: unlabeled ones too. */
+  npcMode: GroupNpcMode;
+}
+
+/** Longest channel name kept in `CommSettings.filters`. */
+export const COMM_FILTER_KEY_MAX = 64;
+/** Most entries kept in `CommSettings.filters` (a sanity bound only). */
+export const COMM_FILTERS_MAX = 100;
+
+/** Options → Panes → Communication, and the header's channel filters. */
+export interface CommSettings {
+  /**
+   * Channel filters by GMCP channel name, global (not per character).
+   * Sparse: a missing channel is enabled. Only `false` entries are kept, so
+   * enabling a channel is `{ comm: { filters: { tells: true } } }` and the
+   * migration drops the entry.
+   */
+  filters: Record<string, boolean>;
+  /** Show the one-row channel header. */
+  showHeader: boolean;
+}
+
 export interface Settings {
   /** Schema version of the stored object (bumped only for non-additive changes). */
   version: number;
@@ -53,6 +83,20 @@ export interface Settings {
   layout: LayoutModel;
   /** Selected profile name. */
   profile: string;
+  group: GroupSettings;
+  comm: CommSettings;
+}
+
+/**
+ * The settings a log player needs to rebuild the screen (everything but the
+ * input line's behaviour and the profile). Recorded in the run capture as a
+ * `VIEW` record (ADR 0016).
+ */
+export type ViewSnapshot = Pick<Settings, 'appearance' | 'panes' | 'layout' | 'group' | 'comm'>;
+
+/** The `ViewSnapshot` of `s` (shares its objects; serialise, do not mutate). */
+export function viewSnapshot(s: Readonly<Settings>): ViewSnapshot {
+  return { appearance: s.appearance, panes: s.panes, layout: s.layout, group: s.group, comm: s.comm };
 }
 
 export const SETTINGS_VERSION = 1;
@@ -83,6 +127,8 @@ export function defaultSettings(): Settings {
     },
     layout: defaultLayout(),
     profile: 'default',
+    group: { showPlayers: true, npcMode: 'labeled' },
+    comm: { filters: {}, showHeader: true },
   };
 }
 
