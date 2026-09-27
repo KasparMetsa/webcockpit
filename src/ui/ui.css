@@ -1,0 +1,249 @@
+/* WebCockpit stage-1 UI: output pane, input pane, status line.
+ * Import once from the app entry: `import './ui/ui.css'`.
+ * All colours are tokens on :root so a theme (stage 2) can override them.
+ * No smooth scrolling and no animation anywhere (intent Goal 1). */
+
+:root {
+  --wc-fg: #c0c0c0;
+  --wc-bg: #000000;
+  --wc-font: "DejaVu Sans Mono", monospace;
+  --wc-font-size: 15px;
+  /* Integer pixel line height keeps the cell grid crisp. */
+  --wc-line-height: 18px;
+
+  /* TUI roles (Inv §10). */
+  --wc-hint: #585858;
+  --wc-yellow: #ffd75f;
+  --wc-err: #ff5f5f;
+  --wc-sys: var(--wc-yellow);
+
+  /* DOS palette (Inv §1.1). Keep in sync with DOS_PALETTE in palette.ts. */
+  --wc-c0: #000000;
+  --wc-c1: #800000;
+  --wc-c2: #008000;
+  --wc-c3: #808000;
+  --wc-c4: #000080;
+  --wc-c5: #800080;
+  --wc-c6: #008080;
+  --wc-c7: #c0c0c0;
+  --wc-c8: #808080;
+  --wc-c9: #ff0000;
+  --wc-c10: #00ff00;
+  --wc-c11: #ffff00;
+  --wc-c12: #0000ff;
+  --wc-c13: #ff00ff;
+  --wc-c14: #00ffff;
+  --wc-c15: #ffffff;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--wc-bg);
+  color: var(--wc-fg);
+  scroll-behavior: auto;
+}
+
+/* Convenience stage-1 frame: status line, output, input stacked. */
+.wc-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--wc-bg);
+  color: var(--wc-fg);
+  font-family: var(--wc-font);
+  font-size: var(--wc-font-size);
+  line-height: var(--wc-line-height);
+}
+
+/* ------------------------------------------------------------------ output */
+
+.wc-output {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--wc-font);
+  font-size: var(--wc-font-size);
+  line-height: var(--wc-line-height);
+}
+
+.wc-scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: auto;
+  /* We compensate top trimming ourselves; the browser must not also. */
+  overflow-anchor: none;
+}
+
+.wc-row {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: var(--wc-line-height);
+}
+
+.wc-sys {
+  color: var(--wc-sys);
+}
+
+.wc-echo {
+  color: var(--wc-fg);
+}
+
+.wc-measure {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.wc-tail-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--wc-line-height);
+  white-space: pre;
+  overflow: hidden;
+  background: var(--wc-hint);
+  color: var(--wc-bg);
+  pointer-events: none;
+}
+
+.wc-tail-bar[hidden] {
+  display: none;
+}
+
+.wc-output ::selection,
+.wc-input ::selection,
+.wc-input-field::selection {
+  background: var(--wc-fg);
+  color: var(--wc-bg);
+}
+
+/* Style runs. Palette 0–15 via classes; 16–255 and truecolor inline. */
+.wc-f0 { color: var(--wc-c0); }
+.wc-f1 { color: var(--wc-c1); }
+.wc-f2 { color: var(--wc-c2); }
+.wc-f3 { color: var(--wc-c3); }
+.wc-f4 { color: var(--wc-c4); }
+.wc-f5 { color: var(--wc-c5); }
+.wc-f6 { color: var(--wc-c6); }
+.wc-f7 { color: var(--wc-c7); }
+.wc-f8 { color: var(--wc-c8); }
+.wc-f9 { color: var(--wc-c9); }
+.wc-f10 { color: var(--wc-c10); }
+.wc-f11 { color: var(--wc-c11); }
+.wc-f12 { color: var(--wc-c12); }
+.wc-f13 { color: var(--wc-c13); }
+.wc-f14 { color: var(--wc-c14); }
+.wc-f15 { color: var(--wc-c15); }
+.wc-b0 { background: var(--wc-c0); }
+.wc-b1 { background: var(--wc-c1); }
+.wc-b2 { background: var(--wc-c2); }
+.wc-b3 { background: var(--wc-c3); }
+.wc-b4 { background: var(--wc-c4); }
+.wc-b5 { background: var(--wc-c5); }
+.wc-b6 { background: var(--wc-c6); }
+.wc-b7 { background: var(--wc-c7); }
+.wc-b8 { background: var(--wc-c8); }
+.wc-b9 { background: var(--wc-c9); }
+.wc-b10 { background: var(--wc-c10); }
+.wc-b11 { background: var(--wc-c11); }
+.wc-b12 { background: var(--wc-c12); }
+.wc-b13 { background: var(--wc-c13); }
+.wc-b14 { background: var(--wc-c14); }
+.wc-b15 { background: var(--wc-c15); }
+/* Inverse with a default colour: default bg as fg / default fg as bg. */
+.wc-fd { color: var(--wc-bg); }
+.wc-bd { background: var(--wc-fg); }
+.wc-bold { font-weight: bold; }
+.wc-ital { font-style: italic; }
+.wc-ul { text-decoration: underline; }
+/* Blink is rendered static (no animation, intent Goal 1). */
+.wc-blink { text-decoration: underline dotted; }
+
+/* ------------------------------------------------------------------- input */
+
+.wc-input {
+  display: flex;
+  flex: 0 0 auto;
+  height: var(--wc-line-height);
+  font-family: var(--wc-font);
+  font-size: var(--wc-font-size);
+  line-height: var(--wc-line-height);
+  white-space: pre;
+}
+
+.wc-input-prompt {
+  flex: 0 0 2ch;
+  width: 2ch;
+}
+
+.wc-input-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wc-input-field {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--wc-line-height);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--wc-fg);
+  caret-color: var(--wc-fg);
+  font: inherit;
+  line-height: var(--wc-line-height);
+}
+
+/* Password mode: the real text is transparent, bullets are drawn over it. */
+.wc-input-field.wc-masked {
+  color: transparent;
+}
+
+.wc-input-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  color: var(--wc-fg);
+}
+
+.wc-input-mask[hidden] {
+  display: none;
+}
+
+/* Reserved for the clock strip (stage 2): gutter + 5 cols + icon. */
+.wc-input-clock {
+  flex: 0 0 7ch;
+  width: 7ch;
+}
+
+/* ------------------------------------------------------------ status line */
+
+.wc-status {
+  flex: 0 0 auto;
+  height: var(--wc-line-height);
+  overflow: hidden;
+  white-space: pre;
+  color: var(--wc-hint);
+  font-family: var(--wc-font);
+  font-size: var(--wc-font-size);
+  line-height: var(--wc-line-height);
+}
