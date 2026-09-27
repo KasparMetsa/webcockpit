@@ -84,8 +84,9 @@ Carried: the owner wants per-character state to survive sessions
       offline demo fixture, `ui.message` bus event. Also VIEW/SIZE
       capture records (owner decision). Notes in ADR 0016; demo at
       `/?fixture=gmcp-demo.log`.
-- [ ] P1. Character pane, Group pane (+ options), clock model and
-      input strip.
+- [x] P1. Character pane, Group pane (+ options), clock model and
+      input strip. GameState hub in the pane context, replay end keeps
+      the panes, demo fixture in MUME's output shape. Notes in ADR 0016.
 - [x] P2. Comm pane (+ options, archive), UI messages pane and its
       emitters. Notes in ADR 0016 (`PANE_FACTORIES` moved to
       `src/panes/factories.ts`).

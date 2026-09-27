@@ -1,7 +1,8 @@
 // The offline GMCP demo (tests/fixtures/gmcp-demo.log, ADR 0016): served
 // from the repository by the dev server's fixture route, it replays
 // recorded GMCP, so the session reaches `playing` and the side panes are
-// active; when the replay ends they blank again (the UI pane stays).
+// active; when the replay ends they keep their last picture until the next
+// connection starts.
 import { type Page, expect, test } from '@playwright/test';
 
 const DEMO = '/?fixture=gmcp-demo.log';
@@ -27,11 +28,11 @@ test('the demo reaches playing and activates the panes, without capture', async 
   expect(errors).toEqual([]);
 });
 
-test('after the demo the panes are inactive again', async ({ page }) => {
+test('after the demo the panes stay active and nothing was captured', async ({ page }) => {
   await page.goto(`${DEMO}&speed=0`);
   await expect(rows(page).filter({ hasText: '[SYSTEM] Replay finished.' })).toHaveCount(1);
   await expect(rows(page).filter({ hasText: 'You rise a level!' })).toHaveCount(1);
-  for (const id of PANES) await expect(pane(page, id)).not.toHaveAttribute('data-active', '');
+  for (const id of PANES) await expect(pane(page, id)).toHaveAttribute('data-active', '');
   const recorded = await page.evaluate(async () => {
     const store = await window.__wc!.app.recorder.getStore();
     return store ? (await store.listRuns()).length : -1;

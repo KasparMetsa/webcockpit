@@ -4,8 +4,11 @@
 // there is no Apply and Back never discards.
 //
 //   Options hub:  Panes · Appearance · Back
-//   Panes:        pane × colour grid with a Border column, Communication
-//                 (comm-options.tsx), reset layout
+//   Panes hub:    General · Communication · Group · Back (Cockpit also
+//                 has Timers, stage 5)
+//   General:      pane × colour grid with a Border column, reset layout
+//   Communication: comm-options.tsx
+//   Group:        options-group.tsx
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
 //                 live preview box
 
@@ -33,6 +36,7 @@ import {
 } from '../../theme/presets';
 import { useGrid, useServices, useSettings } from '../kit/hooks';
 import { CommOptionsFrame } from './comm-options';
+import { GroupOptionsFrame } from './options-group';
 import { centreLeft, cycle, stepValue } from '../kit/nav';
 import { useKeys, useNav } from '../kit/stack';
 import {
@@ -57,7 +61,7 @@ const MENU_FOOTER = ['↑↓ Navigate', 'Enter Select', 'ESC Back'];
 export function OptionsHub(): VNode {
   const nav = useNav();
   const items: MenuItem[] = [
-    { key: 'panes', label: 'Panes', activate: () => nav.push(<PanesFrame />) },
+    { key: 'panes', label: 'Panes', activate: () => nav.push(<PanesHub />) },
     { key: 'appearance', label: 'Appearance', activate: () => nav.push(<AppearanceFrame />) },
     { key: 'sp', spacer: true },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
@@ -71,7 +75,28 @@ export function OptionsHub(): VNode {
   );
 }
 
-// ---------------------------------------------------------------- panes
+// ------------------------------------------------------------ panes hub
+
+/** Options → Panes: one entry per page (ADR 0016 P1). */
+export function PanesHub(): VNode {
+  const nav = useNav();
+  const items: MenuItem[] = [
+    { key: 'general', label: 'General', activate: () => nav.push(<PanesFrame />) },
+    { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
+    { key: 'group', label: 'Group', activate: () => nav.push(<GroupOptionsFrame />) },
+    { key: 'sp', spacer: true },
+    { key: 'back', label: 'Back', activate: () => nav.pop() },
+  ];
+  const [cursor, setCursor] = useMenuCursor(items);
+  useKeys((_e, nk) => menuKey(items, cursor, setCursor, nk));
+  return (
+    <Page title="Panes" footer={MENU_FOOTER}>
+      <MenuRows items={items} cursor={cursor} setCursor={setCursor} />
+    </Page>
+  );
+}
+
+// -------------------------------------------------------- panes: general
 
 /** Grid columns: the seven tints, then Border. */
 const GRID_COLS = PANE_COLORS.length + 1;
@@ -109,12 +134,11 @@ export function PanesFrame(): VNode {
     nav.flash('Layout reset.');
   };
   const tail: MenuItem[] = [
-    { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
     { key: 'reset', label: 'Reset layout', activate: resetLayout },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];
   const tailIdx = row - PANE_IDS.length;
-  // Rows: the panes, then the tail (Communication, Reset layout, Back).
+  // Rows: the panes, then the tail (Reset layout, Back).
   const ROWS = PANE_IDS.length + tail.length;
 
   useKeys((_e, nk) => {
@@ -153,7 +177,7 @@ export function PanesFrame(): VNode {
     PANE_COLORS.map((c) => PANE_TINT_LABEL[c].padEnd(CELL_W)).join('') +
     'Border';
   return (
-    <Page title="Panes" footer={['↑↓←→ Move', 'Enter Toggle', 'ESC Back']}>
+    <Page title="General" footer={['↑↓←→ Move', 'Enter Toggle', 'ESC Back']}>
       <Line at={at} class="wc-c-hint">
         {header}
       </Line>

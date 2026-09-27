@@ -1,3 +1,11 @@
+/* Pane content rows (src/panes/grid.ts): one cell high, whole cells wide. */
+.wc-prow {
+  height: var(--cell-h);
+  line-height: var(--cell-h);
+  white-space: pre;
+  overflow: hidden;
+}
+
 /* Comm and UI message panes (src/panes/comm.ts, ui.ts, anchored-list.ts). */
 
 .wc-msgpane {

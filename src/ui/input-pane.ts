@@ -109,6 +109,8 @@ export class InputPane {
   private readonly mask: HTMLSpanElement;
   /** The custom caret element. */
   readonly caretEl: HTMLSpanElement;
+  /** The clock strip at the right end (7 cells; src/ui/clock-strip.ts draws it). */
+  readonly clockEl: HTMLSpanElement;
   private readonly doc: Document;
   private readonly requestFrame: (cb: () => void) => void;
   private caretScheduled = false;
@@ -170,6 +172,7 @@ export class InputPane {
     wrap.append(this.input, this.mask, this.caretEl);
     const clock = doc.createElement('span');
     clock.className = 'wc-input-clock';
+    this.clockEl = clock;
     this.el.append(prompt, wrap, clock);
     root.appendChild(this.el);
 

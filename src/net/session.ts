@@ -74,6 +74,8 @@ export interface SessionOptions {
   timers?: Timers;
   /** TTYPE answer. Default `WebCockpit`. */
   ttype?: string;
+  /** A new MSSP table from the server (game time for the clock, ADR 0016). */
+  onMssp?: (vars: ReadonlyMap<string, string[]>) => void;
 }
 
 export class Session implements Sender {
@@ -101,6 +103,7 @@ export class Session implements Sender {
       onGmcpEnabled: () => this.gmcp.onEnabled(),
       onEcho: (serverEchoes) => this.bus.emit('telnet.echo', { serverEchoes }),
       ...(opts.ttype !== undefined ? { ttype: opts.ttype } : {}),
+      ...(opts.onMssp ? { onMssp: opts.onMssp } : {}),
     });
     this.gmcp = new Gmcp({
       bus: opts.bus,

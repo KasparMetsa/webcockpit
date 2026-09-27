@@ -22,14 +22,10 @@ function watchErrors(page: Page): string[] {
   return errors;
 }
 
-/**
- * Runs the demo to its end, then marks the connection `playing` again so
- * the panes show their content (a finished replay leaves them inactive).
- */
+/** Runs the demo to its end; a finished replay keeps the panes showing. */
 async function demo(page: Page): Promise<void> {
   await page.goto(DEMO);
   await expect(uiRows(page).filter({ hasText: 'Replay finished.' })).toHaveCount(1);
-  await page.evaluate(() => window.__wc!.app.bus.emit('conn.state', { state: 'playing', prev: 'disconnected', replay: true }));
   await expect(comm(page)).toHaveAttribute('data-active', '');
 }
 
@@ -52,8 +48,9 @@ test('the UI pane shows the demo lines and keeps them over a reload', async ({ p
   const login = uiRows(page).filter({ hasText: 'Rasta logged in.' });
   await expect(login.locator('.wc-ui-value')).toHaveCSS('color', 'rgb(255, 238, 88)');
   await expect(login.locator('.wc-ui-prefix')).toHaveCSS('color', 'rgb(66, 165, 245)');
-  // Never blanked while disconnected.
-  await expect(page.locator('.wc-pane[data-pane="ui"]')).not.toHaveAttribute('data-active', '');
+  // A finished replay keeps the panes active until the next connection
+  // (the UI pane never blanks anyway; unit tested in panes.test.ts).
+  await expect(page.locator('.wc-pane[data-pane="ui"]')).toHaveAttribute('data-active', '');
   // A reload of the tab keeps the lines (sessionStorage); the demo runs again.
   await page.reload();
   // The pane builds only the lines on screen; the ring holds both runs.
