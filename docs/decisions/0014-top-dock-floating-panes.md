@@ -1,6 +1,6 @@
 # 0014 — Top dock, floating panes, quadrant corners only
 
-- Status: Accepted
+- Status: Accepted; amended below (input placement, standard float size)
 - Date: 2026-09-27
 - Amends: ADR 0010 ("Settings": `corners`), ADR 0012 (geometry,
   interaction)
@@ -118,3 +118,53 @@ layout stays: every pane docked in the right column.
 - A pane that floats keeps no docked `desired`; docking it again starts
   from the axis default.
 - Stage 2's Options → Panes has no corner row.
+
+## Amendment 2026-09-27 — input placement and standard float size
+
+The owner's second test of stage 2 (`docs/stages/02-look-and-layout.md`,
+"second test (docking)").
+
+### Input line under the game pane
+
+- The centre column is, top to bottom: top dock, gap row, game pane,
+  input line, gap row, bottom dock. The input line (1 row, the 7-cell
+  clock strip at its right end) sits directly under the game pane, with
+  no gap, and is exactly as wide as the game pane.
+- The left and right docks run the full window height, beside the input
+  line and the bottom dock. A pane docked at the bottom sits under the
+  input line.
+- This replaces Cockpit's full-width input row at the very bottom (and
+  the "Geometry" bullets of ADR 0012 and of this ADR that put the side
+  docks and the top/bottom docks above a full-width input line).
+- Space: the input row is never dropped. The game pane keeps
+  30 × 5 cells; the top and bottom docks shrink and collapse as before,
+  from the rows left after the game minimum and the input row. The
+  too-small gate (60 × 18) is unchanged. NAWS still follows the game
+  pane.
+- The bottom screen-edge zone that opens or targets the bottom dock is
+  the bottom 2 rows of the game column, which now includes the input row
+  when the bottom dock is hidden. Dock resize from the gap rows is
+  clamped as before (game 5 rows plus the input row).
+
+### Floating panes and the input line
+
+- Floating panes are clamped into the whole window (no longer the area
+  above the input line) and may cover the input line, like anything else.
+  This is the simpler rule: the input keeps the keyboard focus under a
+  float, the float is always under the user's control (move or resize
+  it), and a separate "keep out of the input row" rule would have made
+  clamping depend on where the input happens to be.
+
+### Standard float size
+
+- A docked pane dragged out to float always gets a standard outer size
+  of 36 × 14 cells (frame included; `FLOAT_STANDARD_W` /
+  `FLOAT_STANDARD_H` in `src/layout/allocate.ts`), clamped to the
+  window, placed where it is dropped. The drop outline shows that size
+  during the drag. The pressed cell stays under the pointer, cut to the
+  new width and height if it lay outside them.
+- This replaces "floats there at the size it shows now" above: a tall
+  side pane would otherwise float as a full-height strip.
+- An already floating pane keeps its size when it is moved.
+  `defaultFloatSize` (33 columns × default rows) is still used by the
+  settings migration only.

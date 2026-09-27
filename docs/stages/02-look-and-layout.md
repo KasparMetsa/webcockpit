@@ -127,12 +127,17 @@ start page; nothing connects until you choose Enter MUME.
 **Cockpit (live):**
 
 1. Enter MUME, log in and play. Right column: Character, Timers, Group,
-   Comm, UI (empty frames until stages 4–5).
+   Comm, UI (empty frames until stages 4–5), running the full window
+   height. The input line sits directly under the game pane and is as
+   wide as it, with the clock strip at its right end.
 2. Arrange panes: drag a pane by its title row to a screen edge (left,
-   right, top, bottom) or another place in a dock. Drop it over the game
-   text to make it float; move it by its title row, resize it from its
-   edges and corners, click to bring it to front, drop it on a screen
-   edge to dock it again. Drag the gaps to resize a dock or two
+   right, top, bottom) or another place in a dock. Left and right docks
+   run the full height, beside the input line; a pane docked at the
+   bottom goes under the input line, and one docked at the top above the
+   game pane. Drop a pane over the game text to make it float: a docked
+   pane always starts at a standard 36 × 14 cells. Move it by its title
+   row (it keeps its size), resize it from its edges and corners, click
+   to bring it to front, drop it on a screen edge to dock it again. Drag the gaps to resize a dock or two
    neighbouring panes. Reload: the layout is kept.
 3. Make the window narrow and small: side docks collapse; below 60×18
    cells a "Window too small" notice shows.
@@ -198,6 +203,6 @@ Follow-up tasks:
 
 Follow-up tasks:
 
-- [ ] Centre column = top dock, game, input, bottom dock; side docks
+- [x] Centre column = top dock, game, input, bottom dock; side docks
       full height.
-- [ ] Standard size when a docked pane starts floating.
+- [x] Standard size when a docked pane starts floating.
