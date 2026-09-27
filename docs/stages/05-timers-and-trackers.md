@@ -57,7 +57,7 @@ None yet. Carried: per-character timers state survives sessions
       skeleton with its public API and persistence lifecycle, input tap
       (live and replayed sends, empty Enter), entry maths, pane factory
       stub. Notes in ADR 0017.
-- [ ] P1. Game data tables and the six trackers, system rules, UI
+- [x] P1. Game data tables and the six trackers, system rules, UI
       lines, demo fixture. Notes in ADR 0017.
 - [x] P2. Timers pane and Options → Panes → Timers. Notes in ADR 0017.
 - [ ] Merge P1 + P2; bench still passes (§1.3).

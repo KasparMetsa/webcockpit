@@ -252,6 +252,76 @@ and herb add/remove work). Without injecting: `game.timers.debugAdd(cell)`,
 cleared by `connecting`; in the browser `__wc.app.game.timers.debugAdd({
 id, name, group, startedAt, expiresAt, expected, tracked })`.
 
+### P1 — trackers (2026-09-27)
+
+**Modules.** `src/timers/data/{affects,spells,herblores}.ts` (47 affects:
+12 spell / 19 buff / 16 debuff, 37 timed, armour and shroud
+damage-droppable; 36 storable spells with `resolveSpell`; 6 herblores with
+`herbPhaseAt`). Trackers: `lines.ts` (`LineRouter`), `castq.ts`
+(`CastQueue`: shared queue, shared lines, cast parsing), `affects.ts`,
+`reconcile.ts` (stat/info block), `stored.ts`, `blinds.ts`, `charm.ts`,
+`herblore.ts`. `trackers.ts`: `buildTrackers(host)` (all of them, for
+tests) and `createTrackers(host)` → `[rules, cast, affects, stored,
+blinds, charms, herbs]`. Saved keys: `affects` `{active, learned}`,
+`stored` `{active, learned}`, `blinds` `[…]`, `charms` `{nextId, list}`,
+`herbs` `[{key, startedAt}]`; `rules` and `cast` save nothing. Cell ids:
+`affect:<name>`, `stored:<n>`, `blind:<n>`, `charm:<n>`, `herb:<key>`.
+Herb catalogue keys are Cockpit's (`DarkAura`), names are display names
+(`Dark aura`).
+
+**Matcher.** One system action `%*` at priority 3 hands every line to the
+`LineRouter`: watchers (the stat/info collector, O(1) when idle), then one
+`Map` lookup on the full text (126 fixed lines), then 7 `startsWith`
+(`[c…` echo, `You flee `, `Your control on `, shadow-link ×2, spectral
+health, smothered) and 3 `endsWith` (`seems to be blinded!`, `blasts the
+area…`, `ruled by powers…`). Charm's follow line is its own action at
+priority 4 (`^%1 starts following you.$`, literal pre-check). On a line
+that both drops and starts affects the drops run first (second wind →
+winded, comfortable ↔ very comfortable). Cost (`node
+bench/script-bench.ts`, 93 883 real lines): +0.38 µs per line on an idle
+machine (0.44 vs 0.06), +0.77 µs under load; 500 user rules + system 14.2
+µs (budget 200). `tests/unit/timers-cost.test.ts` guards < 10 µs and ≤ 6
+system actions. Browser burst runs were too noisy on a loaded machine to
+compare (the base commit also missed the 50 ms frame budget in one of
+four runs); the Node figure bounds the added cost at ~0.1 s per 100 000
+lines.
+
+**Deviations from the inventory / Cockpit.**
+- An affect without a drop line (anger) that ends at its expiry
+  announces `down` (Cockpit prunes it silently); the 2.5× safety net stays
+  silent.
+- A 0 s sample is never learned. Affect names from stat/info match
+  case-insensitively.
+- Stored spells: a reconcile-added entry (no start time) counts as the
+  oldest for a decay; the blast warning is shown only when something was
+  stored. Store attempts from the `[cast n 'store' x]` echo are ignored
+  (MUME echoes the `store x` shortcut too, so it would double-count).
+- Casts: any words may sit between `c…` and the quoted spell, and an
+  unterminated quote is accepted (`cast 'sanctuary`).
+- Herblore phases are checked every hub tick (1 s; Cockpit 2 s).
+- Charm ids stay monotonic across connections in one page; a charm that
+  lands while the record loads gets a new id if a saved one has its id.
+
+**Tests.** `timers-affects` (data counts, learning, damage floor,
+overrun, no-drop expiry, shared lines, prefixes, persistence, reconcile),
+`timers-casts` (parsing, resolve, queue, stored spells, blinds, charms,
+herblores), `timers-trackers` (GameState + engine + IndexedDB round trip,
+silent restore, ×), `timers-replay` (the four real Cockpit logs ≥ 100 kB
+through LineAssembler → engine → trackers on the logs' clock; no errors,
+every learned affect sample within 0.3–2.5× of its table duration; skips
+without logs; plus the demo fixture line by line), `timers-cost`, e2e
+`timers-trackers.spec.ts` (demo in the browser, hub view and UI lines).
+Real logs learn e.g. armour 1559–1560 s and shield 1478–1946 s (table
+1100 / 1560), which is what learning is for.
+
+**Demo.** `tests/fixtures/timers-demo.log` (regenerate with `node
+tests/fixtures/timers-demo.gen.ts`), ~64 s, character `Ithilwen`: armour
+(via the `arm` echo), shield, bless, sanctuary; second wind and anger
+(anger ends by its expiry); tiredness; hunger; three stores and a fireball
+recall; `2.orc` blinded; a charmed troll and an enslaved shadow; a `stat`
+block (detect magic appears untracked); a shield refresh; hunger ends;
+second wind fades into winded. `/?fixture=timers-demo.log`.
+
 ### P2 — Timers pane and options (2026-09-27)
 
 **Modules.** `src/panes/timers.ts`: pure `timersLayout(input)` →

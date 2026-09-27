@@ -34,6 +34,7 @@ const { Bus } = await import('../src/core/bus');
 const { LineAssembler } = await import('../src/text/assembler');
 const { ScriptEngine } = await import('../src/script/engine');
 const { makeRuleProfile, RULE_COUNT } = await import('./rules');
+const { GameState } = await import('../src/gmcp/state');
 const { biggestFixture, FIXTURES_ROOT } = await import('../tests/e2e/fixtures');
 type Line = import('../src/core/types').Line;
 
@@ -57,13 +58,21 @@ const lines: Line[] = [];
   }
 }
 
-function perLine(profile: string | null): { us: number; shown: number; sent: number } {
+function perLine(profile: string | null, system = false): { us: number; shown: number; sent: number } {
   const bus = new Bus();
   let shown = 0;
   let sent = 0;
   bus.on('text.display', () => shown++);
   const e = new ScriptEngine({ send: () => sent++, message: () => {} });
   e.attach(bus);
+  // The app's system rules: game state (clock, wimpy) and the timers
+  // trackers (ADR 0017), as App installs them. The hub is not attached, so
+  // its UI lines go nowhere.
+  const game = system ? new GameState() : null;
+  if (game) {
+    game.installRules(e.system);
+    game.timers.installRules(e.system);
+  }
   if (profile) {
     const r = e.loadProfile(profile);
     if (!r.ok) throw new Error(r.reason);
@@ -78,6 +87,7 @@ function perLine(profile: string | null): { us: number; shown: number; sent: num
   for (let i = 0; i < 5; i++) times.push(once());
   times.sort((a, b) => a - b);
   e.dispose();
+  game?.dispose();
   return { us: (times[2]! / lines.length) * 1000, shown: shown / 6, sent: sent / 6 };
 }
 
@@ -105,6 +115,12 @@ const full = perLine(profile);
 console.log(
   `  ${RULE_COUNT} rules: ${full.us.toFixed(2)} µs per line (budget 200 µs) ${full.us < 200 ? 'PASS' : 'FAIL'}; ` +
     `${full.shown} lines shown`,
+);
+const sys = perLine(null, true);
+console.log(`  system rules (game + timers): ${sys.us.toFixed(2)} µs per line (+${(sys.us - base.us).toFixed(2)})`);
+const both = perLine(profile, true);
+console.log(
+  `  ${RULE_COUNT} rules + system: ${both.us.toFixed(2)} µs per line (budget 200 µs) ${both.us < 200 ? 'PASS' : 'FAIL'}`,
 );
 const key = keyPath(profile);
 console.log(`  key path:  macro → alias → send ${key.macroUs.toFixed(2)} µs, typed alias ${key.aliasUs.toFixed(2)} µs (budget 1000 µs)`);
