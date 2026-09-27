@@ -1,0 +1,308 @@
+/* TUI kit (src/chrome/kit, Inv §3.3, §10.6). Every size is whole cells
+ * (--cell-w × --cell-h from src/theme/cells.ts); every colour is a
+ * --c-* / --banner-* / --star-* token or the terminal colours. */
+
+.wc-chrome {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--term-bg);
+  color: var(--c-item);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
+  letter-spacing: var(--cell-ls);
+  font-variant-ligatures: none;
+  white-space: pre;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.wc-chrome[hidden] {
+  display: none;
+}
+
+/* The cell grid: exactly cols × rows cells, placed in whole pixels by JS. */
+.wc-screen {
+  position: absolute;
+  overflow: hidden;
+}
+
+.wc-stack,
+.wc-frame,
+.wc-page {
+  height: 100%;
+  outline: none;
+}
+
+.wc-frame[hidden] {
+  display: none;
+}
+
+.wc-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.wc-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wc-line {
+  height: var(--cell-h);
+  white-space: pre;
+  overflow: hidden;
+}
+
+.wc-footer {
+  flex: 0 0 auto;
+}
+
+/* Colour roles (Inv §10.3). Weight/style belong to the role. */
+.wc-c-title { color: var(--c-title); font-weight: bold; }
+.wc-c-section { color: var(--c-section); font-weight: bold; }
+.wc-c-active { color: var(--c-active); font-weight: bold; }
+.wc-c-item { color: var(--c-item); }
+.wc-c-body { color: var(--c-body); }
+.wc-c-hint { color: var(--c-hint); }
+.wc-c-off { color: var(--c-off); }
+.wc-c-accent { color: var(--c-accent); font-weight: bold; }
+.wc-c-yellow { color: var(--c-yellow); font-weight: bold; }
+.wc-c-err { color: var(--c-err); font-weight: bold; }
+.wc-c-danger { color: var(--c-danger); }
+.wc-c-ok { color: var(--c-ok); font-weight: bold; }
+.wc-c-quote { color: var(--c-quote); font-style: italic; }
+.wc-c-quote-attr { color: var(--c-quote-attr); }
+
+/* Menu rows: `<< label >>`. */
+.wc-mrow {
+  cursor: pointer;
+}
+
+.wc-mrow .wc-arrow {
+  color: var(--c-cursor);
+  font-weight: bold;
+}
+
+.wc-mrow .wc-label {
+  color: var(--c-item);
+}
+
+.wc-mrow:hover .wc-label {
+  color: var(--c-hover);
+}
+
+.wc-mrow.is-dim .wc-label {
+  color: var(--c-hint);
+}
+
+.wc-mrow.is-dim:hover .wc-label {
+  color: var(--c-body);
+}
+
+.wc-mrow.is-disabled {
+  cursor: default;
+}
+
+.wc-mrow.is-disabled .wc-label,
+.wc-mrow.is-disabled:hover .wc-label {
+  color: var(--c-off);
+}
+
+/* Selection wins over hover. */
+.wc-mrow.is-sel .wc-label,
+.wc-mrow.is-sel:hover .wc-label {
+  color: var(--c-active);
+  font-weight: bold;
+}
+
+.wc-mrow.is-sel.is-dim .wc-label {
+  color: var(--c-body);
+}
+
+/* Filled buttons. */
+.wc-btn {
+  display: inline-block;
+  color: var(--c-item);
+  cursor: pointer;
+}
+
+.wc-btn:hover {
+  color: var(--c-hover);
+}
+
+.wc-btn.is-sel,
+.wc-btn.is-sel:hover {
+  color: var(--c-sel-fg);
+  background: var(--c-sel-bg);
+}
+
+.wc-btn.is-sel-focus,
+.wc-btn.is-sel-focus:hover {
+  color: var(--c-sel-fg);
+  background: var(--c-focus-bg);
+}
+
+.wc-btn.is-disabled,
+.wc-btn.is-disabled:hover {
+  color: var(--c-hint);
+  background: none;
+  cursor: default;
+}
+
+/* Check / swatch cells. */
+.wc-check {
+  cursor: pointer;
+}
+
+.wc-check .wc-check-box {
+  color: var(--c-hint);
+}
+
+.wc-check.is-on .wc-check-box {
+  color: var(--c-active);
+}
+
+.wc-check.is-off .wc-check-box,
+.wc-check.is-off .wc-swatch {
+  color: var(--c-off);
+}
+
+.wc-check.is-cursor .wc-check-box {
+  color: var(--c-cursor);
+  font-weight: bold;
+}
+
+/* Tables. */
+.wc-th.is-sortable {
+  cursor: pointer;
+}
+
+.wc-th.is-sortable:hover {
+  color: var(--c-hover);
+}
+
+.wc-tr {
+  color: var(--c-item);
+  cursor: pointer;
+}
+
+.wc-tr.is-empty {
+  cursor: default;
+}
+
+.wc-tr:not(.is-empty):hover {
+  color: var(--c-hover);
+}
+
+.wc-tr.is-cur,
+.wc-tr.is-cur:hover {
+  color: var(--c-sel-fg);
+  background: var(--c-sel-bg);
+}
+
+.wc-tr.is-cur-focus,
+.wc-tr.is-cur-focus:hover {
+  color: var(--c-sel-fg);
+  background: var(--c-focus-bg);
+}
+
+.wc-scroll-thumb {
+  color: var(--c-scroll-thumb);
+  font-weight: bold;
+}
+
+.wc-scroll-track {
+  color: var(--c-scroll-track);
+}
+
+/* Footer tokens that can be clicked. */
+.wc-footer-btn {
+  cursor: pointer;
+}
+
+.wc-footer-btn:hover {
+  color: var(--c-hover);
+}
+
+/* Text fields. */
+.wc-field {
+  box-sizing: border-box;
+  height: var(--cell-h);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: var(--c-active);
+  caret-color: var(--c-cursor);
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: var(--cell-h);
+  vertical-align: top;
+}
+
+/* Thin box (preview, Inv §10.6 "Boxes"). */
+.wc-box {
+  color: var(--c-hint);
+}
+
+/* Banner (Inv §10.7). Star tiers are classes so a tick only swaps a class. */
+.wc-banner-word { color: var(--banner-word); }
+.wc-banner-word-dim { color: var(--banner-word-dim); }
+.wc-star-0 { color: var(--star-dim); }
+.wc-star-1 { color: var(--star-mid); }
+.wc-star-2 { color: var(--star-bright); }
+
+/* ESC menu overlay (Inv §4.1): a modal layer over the running cockpit. */
+.wc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  color: var(--c-item);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
+  letter-spacing: var(--cell-ls);
+  font-variant-ligatures: none;
+  white-space: pre;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.wc-overlay[hidden] {
+  display: none;
+}
+
+.wc-overlay-box {
+  position: absolute;
+  background: var(--term-bg);
+}
+
+.wc-overlay-border {
+  position: absolute;
+  color: var(--c-section);
+  overflow: hidden;
+  white-space: pre;
+}
+
+.wc-overlay-inner {
+  position: absolute;
+  overflow: hidden;
+}
+
+/* ANSI palette swatches: gold brackets on the cursor cell. */
+.wc-pal {
+  cursor: pointer;
+}
+
+.wc-pal-br {
+  color: var(--c-cursor);
+  font-weight: bold;
+}
