@@ -1,0 +1,38 @@
+/* Bundled fonts (ADR 0010 "Fonts and cell grid"; public/fonts/README.md).
+ * font-display: block — text waits for the font instead of swapping, so
+ * the cell grid is measured once with the real font and never reflows.
+ * Only the selected family is preloaded (src/theme/fonts.ts); the other
+ * family is fetched only if something uses it (JetBrains Mono falls back
+ * to DejaVu Sans Mono for the few symbols it lacks). */
+
+@font-face {
+  font-family: "DejaVu Sans Mono";
+  src: url("/fonts/DejaVuSansMono.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "DejaVu Sans Mono";
+  src: url("/fonts/DejaVuSansMono-Bold.woff2") format("woff2");
+  font-weight: bold;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMonoNL-Regular.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMonoNL-Bold.woff2") format("woff2");
+  font-weight: bold;
+  font-style: normal;
+  font-display: block;
+}
