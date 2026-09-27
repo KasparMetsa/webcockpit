@@ -12,7 +12,7 @@
 // move to the next kept visible entry (or to the end).
 
 import type { RunMeta } from '../capture/store';
-import type { ChainRun } from '../player/timeline';
+import type { ChainRun, TimelineEdits } from '../player/timeline';
 import { markersOf } from '../player/strip';
 import type { RunEvent } from '../runs/events';
 import { runStartUs } from '../runs/stitch';
@@ -104,4 +104,9 @@ export function buildReplayPayload(
     cuts: doc.excludes.map((r) => [r[0], r[1]] as ExcludeRange),
     markers,
   };
+}
+
+/** The timeline edits of a payload: its comments (with holds) and cuts. */
+export function payloadEdits(p: ReplayPayload): TimelineEdits {
+  return { comments: p.comments, cuts: p.cuts };
 }

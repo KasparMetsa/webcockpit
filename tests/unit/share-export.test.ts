@@ -4,7 +4,8 @@ import type { RunEvent } from '../../src/runs/events';
 import { defaultSettings } from '../../src/settings';
 import { captureEntries, stripAnsi } from '../../src/share/capture';
 import { type ExportDoc, defaultExportDoc } from '../../src/share/edits';
-import { buildReplayPayload, editRunText } from '../../src/share/payload';
+import { buildReplayPayload, editRunText, payloadEdits } from '../../src/share/payload';
+import { ENTRY_COMMENT, buildTimeline } from '../../src/player/timeline';
 import { buildTextExport } from '../../src/share/text';
 import { BASE_US, makeLog, meta } from './player-helpers';
 
@@ -127,6 +128,12 @@ describe('buildReplayPayload', () => {
     expect(p.comments).toEqual([{ beforeUs: us(9), text: 'x'.repeat(90), holdMs: 8000 }]);
     expect(p.settings).toEqual(settings);
     expect(p.settings).not.toBe(settings);
+    // It plays: the comment holds before `HP:Hurt>`, the cut is short.
+    const tl = buildTimeline(p.runs, payloadEdits(p));
+    const ci = [...tl.kind].indexOf(ENTRY_COMMENT);
+    expect(tl.ts[ci]).toBe(us(9));
+    expect(tl.play[ci + 1]! - tl.play[ci]!).toBe(8000);
+    expect(JSON.parse(JSON.stringify(p))).toEqual(p);
   });
 
   it('leaves texts as they are without exclusions; a trailing range moves comments to the end', () => {

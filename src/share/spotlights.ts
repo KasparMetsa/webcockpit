@@ -1,0 +1,208 @@
+// Spotlights (ADR 0019 "Spotlights", Inv §7.6): which moments the reel
+// plays, in which order, over which log windows, and how the info box
+// names them. Pure; P3 loads the windows and plays them.
+//
+//   events     char_death, level_up, pkill and achievement of every
+//              character's sealed runs that have a log, one spotlight per
+//              event (no merging), filtered by Options → Spotlights
+//   window     [at − 10 s, at + 5 s] with at = logUs ?? us; the player
+//              trims the pre-roll to the first visible entry and dwells
+//              through the post-roll; a window with no visible entry is
+//              dropped by the loader (`hasVisibleEntry`)
+//   rotation   per-character queues, newest first; each pick takes the
+//              queue whose head is the most recent, but not the character
+//              of the previous pick while another character has some left
+//   prefix     the state before a window is read from at most 10 minutes
+//              before it (`RunLibrary.chainLogRange(runId, prefixFromUs, toUs)`)
+
+import type { RunMeta } from '../capture/store';
+import { hasInk } from '../player/timeline';
+import { PLAYING_COMMANDS } from '../net/session';
+import type { RunEvent } from '../runs/events';
+import { runStartUs } from '../runs/stitch';
+import type { SpotlightSettings } from '../settings';
+import { captureEntries } from './capture';
+
+export const WINDOW_BEFORE_US = 10_000_000;
+export const WINDOW_AFTER_US = 5_000_000;
+/** How far before a window its state prefix is read. */
+export const STATE_PREFIX_US = 600_000_000;
+
+export type SpotlightKind = 'pkill' | 'death' | 'level' | 'achievement';
+
+/** The info box's type line (`RASTA: PvP kill`). */
+export const KIND_LABEL: Readonly<Record<SpotlightKind, string>> = {
+  pkill: 'PvP kill',
+  death: 'Death',
+  level: 'Level up',
+  achievement: 'Achievement',
+};
+
+export interface Spotlight {
+  /** `<runId>#<event index in the run>`, stable. */
+  id: string;
+  runId: string;
+  character: string;
+  /** The character's level at the event, when known. */
+  level?: number;
+  kind: SpotlightKind;
+  /** The moment, µs (`logUs ?? us`). */
+  atUs: number;
+  /** The window, inclusive µs. */
+  fromUs: number;
+  toUs: number;
+  /** Where the state prefix starts (read `chainLogRange(runId, prefixFromUs, toUs)`). */
+  prefixFromUs: number;
+  /** The info box label: `*Name the Race*`, `Death (level N)`, `Reached level N`, `Achievement: …`. */
+  label: string;
+  /** The run's start, µs (the header date). */
+  runStartUs: number;
+  event: RunEvent;
+}
+
+/** One run as the selection reads it. */
+export interface SpotlightRun {
+  meta: RunMeta;
+  events: readonly RunEvent[];
+}
+
+function kindOf(e: RunEvent): SpotlightKind | null {
+  switch (e.type) {
+    case 'pkill':
+      return 'pkill';
+    case 'char_death':
+      return 'death';
+    case 'level_up':
+      return 'level';
+    case 'achievement':
+      return 'achievement';
+    default:
+      return null;
+  }
+}
+
+/** True when the filters let `kind` through. */
+export function kindShown(kind: SpotlightKind, f: SpotlightSettings): boolean {
+  if (kind === 'pkill') return f.pvp;
+  if (kind === 'death') return f.deaths;
+  if (kind === 'level') return f.levelUps;
+  return f.achievements;
+}
+
+/** The event's moment in the log: `logUs ?? us`. */
+export function eventAt(e: RunEvent): number {
+  return 'logUs' in e && typeof e.logUs === 'number' ? e.logUs : e.us;
+}
+
+/** The info box label of an event (Inv §7.6). */
+export function spotlightLabel(e: RunEvent, level?: number): string {
+  switch (e.type) {
+    case 'pkill':
+      return '*' + (e.race ? `${e.name} ${e.race}` : e.name) + '*';
+    case 'char_death': {
+      const l = e.level ?? level;
+      return l !== undefined ? `Death (level ${l})` : 'Death';
+    }
+    case 'level_up':
+      return `Reached level ${e.level}`;
+    case 'achievement':
+      return `Achievement: ${e.name}`;
+    default:
+      return '';
+  }
+}
+
+/** Every spotlight of one run, in time order (unfiltered). */
+function spotlightsOf(run: SpotlightRun): Spotlight[] {
+  const out: Spotlight[] = [];
+  const m = run.meta;
+  // The level as the run goes: the baseline, then every level_up.
+  let cur: number | undefined;
+  run.events.forEach((e, i) => {
+    if (e.type === 'run_start' && e.level !== undefined) cur = e.level;
+    if (e.type === 'level_up') cur = e.level;
+    if (e.type === 'char_death' && e.level !== undefined) cur = e.level;
+    const kind = kindOf(e);
+    if (!kind) return;
+    const level = cur ?? m.summary?.level;
+    const at = eventAt(e);
+    out.push({
+      id: `${m.runId}#${i}`,
+      runId: m.runId,
+      character: m.character,
+      ...(level !== undefined ? { level } : {}),
+      kind,
+      atUs: at,
+      fromUs: at - WINDOW_BEFORE_US,
+      toUs: at + WINDOW_AFTER_US,
+      prefixFromUs: at - WINDOW_BEFORE_US - STATE_PREFIX_US,
+      label: spotlightLabel(e, level),
+      runStartUs: runStartUs(m),
+      event: e,
+    });
+  });
+  return out;
+}
+
+/**
+ * The reel: every shown event of sealed runs with a log, one spotlight each,
+ * in rotation order (see the file header).
+ */
+export function selectSpotlights(runs: readonly SpotlightRun[], filters: SpotlightSettings): Spotlight[] {
+  const queues = new Map<string, Spotlight[]>();
+  for (const r of runs) {
+    if (!r.meta.sealed || !(r.meta.bytes > 0)) continue;
+    for (const s of spotlightsOf(r)) {
+      if (!kindShown(s.kind, filters)) continue;
+      const q = queues.get(s.character);
+      if (q) q.push(s);
+      else queues.set(s.character, [s]);
+    }
+  }
+  for (const q of queues.values()) q.sort((a, b) => b.atUs - a.atUs || b.id.localeCompare(a.id));
+  const out: Spotlight[] = [];
+  const heads = new Map<string, number>([...queues.keys()].map((k) => [k, 0]));
+  let last: string | null = null;
+  for (;;) {
+    let best: string | null = null;
+    let bestOther: string | null = null;
+    for (const [ch, i] of heads) {
+      const q = queues.get(ch)!;
+      if (i >= q.length) continue;
+      const newer = (x: string | null): boolean => {
+        if (x === null) return true;
+        const a = q[i]!;
+        const b = queues.get(x)![heads.get(x)!]!;
+        return a.atUs > b.atUs || (a.atUs === b.atUs && ch < x);
+      };
+      if (newer(best)) best = ch;
+      if (ch !== last && newer(bestOther)) bestOther = ch;
+    }
+    const pick: string | null = bestOther ?? best;
+    if (pick === null) break;
+    const i = heads.get(pick)!;
+    out.push(queues.get(pick)![i]!);
+    heads.set(pick, i + 1);
+    last = pick;
+  }
+  return out;
+}
+
+/**
+ * True when a capture text has a visible entry (an inbound line with ink,
+ * or an echoed command) in `[fromUs, toUs]`: a window without one is dropped.
+ */
+export function hasVisibleEntry(text: string, fromUs: number, toUs: number): boolean {
+  for (const e of captureEntries(text)) {
+    if (e.ts < fromUs) continue;
+    if (e.ts > toUs) return false;
+    if (e.kind === 'in' && hasInk(e.body, 0, e.body.length)) return true;
+    if (e.kind === 'out' && e.body !== '' && !PLAYING_COMMANDS.includes(e.body)) return true;
+  }
+  return false;
+}
+
+/** Which empty state to show when there is nothing to play: any kind switched off = `filtered`. */
+export function emptyState(filters: SpotlightSettings): 'no_data' | 'filtered' {
+  return filters.achievements && filters.deaths && filters.levelUps && filters.pvp ? 'no_data' : 'filtered';
+}
