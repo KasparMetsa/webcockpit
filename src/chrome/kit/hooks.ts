@@ -14,6 +14,8 @@ export interface ChromeServices {
   profiles: ProfileStore;
   /** Build version for About (CLIENT_VERSION). */
   version: string;
+  /** The profile editor saved `name` (the UI pane line, ADR 0016). */
+  onProfileSaved?: (name: string) => void;
 }
 
 export const ServicesCtx = createContext<ChromeServices | null>(null);

@@ -33,6 +33,7 @@ import { DEFAULT_PROFILE, ProfileStore } from '../profiles';
 import type { SettingsStore } from '../settings';
 import type { CellMetrics } from '../theme/cells';
 import { App, REASON_REPLAY_START } from './app';
+import { uiValue } from './ui-messages';
 
 type ChromeModule = typeof import('../chrome');
 
@@ -201,6 +202,7 @@ export class Shell {
       cells: this.opts.cells,
       profiles: this.profiles,
       version: CLIENT_VERSION,
+      onProfileSaved: (name) => this.appRef?.ui('system', `Profile {${uiValue(name)}} saved.`),
     };
   }
 

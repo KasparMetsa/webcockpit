@@ -267,17 +267,5 @@ export class PaneShell {
   }
 }
 
-/** Builds pane `id` from the context. */
-export type PaneFactory = (ctx: PaneContext) => PaneShell;
-
-/**
- * One shell per pane. Plain shells until a stage swaps in its subclass
- * here (P1: character, group; P2: comm, ui; stage 5: timers).
- */
-export const PANE_FACTORIES: Readonly<Record<PaneId, PaneFactory>> = {
-  character: (ctx) => new PaneShell(ctx, 'character'),
-  timers: (ctx) => new PaneShell(ctx, 'timers'),
-  group: (ctx) => new PaneShell(ctx, 'group'),
-  comm: (ctx) => new PaneShell(ctx, 'comm'),
-  ui: (ctx) => new PaneShell(ctx, 'ui'),
-};
+// PANE_FACTORIES lives in ./factories.ts: the pane subclasses import this
+// file, so the table cannot be here without an import cycle.

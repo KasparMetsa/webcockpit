@@ -59,7 +59,7 @@ export function EscMain(p: EscMainProps): VNode {
   const { cols, rows } = useGrid();
   const st = useStatus(p.status);
   const settings = useSettings();
-  const { profiles } = useServices();
+  const { profiles, onProfileSaved } = useServices();
   const connected = isLive(st);
 
   const items: MenuItem[] = [
@@ -73,6 +73,7 @@ export function EscMain(p: EscMainProps): VNode {
           isLive: () => isLive(p.status.get()),
           apply: p.liveApply,
           beforeLoad: p.flushWriteBack,
+          onSaved: onProfileSaved,
         }),
     },
     { key: 'options', label: 'Options', activate: () => nav.push(<OptionsHub />) },

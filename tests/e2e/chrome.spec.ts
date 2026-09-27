@@ -221,7 +221,7 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
   await expect.poll(async () => (await settings(page)).panes.comm.border).toBe(false);
   // No corner style row: the frames are always quadrant.
   await expect(page.locator('.wc-start')).not.toContainText('Corner style');
-  // Reset layout (the click moved the cursor to Comm; UI, then Reset).
+  // Reset layout (the click moved the cursor to Comm; UI, Communication, then Reset).
   await page.evaluate(() =>
     window.__wc!.settings.update((d) => {
       d.layout.docks.right.size = 40;
@@ -229,7 +229,7 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
       d.layout.floating = [{ id: 'comm', x: 5, y: 5, w: 30, h: 10 }];
     }),
   );
-  for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
   await expect(startSel(page)).toHaveText('<< Reset layout >>');
   await page.keyboard.press('Enter');
   await expect(startFlash(page)).toHaveText('Layout reset.');
