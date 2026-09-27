@@ -285,3 +285,42 @@ test('ESC menu → Profile while connected: Keep editing, Discard, Apply', async
   );
   expect(await stored(page)).toBe('#alias {a} {b}\n#alias {z} {}\n');
 });
+
+test('editor keys: line swap, undo, copy line, Tab and ↑ to the toggle', async ({ page }) => {
+  await openFromStart(page, 'one\ntwo\nthree\n');
+  await toEditor(page);
+  await page.keyboard.press('Tab');
+  await expect(ped(page)).toHaveAttribute('data-zone', 'buffer');
+  await page.keyboard.press('ArrowDown');
+  await expect(footer(page)).toContainText('Ln 2, Col 1');
+  await page.keyboard.press('Alt+ArrowUp');
+  expect(await bufferText(page)).toBe('two\none\nthree\n');
+  await expect(footer(page)).toContainText('Ln 1, Col 1');
+  await page.keyboard.press('Control+z');
+  expect(await bufferText(page)).toBe('one\ntwo\nthree\n');
+  await page.keyboard.type('x');
+  expect(await bufferText(page)).toBe('one\nxtwo\nthree\n');
+  await page.keyboard.press('Control+z');
+  expect(await bufferText(page)).toBe('one\ntwo\nthree\n');
+  await page.keyboard.press('Control+y');
+  expect(await bufferText(page)).toBe('one\nxtwo\nthree\n');
+  // Ctrl+C with no selection copies the line.
+  await page.keyboard.press('Control+c');
+  await expect(footer(page)).toContainText('Copied');
+  await page.keyboard.press('Control+x');
+  await expect(footer(page)).toContainText('Cut');
+  expect(await bufferText(page)).toBe('one\nthree\n');
+  // Tab never inserts a tab: it moves to the toggle, and back.
+  await page.keyboard.press('Tab');
+  await expect(ped(page)).toHaveAttribute('data-zone', 'toggle');
+  await page.keyboard.press('Tab');
+  await expect(ped(page)).toHaveAttribute('data-zone', 'buffer');
+  await page.keyboard.press('Control+Home');
+  await page.keyboard.press('ArrowUp');
+  await expect(ped(page)).toHaveAttribute('data-zone', 'toggle');
+  // ← on the toggle flips to LITE; the edited text is parsed back.
+  await page.keyboard.press('ArrowLeft');
+  await expect(ped(page)).toHaveAttribute('data-mode', 'lite');
+  await page.keyboard.press('Escape');
+  expect(await stored(page)).toBe('one\nthree\n');
+});

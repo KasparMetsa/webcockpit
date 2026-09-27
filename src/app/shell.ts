@@ -51,6 +51,9 @@ export function liveApplyOf(app: object): ((text: string) => ApplyResult) | null
   return typeof a.applyProfile === 'function' ? (text) => a.applyProfile!.call(app, text) : null;
 }
 
+/** Delay before the profile editor chunk is prefetched on the start page. */
+const EDITOR_PREFETCH_MS = 2000;
+
 /** Reasons that never auto-open the menu: the user asked for the disconnect. */
 const QUIET_REASONS = new Set([REASON_USER_RECONNECT, REASON_USER_DISCONNECT, REASON_REPLAY_START]);
 
@@ -112,7 +115,9 @@ export class Shell {
     const chrome = await this.loadChrome();
     this.start = chrome.mountStartPage(this.startHost, this.services(), { onEnter: () => this.enter() });
     this.showStart();
-    this.idle(() => void import('../editor').catch(() => undefined));
+    // Well after the first paint and the web font, so it never competes
+    // with the cold start (spec §1.3).
+    setTimeout(() => this.idle(() => void import('../editor').catch(() => undefined)), EDITOR_PREFETCH_MS);
   }
 
   /** Enter MUME: shows the cockpit and connects. */

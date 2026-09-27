@@ -480,7 +480,11 @@ export function ProfileEditor({ host }: { host: EditorHost }): VNode {
       case 'toggle':
         if (nk === 'left') flip('lite');
         else if (nk === 'right') flip('editor');
-        else if (nk === 'activate' || nk === 'down') focusZone(mode === 'lite' ? 'kind' : 'buffer');
+        else if (nk === 'activate' || nk === 'down') {
+          // ↓ / Enter enter the buffer at offset 0 (Inv §5.8); Tab keeps the cursor.
+          if (mode === 'editor') viewRef.current?.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+          focusZone(mode === 'lite' ? 'kind' : 'buffer');
+        }
         else return false;
         return true;
       case 'buffer': {
