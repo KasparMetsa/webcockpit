@@ -17,6 +17,7 @@ import { RunStore as CaptureStore } from '../../src/runs/store';
 import { Session } from '../../src/net/session';
 import { OPT_GMCP, WILL } from '../../src/net/telnet';
 import { LineAssembler } from '../../src/text/assembler';
+import type { RunEvent } from '../../src/runs/events';
 import { FakeSocket, IAC, concat, sb, utf8 } from './net-helpers';
 
 class FakeLocks implements LockManagerLike {
@@ -272,6 +273,52 @@ describe('Recorder', () => {
     t.play('Other');
     await t.rec.idle();
     expect(t.rec.runId).toMatch(/^Other\//);
+  });
+
+  it('keeps the lines and events of a run apart from a run that starts before its seal task ran', async () => {
+    const listeners = new Set<(e: RunEvent) => void>();
+    const emit = (e: RunEvent) => listeners.forEach((fn) => fn(e));
+    const factory = new IDBFactory();
+    const bus = new Bus();
+    let clock = 1790449245000000;
+    const rec = new Recorder(bus, {
+      openStore: () => CaptureStore.open(factory),
+      locks: new FakeLocks(),
+      events: { subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)) },
+      flushMs: 60000,
+      win: null,
+      now: () => (clock += 1000),
+    });
+    const play = () => {
+      bus.emit('conn.state', { state: 'login', prev: 'connecting' });
+      bus.emit('gmcp', { pkg: 'Char.Name', data: { name: 'Rasta', fullname: 'Rasta X' } });
+      bus.emit('conn.state', { state: 'playing', prev: 'login' });
+    };
+    play();
+    emit({ type: 'run_start', us: 1, character: 'Rasta', schema: 1 });
+    bus.emit('text.line', line('first run', 10));
+    await rec.idle();
+    const first = rec.runId!;
+    // Unflushed lines and events, then leave and re-enter playing in the
+    // same tick: the second run starts before the first one's seal task.
+    bus.emit('text.line', line('first run, late', 20));
+    bus.emit('conn.state', { state: 'disconnected', prev: 'playing' });
+    emit({ type: 'run_end', us: 21 });
+    play();
+    emit({ type: 'run_start', us: 30, character: 'Rasta', schema: 1 });
+    bus.emit('text.line', line('second run', 31));
+    await rec.flush();
+    const second = rec.runId!;
+    expect(second).toBe(first + '-2');
+    const store = (await rec.getStore())!;
+    const text = async (id: string) => (await store.getChunks(id)).map((c) => c.text).join('');
+    expect(await text(first)).toBe('0000000000000010 first run\n0000000000000020 first run, late\n');
+    expect(await text(second)).toBe('0000000000000031 second run\n');
+    expect((await store.getEvents(first)).map((r) => r.event.type)).toEqual(['run_start', 'run_end']);
+    expect((await store.getEvents(second)).map((r) => r.event.type)).toEqual(['run_start']);
+    expect((await store.getRun(first))!.sealed).toBe(true);
+    expect((await store.getRun(second))!.sealed).toBe(false);
+    rec.dispose();
   });
 
   it('does not record when another tab holds the character lock', async () => {
