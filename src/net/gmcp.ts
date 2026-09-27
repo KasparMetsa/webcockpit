@@ -12,9 +12,15 @@
 
 import type { Bus } from '../core/bus';
 
-/** Sent in `Core.Hello`. Keep in step with package.json `version`. */
+/**
+ * Injected by Vite/Vitest `define` from package.json `version` (the single
+ * source of the client version). Absent when src/ runs outside Vite.
+ */
+declare const __WC_VERSION__: string | undefined;
+
+/** Sent in `Core.Hello`. */
 export const CLIENT_NAME = 'WebCockpit';
-export const CLIENT_VERSION = '0.0.0';
+export const CLIENT_VERSION: string = typeof __WC_VERSION__ === 'string' ? __WC_VERSION__ : '0.0.0-dev';
 
 /** The default module set (spec stage 1, Inv §8.1). */
 export const DEFAULT_GMCP_MODULES: ReadonlyArray<readonly [string, number]> = [
