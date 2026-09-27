@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { DB_NAME, openWebcockpitDb } from '../../src/core/db';
 import { COMM_RETENTION_MS, CommArchive, type NewCommRecord } from '../../src/gmcp/comm-archive';
+import { lazyDb } from '../../src/panes/context';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = 1_790_000_000_000;
@@ -88,5 +89,16 @@ describe('CommArchive', () => {
     });
     expect(p).toMatchObject({ text: 'x' });
     archive.db.close();
+  });
+
+  it('lazyDb opens once and reopens after the connection was closed for an upgrade', async () => {
+    const factory = new IDBFactory();
+    const openDb = lazyDb(factory);
+    const a = await openDb();
+    expect(await openDb()).toBe(a);
+    a.onversionchange!(new Event('versionchange') as IDBVersionChangeEvent);
+    const b = await openDb();
+    expect(b).not.toBe(a);
+    b.close();
   });
 });

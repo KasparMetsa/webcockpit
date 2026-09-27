@@ -1,18 +1,58 @@
-// Pane shell (ADR 0010 "Consequences", ADR 0012): the element a side pane
-// lives in. The cockpit (src/layout/cockpit.ts) positions it and draws its
-// frame; later stages fill `content` and listen to `onResize`.
+// Pane shell (ADR 0010 "Consequences", ADR 0012, ADR 0016): the element a
+// side pane lives in. The cockpit (src/layout/cockpit.ts) positions it and
+// draws its frame; a pane subclass renders into `content`.
 //
-//   .wc-pane.wc-pane-<id>          positioned in whole cells, --pane-* tokens
-//     .wc-pane-frame               the glyph frame (absent text when border off)
-//     .wc-pane-content             the inner area, `cols` × `rows` cells
+//   .wc-pane.wc-pane-<id>[data-active]   positioned in whole cells, --pane-* tokens
+//     .wc-pane-frame                     the glyph frame (absent text when border off)
+//     .wc-pane-content                   the inner area, `cols` × `rows` cells
 //
-// Stage 2 panes are empty, like Cockpit's panes while disconnected.
+// Writing a pane (ADR 0016 "Package notes"):
+//
+//   class GroupPane extends PaneShell {
+//     private readonly model = new GroupModel();
+//     constructor(ctx: PaneContext) {
+//       super(ctx, 'group');
+//       this.own(ctx.bus.on('gmcp', (m) => { if (this.model.apply(m)) this.markDirty(); }));
+//       this.own(ctx.settings.subscribe(() => this.markDirty()));
+//     }
+//     protected override onActiveChange(active: boolean): void {
+//       if (!active) this.model.reset();          // state resets on disconnect
+//     }
+//     protected override render(): void {
+//       // this.cols × this.rows cells; direct DOM into this.content
+//     }
+//   }
+//
+// - `markDirty()` schedules one `render()` in the next frame (coalesced).
+//   It is also called on a size change, on a pane colour / appearance
+//   change and when the pane becomes active.
+// - `active` follows `conn.state`: `playing` → active, anything else
+//   inactive. While inactive a pane with `blankWhenInactive` (Character,
+//   Timers, Group, Comm; not UI) shows `blank()` (default: empty content)
+//   instead of `render()`; frame, size and position are unchanged (Inv §2.1).
+// - Nothing renders while the pane is hidden; showing it renders.
 
+import type { ConnState } from '../core/types';
 import { applyPaneTheme } from '../theme/apply';
 import type { Settings } from '../settings/types';
 import type { Rect } from '../layout/allocate';
 import { PANE_LABELS, type PaneId } from '../layout/types';
+import type { PaneContext } from './context';
 import { frameText } from './frame';
+
+export type { PaneContext } from './context';
+
+/** Panes that blank their content while not `playing` (Inv §2.1): all but UI. */
+export const BLANK_WHEN_INACTIVE: Readonly<Record<PaneId, boolean>> = {
+  character: true,
+  timers: true,
+  group: true,
+  comm: true,
+  ui: false,
+};
+
+/** True for the connection state in which panes are active. */
+export const isActiveState = (s: ConnState): boolean => s === 'playing';
 
 export type PaneResizeListener = (cols: number, rows: number) => void;
 
@@ -28,23 +68,45 @@ export interface PanePlacement {
   floating?: number;
 }
 
+export interface PaneShellOptions {
+  /** Override `BLANK_WHEN_INACTIVE[id]`. */
+  blankWhenInactive?: boolean;
+}
+
 export class PaneShell {
   readonly id: PaneId;
   readonly label: string;
   /** Outer element, positioned by the cockpit. */
   readonly el: HTMLDivElement;
-  /** Content element: later stages render into it. */
+  /** Content element: subclasses render into it. */
   readonly content: HTMLDivElement;
+  /** Blank the content while inactive (all panes but UI). */
+  readonly blankWhenInactive: boolean;
+  protected readonly ctx: PaneContext;
   private readonly frameEl: HTMLDivElement;
   private readonly listeners = new Set<PaneResizeListener>();
+  private readonly unsubs: (() => void)[] = [];
   private frameKey = '';
+  private themeKey = '';
   private _cols = 0;
   private _rows = 0;
   private _visible = false;
+  private _active: boolean;
+  /** A render is wanted (kept while hidden). */
+  private dirty = true;
+  /** A frame callback is pending. */
+  private scheduled = false;
+  /** The content currently shows `blank()`. */
+  private blanked = false;
+  private disposed = false;
 
-  constructor(doc: Document, id: PaneId) {
+  constructor(ctx: PaneContext, id: PaneId, opts: PaneShellOptions = {}) {
+    const doc = ctx.doc;
+    this.ctx = ctx;
     this.id = id;
     this.label = PANE_LABELS[id];
+    this.blankWhenInactive = opts.blankWhenInactive ?? BLANK_WHEN_INACTIVE[id];
+    this._active = isActiveState(ctx.connState());
     this.el = doc.createElement('div');
     this.el.className = `wc-pane wc-pane-${id}`;
     this.el.dataset.pane = id;
@@ -57,6 +119,72 @@ export class PaneShell {
     this.content = doc.createElement('div');
     this.content.className = 'wc-pane-content';
     this.el.append(this.frameEl, this.content);
+    this.el.toggleAttribute('data-active', this._active);
+    this.own(ctx.bus.on('conn.state', (s) => this.setActive(isActiveState(s.state))));
+  }
+
+  /** True while the connection is `playing` (see the file header). */
+  get active(): boolean {
+    return this._active;
+  }
+
+  /** Keeps `unsub` to be called by `dispose()`. */
+  protected own(unsub: () => void): void {
+    this.unsubs.push(unsub);
+  }
+
+  /** Renders once in the next frame (coalesced; skipped while hidden). */
+  markDirty(): void {
+    this.dirty = true;
+    if (this.scheduled || this.disposed || !this._visible) return;
+    this.scheduled = true;
+    this.ctx.requestFrame(this.onFrame);
+  }
+
+  private readonly onFrame = (): void => {
+    this.scheduled = false;
+    if (this.disposed || !this._visible || !this.dirty) return;
+    this.dirty = false;
+    if (this._active || !this.blankWhenInactive) {
+      this.blanked = false;
+      this.render();
+    } else if (!this.blanked) {
+      this.blanked = true;
+      this.blank();
+    }
+  };
+
+  /**
+   * Draws the content (`this.cols` × `this.rows` cells). Called at most
+   * once per frame after `markDirty()`, only while visible and active (or
+   * for a pane that does not blank). Subclasses override it.
+   */
+  protected render(): void {}
+
+  /** Shows the inactive state. Default: empty content. */
+  protected blank(): void {
+    this.content.replaceChildren();
+  }
+
+  /**
+   * Called when `active` changes, before the re-render is scheduled (e.g.
+   * reset the model when the connection leaves `playing`).
+   */
+  protected onActiveChange(_active: boolean): void {}
+
+  private setActive(active: boolean): void {
+    if (active === this._active) return;
+    this._active = active;
+    this.el.toggleAttribute('data-active', active);
+    this.onActiveChange(active);
+    this.markDirty();
+  }
+
+  /** Stops listening (bus, settings, anything passed to `own`). */
+  dispose(): void {
+    this.disposed = true;
+    for (const u of this.unsubs.splice(0)) u();
+    this.listeners.clear();
   }
 
   /** Inner width in cells (0 while hidden). */
@@ -83,9 +211,19 @@ export class PaneShell {
     return () => this.listeners.delete(fn);
   }
 
-  /** Re-applies the pane colour tokens (every settings change). */
+  /**
+   * Re-applies the pane colour tokens (every relayout). Marks the pane
+   * dirty when its colour or the appearance changed, since renders may
+   * derive colours from them (shade ramp).
+   */
   applyTheme(s: Readonly<Settings>): void {
     applyPaneTheme(this.el, s, this.id);
+    const a = s.appearance;
+    const key = `${s.panes[this.id].color}|${a.fg}|${a.bg}|${a.ansi.join(',')}`;
+    if (key !== this.themeKey) {
+      this.themeKey = key;
+      this.markDirty();
+    }
   }
 
   /** Cockpit only: shows the pane at `p` (cells × `cell` px) or hides it. */
@@ -125,17 +263,21 @@ export class PaneShell {
     this._cols = cols;
     this._rows = rows;
     for (const fn of [...this.listeners]) fn(cols, rows);
+    this.markDirty();
   }
 }
 
+/** Builds pane `id` from the context. */
+export type PaneFactory = (ctx: PaneContext) => PaneShell;
+
 /**
- * One shell per pane. Stage 2 panes are all plain shells; later stages
- * swap in their own subclasses here.
+ * One shell per pane. Plain shells until a stage swaps in its subclass
+ * here (P1: character, group; P2: comm, ui; stage 5: timers).
  */
-export const PANE_FACTORIES: Readonly<Record<PaneId, (doc: Document) => PaneShell>> = {
-  character: (doc) => new PaneShell(doc, 'character'),
-  timers: (doc) => new PaneShell(doc, 'timers'),
-  group: (doc) => new PaneShell(doc, 'group'),
-  comm: (doc) => new PaneShell(doc, 'comm'),
-  ui: (doc) => new PaneShell(doc, 'ui'),
+export const PANE_FACTORIES: Readonly<Record<PaneId, PaneFactory>> = {
+  character: (ctx) => new PaneShell(ctx, 'character'),
+  timers: (ctx) => new PaneShell(ctx, 'timers'),
+  group: (ctx) => new PaneShell(ctx, 'group'),
+  comm: (ctx) => new PaneShell(ctx, 'comm'),
+  ui: (ctx) => new PaneShell(ctx, 'ui'),
 };

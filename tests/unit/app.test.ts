@@ -176,4 +176,41 @@ describe('App wiring against MUME opening bytes', () => {
     enter(app, 'look');
     expect(t.sockets).toHaveLength(0);
   });
+
+  it('a replay with recorded GMCP reaches playing: panes active, nothing captured', async () => {
+    const t = setup();
+    const { app } = t;
+    const states: string[] = [];
+    app.bus.on('conn.state', (s) => states.push(s.state));
+    const log =
+      '1790366274272000 \x1bGMCP Comm.Channel.List [{"name":"tells","caption":"Tells","command":"tell"}]\n' +
+      '1790366274272100 \x1bGMCP Char.Name {"name":"Rasta","fullname":"Rasta Fari"}\n' +
+      '1790366274272195 \x1b[32mMain Passageway\x1b[0m\n' +
+      '1790366274272700 ![ S>\n';
+    let activeWhilePlaying = false;
+    app.bus.on('conn.state', (s) => {
+      if (s.state === 'playing') activeWhilePlaying = app.cockpit.pane('group').active;
+    });
+    app.startReplay(log, 'demo.log', 0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(states).toEqual(['connecting', 'login', 'playing', 'disconnected']);
+    expect(activeWhilePlaying).toBe(true);
+    expect(app.cockpit.pane('group').active).toBe(false);
+    expect(t.outputText()).toContain('[SYSTEM] Rasta logged in.');
+    await app.recorder.idle();
+    expect(app.recorder.runId).toBeNull();
+    expect(await (await app.recorder.getStore())!.listRuns()).toEqual([]);
+  });
+
+  it('announces the screen settings as view.settings once per change', () => {
+    const t = setup();
+    const seen: string[] = [];
+    t.app.bus.on('view.settings', (v) => seen.push(v.json));
+    const store = t.app.cockpit.paneContext.settings;
+    store.update({ profile: 'other' }); // not part of the view
+    store.update({ panes: { comm: { color: 'red' } } });
+    expect(seen).toHaveLength(1);
+    expect(JSON.parse(seen[0]!).panes.comm.color).toBe('red');
+    expect(t.app.cockpit.paneContext.sender).toBe(t.app.session);
+  });
 });

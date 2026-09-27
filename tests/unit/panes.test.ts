@@ -2,6 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import { Cockpit } from '../../src/layout/cockpit';
 import { frameBottom, frameEdge, frameText, frameTop } from '../../src/panes/frame';
+import { Bus } from '../../src/core/bus';
+import type { ConnState } from '../../src/core/types';
+import { createPaneContext, lazyDb } from '../../src/panes/context';
 import { PaneShell } from '../../src/panes/pane';
 import { SettingsStore } from '../../src/settings';
 
@@ -32,7 +35,7 @@ describe('frame', () => {
 
 describe('PaneShell', () => {
   it('places itself in cells, draws the frame and reports its inner size', () => {
-    const p = new PaneShell(document, 'comm');
+    const p = new PaneShell(createPaneContext({ doc: document }), 'comm');
     const sizes: [number, number][] = [];
     p.onResize((c, r) => sizes.push([c, r]));
     const rect = { x: 2, y: 3, w: 10, h: 5 };
@@ -54,6 +57,124 @@ describe('PaneShell', () => {
       [10, 5],
       [0, 0],
     ]);
+  });
+});
+
+describe('PaneShell render and active state', () => {
+  class TestPane extends PaneShell {
+    renders = 0;
+    blanks = 0;
+    changes: boolean[] = [];
+    protected override render(): void {
+      this.renders++;
+      this.content.textContent = `r${this.renders} ${this.cols}x${this.rows}`;
+    }
+    protected override blank(): void {
+      this.blanks++;
+      super.blank();
+    }
+    protected override onActiveChange(active: boolean): void {
+      this.changes.push(active);
+    }
+  }
+
+  function make(id: 'group' | 'ui', state: ConnState = 'idle') {
+    const bus = new Bus();
+    const frames: (() => void)[] = [];
+    const ctx = createPaneContext({ doc: document, bus, requestFrame: (cb) => frames.push(cb), connState: () => state });
+    const p = new TestPane(ctx, id);
+    const flush = () => {
+      while (frames.length) frames.shift()!();
+    };
+    const show = (w = 10, h = 4) =>
+      p.place({ rect: { x: 0, y: 0, w, h }, content: { x: 0, y: 0, w, h }, framed: false }, { w: 8, h: 16 });
+    const conn = (s: ConnState) => bus.emit('conn.state', { state: s, prev: 'login' });
+    return { p, bus, frames, flush, show, conn };
+  }
+
+  it('starts active when the connection is already playing', () => {
+    expect(make('group', 'playing').p.active).toBe(true);
+    const t = make('group');
+    expect(t.p.active).toBe(false);
+    expect(t.p.el.hasAttribute('data-active')).toBe(false);
+  });
+
+  it('renders once per frame after markDirty, only while visible', () => {
+    const t = make('group', 'playing');
+    t.p.markDirty();
+    expect(t.frames).toHaveLength(0); // hidden: nothing scheduled
+    t.show();
+    t.p.markDirty();
+    t.p.markDirty();
+    expect(t.frames).toHaveLength(1);
+    t.flush();
+    expect(t.p.renders).toBe(1);
+    expect(t.p.content.textContent).toBe('r1 10x4');
+    t.show(12, 4); // resize → render
+    t.flush();
+    expect(t.p.content.textContent).toBe('r2 12x4');
+    t.flush();
+    expect(t.p.renders).toBe(2);
+  });
+
+  it('blanks while inactive, renders when playing, and blanks again after disconnect', () => {
+    const t = make('group');
+    t.show();
+    t.flush();
+    expect([t.p.renders, t.p.blanks]).toEqual([0, 1]);
+    t.p.markDirty();
+    t.flush();
+    expect(t.p.blanks).toBe(1); // already blank: not redone
+    t.conn('playing');
+    expect(t.p.active).toBe(true);
+    expect(t.p.el.hasAttribute('data-active')).toBe(true);
+    t.flush();
+    expect(t.p.renders).toBe(1);
+    expect(t.p.content.textContent).toBe('r1 10x4');
+    t.conn('disconnected');
+    t.flush();
+    expect(t.p.content.textContent).toBe('');
+    expect(t.p.changes).toEqual([true, false]);
+    t.conn('connecting');
+    t.conn('login');
+    expect(t.p.changes).toEqual([true, false]);
+  });
+
+  it('the UI pane keeps rendering while inactive', () => {
+    const t = make('ui');
+    t.show();
+    t.flush();
+    expect([t.p.renders, t.p.blanks]).toEqual([1, 0]);
+    expect(t.p.blankWhenInactive).toBe(false);
+  });
+
+  it('re-renders on a colour change but not on a layout-only settings change', () => {
+    const t = make('group', 'playing');
+    const s = t.p['ctx'].settings;
+    t.p.applyTheme(s.get());
+    t.show();
+    t.flush();
+    const n = t.p.renders;
+    s.update({ layout: { docks: { right: { size: 40 } } } });
+    t.p.applyTheme(s.get());
+    t.flush();
+    expect(t.p.renders).toBe(n);
+    s.update({ panes: { group: { color: 'blue' } } });
+    t.p.applyTheme(s.get());
+    t.flush();
+    expect(t.p.renders).toBe(n + 1);
+  });
+
+  it('dispose stops following the connection', () => {
+    const t = make('group');
+    t.p.dispose();
+    t.conn('playing');
+    expect(t.p.active).toBe(false);
+    expect(t.bus.count('conn.state')).toBe(0);
+  });
+
+  it('lazyDb rejects without IndexedDB', async () => {
+    await expect(lazyDb(null)()).rejects.toThrow('IndexedDB unavailable');
   });
 });
 
@@ -79,6 +200,25 @@ describe('Cockpit', () => {
     };
     return { c, settings, size, flush };
   }
+
+  it('emits view.size when the size in cells changes, and builds panes from its context', () => {
+    const { c, size, flush } = make(1000, 600);
+    const sizes: { cols: number; rows: number }[] = [];
+    c.paneContext.bus.on('view.size', (v) => sizes.push(v));
+    c.relayoutNow();
+    expect(sizes).toEqual([]);
+    size.width = 1200;
+    c.relayoutNow();
+    size.width = 1205; // same cell count
+    c.relayoutNow();
+    flush();
+    expect(sizes).toEqual([{ cols: 120, rows: 30 }]);
+    expect(c.pane('group').active).toBe(false);
+    c.paneContext.bus.emit('conn.state', { state: 'playing', prev: 'login' });
+    expect(c.pane('group').el.hasAttribute('data-active')).toBe(true);
+    c.dispose();
+    expect(c.paneContext.bus.count('conn.state')).toBe(0);
+  });
 
   it('lays out the default in whole cells', () => {
     const { c } = make(1205, 1010); // 120 × 50 cells, 5 px / 10 px spare

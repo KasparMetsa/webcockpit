@@ -24,9 +24,17 @@
 // Live vs replay
 // --------------
 // A replay (`#replay`, `?fixture=`) runs through the same Session with a
-// ReplaySocket. It is never captured: the replay socket is started without
-// a character name, so the session stays in `login` and the Recorder (which
-// starts only at `playing`) never records. `status.replay` is true meanwhile.
+// ReplaySocket. It is never captured: every `conn.state` of a replay
+// carries `replay: true` and the Recorder never starts a run for it. A log
+// with recorded GMCP (ADR 0016) reaches `playing` from its recorded
+// `Char.Name`, so the side panes are active and fill as in the live game; a
+// Cockpit log without GMCP stays in `login`. `status.replay` is true
+// meanwhile.
+//
+// Side panes get a `PaneContext` (src/panes/context.ts) built here: the bus,
+// the settings, the cells, a frame scheduler, the session as sender and a
+// lazy IndexedDB opener. App also announces the screen settings as
+// `view.settings` (at start and on change) for the run capture.
 //
 // After a replay, or when the page was opened in an offline mode (`?replay`,
 // `?fixture=`, `?bench`), Enter on a closed connection does not connect to
@@ -44,7 +52,8 @@ import { LineAssembler } from '../text/assembler';
 import { InputPane } from '../ui/input-pane';
 import { CellMetrics } from '../theme/cells';
 import { Cockpit } from '../layout/cockpit';
-import { SettingsStore } from '../settings';
+import { SettingsStore, viewSnapshot } from '../settings';
+import { createPaneContext, defaultRequestFrame, lazyDb } from '../panes/context';
 import { OutputPane } from '../ui/output-pane';
 import { AppStatus, type AppStatusView, formatStatus } from './status';
 import { VariableWriteBack } from './writeback';
@@ -105,6 +114,13 @@ export interface AppOptions {
   scheduler?: Scheduler;
   /** Write-back debounce in ms (tests). */
   writeBackDelayMs?: number;
+  /** Frame scheduler for the side panes (tests). Default requestAnimationFrame. */
+  paneRequestFrame?: (cb: () => void) => void;
+  /**
+   * IndexedDB for the side panes' storage (comm history). Default
+   * `globalThis.indexedDB`; null = none.
+   */
+  paneDb?: IDBFactory | null;
 }
 
 export class App {
@@ -139,6 +155,7 @@ export class App {
   private replayLabel = '';
   private charName = '';
   private fileInput: HTMLInputElement | null = null;
+  private viewJson = '';
 
   constructor(opts: AppOptions) {
     const doc = opts.root.ownerDocument;
@@ -164,11 +181,34 @@ export class App {
     });
     this.settings = opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null });
     this.profiles = opts.profiles ?? null;
+    // Before the cockpit, so the recorder sees its first `view.size`.
+    const recOpts = opts.recorder ?? {};
+    this.recorder = new Recorder(bus, {
+      ...recOpts,
+      onStatus: (s) => {
+        this.statusImpl.set({ capture: s });
+        recOpts.onStatus?.(s);
+      },
+    });
+    this.announceView();
+    this.settings.subscribe(() => this.announceView());
+    const cellSource = cells ?? new CellMetrics({ doc });
+    const paneContext = createPaneContext({
+      doc,
+      bus,
+      settings: this.settings,
+      cells: cellSource,
+      requestFrame: opts.paneRequestFrame ?? defaultRequestFrame,
+      sender: this.session,
+      connState: () => this.session.state,
+      openDb: lazyDb(opts.paneDb),
+    });
     this.cockpit = new Cockpit({
       root: this.el,
       settings: this.settings,
-      cells: cells ?? new CellMetrics({ doc }),
+      cells: cellSource,
       onFocusInput: () => this.input.focus(),
+      paneContext,
     });
     this.output = new OutputPane(bus, this.cockpit.gameEl, {
       onResize: (cols, rows) => this.session.setWindowSize(cols, rows),
@@ -188,15 +228,6 @@ export class App {
       this.output.remeasure();
       this.input.scheduleCaret();
     });
-    const recOpts = opts.recorder ?? {};
-    this.recorder = new Recorder(bus, {
-      ...recOpts,
-      onStatus: (s) => {
-        this.statusImpl.set({ capture: s });
-        recOpts.onStatus?.(s);
-      },
-    });
-
     // After the recorder: capture sees a line before the commands its
     // actions send.
     this.script = new ScriptEngine({
@@ -479,6 +510,14 @@ export class App {
     this.fileInput = fi;
     this.el.appendChild(fi);
     fi.click();
+  }
+
+  /** Emits `view.settings` when the screen part of the settings changed. */
+  private announceView(): void {
+    const json = JSON.stringify(viewSnapshot(this.settings.get()));
+    if (json === this.viewJson) return;
+    this.viewJson = json;
+    this.bus.emit('view.settings', { json });
   }
 
   private sys(text: string): void {

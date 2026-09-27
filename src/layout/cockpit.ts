@@ -36,6 +36,7 @@
 //   goes back to the input (Inv §1.3).
 
 import './layout.css';
+import { type CellSource, type PaneContext, createPaneContext } from '../panes/context';
 import { PANE_FACTORIES, type PaneShell } from '../panes/pane';
 import type { SettingsStore } from '../settings';
 import {
@@ -79,11 +80,7 @@ import {
   type PaneId,
 } from './types';
 
-/** The cell size source (src/theme/cells.ts `CellMetrics` fits). */
-export interface CellSource {
-  get(): { w: number; h: number };
-  subscribe(fn: (c: { w: number; h: number }) => void): () => void;
-}
+export type { CellSource } from '../panes/context';
 
 export interface CockpitOptions {
   /** Parent element; the cockpit fills it. */
@@ -94,6 +91,12 @@ export interface CockpitOptions {
   onFocusInput?: () => void;
   /** Frame scheduler (default requestAnimationFrame). */
   requestFrame?: (cb: () => void) => void;
+  /**
+   * The context the side panes are built with (App passes the real one).
+   * Default: `createPaneContext` with this cockpit's document, settings,
+   * cells and frame scheduler. The cockpit emits `view.size` on its bus.
+   */
+  paneContext?: PaneContext;
 }
 
 /**
@@ -169,7 +172,10 @@ export class Cockpit {
   private readonly cells: CellSource;
   private readonly onFocusInput: () => void;
   private readonly requestFrame: (cb: () => void) => void;
+  /** The context the panes were built with. */
+  readonly paneContext: PaneContext;
   private readonly unsubs: (() => void)[] = [];
+  private lastSize = '';
   private readonly ro: ResizeObserver | null = null;
   private last: LayoutResult | null = null;
   private preview: LayoutModel | null = null;
@@ -206,9 +212,12 @@ export class Cockpit {
     this.ghostEl.hidden = true;
     this.tooSmallEl = div('wc-too-small');
     this.tooSmallEl.hidden = true;
+    this.paneContext =
+      opts.paneContext ??
+      createPaneContext({ doc, settings: this.settings, cells: this.cells, requestFrame: this.requestFrame });
     this.el.append(this.gameEl);
     for (const id of PANE_IDS) {
-      const shell = PANE_FACTORIES[id](doc);
+      const shell = PANE_FACTORIES[id](this.paneContext);
       const grip = div('wc-pane-grip');
       grip.dataset.grip = id;
       shell.el.append(grip);
@@ -277,6 +286,10 @@ export class Cockpit {
     });
     this.last = r;
     this.el.dataset.cells = `${r.cols}x${r.rows}`;
+    if (this.el.dataset.cells !== this.lastSize) {
+      this.lastSize = this.el.dataset.cells;
+      this.paneContext.bus.emit('view.size', { cols: r.cols, rows: r.rows });
+    }
     this.el.dataset.collapsed = r.collapsed.join(' ');
     this.setTooSmall(r);
 
@@ -298,6 +311,7 @@ export class Cockpit {
   dispose(): void {
     this.disposed = true;
     for (const u of this.unsubs) u();
+    for (const s of this.shells.values()) s.dispose();
     this.ro?.disconnect();
     this.el.remove();
   }
