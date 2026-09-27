@@ -79,9 +79,11 @@ Carried: the owner wants per-character state to survive sessions
 ## Tasks
 
 - [x] Stage file and ADR 0016.
-- [ ] P0. Foundation: pane context and factory, inactive blanking,
+- [x] P0. Foundation: pane context and factory, inactive blanking,
       settings keys, IndexedDB `comm` store, GMCP capture and replay,
-      offline demo fixture, `ui.message` bus event.
+      offline demo fixture, `ui.message` bus event. Also VIEW/SIZE
+      capture records (owner decision). Notes in ADR 0016; demo at
+      `/?fixture=gmcp-demo.log`.
 - [ ] P1. Character pane, Group pane (+ options), clock model and
       input strip.
 - [ ] P2. Comm pane (+ options, archive), UI messages pane and its

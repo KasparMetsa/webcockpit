@@ -1,6 +1,7 @@
 # 0008 — Capture storage schema
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0016 (client records: GMCP, VIEW,
+  SIZE lines in the capture text)
 - Date: 2026-09-27
 
 ## Context

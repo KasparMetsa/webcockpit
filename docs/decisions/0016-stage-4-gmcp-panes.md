@@ -97,3 +97,97 @@ in our own format in `src/gmcp/levels.ts`. No code from Cockpit.
 ## Package notes
 
 (Builders append here.)
+
+### P0 — foundation (2026-09-27)
+
+**Pane context** (`src/panes/context.ts`). `PANE_FACTORIES[id]` is
+`(ctx: PaneContext) => PaneShell`. App builds the context; the cockpit
+passes it to every factory (`cockpit.paneContext`).
+
+```ts
+interface PaneContext {
+  doc: Document;
+  bus: Bus;                                 // gmcp, conn.state, text.line, ui.message …
+  settings: SettingsStore;                  // pane colours, group, comm
+  cells: CellSource;                        // { get(): {w,h}; subscribe(fn) }
+  requestFrame(cb: () => void): void;       // rAF in the app
+  sender: Sender;                           // the Session (sendCommand, sendGmcp)
+  connState(): ConnState;                   // state now; changes come on the bus
+  openDb(): Promise<IDBDatabase>;           // lazy, shared, rejects without IndexedDB
+  now(): number;                            // ms, Date.now
+  localStorage: Storage | null;             // clock (wc.clock)
+  sessionStorage: Storage | null;           // UI message ring
+}
+createPaneContext({ doc, ...partial })      // test defaults for the rest
+```
+
+**PaneShell** (`src/panes/pane.ts`), `new PaneShell(ctx, id, opts?)`:
+
+- `active` follows `conn.state` (`playing` → active); `data-active` on the
+  pane element mirrors it. `BLANK_WHEN_INACTIVE` (all but `ui`) or
+  `opts.blankWhenInactive` decides whether inactive shows `blank()`.
+- `markDirty()` schedules one `render()` in the next frame (coalesced,
+  skipped while hidden; showing renders). Size changes, pane colour or
+  appearance changes and activation mark dirty by themselves.
+- Override `protected render()` (draw `this.cols` × `this.rows` into
+  `this.content`), optionally `protected blank()` (default: empty
+  content) and `protected onActiveChange(active)` (e.g. reset the model on
+  disconnect). `protected own(unsub)` registers bus/settings
+  subscriptions for `dispose()`; `protected ctx` is the context.
+- Sketch in the file header of `pane.ts`.
+
+**Bus.** `ui.message` as decided (`UiMessage`, `UiMessageKind`,
+`UiMessagePart` in `src/core/types.ts`); nobody emits it yet. New for the
+capture: `view.settings { json }` (App, at start and when the view part of
+the settings changes) and `view.size { cols, rows }` (cockpit relayout).
+`gmcp.raw` carries `ts` (frame receive time, µs) when it came through a
+Session. `conn.state` carries `replay: true` for every change of a replay
+connection.
+
+**Settings.** `group: { showPlayers, npcMode }` and `comm: { filters,
+showHeader }` as decided. `comm.filters` keeps only `false` entries
+(`migrateComm`); enable a channel by patching it to `true` (the entry is
+dropped). `viewSnapshot(s)` picks `appearance, panes, layout, group,
+comm` — add a future screen setting to it so the capture records it.
+
+**Comm storage** (`src/gmcp/comm-archive.ts`). DB version 3, store `comm`
+(keyPath `seq`, autoIncrement), indexes `character_ts` and `ts`.
+`CommArchive.open(ctx.openDb)`, `append(rec) → seq`,
+`loadRecent(character, limit = 1000)` (oldest first, last 7 days),
+`prune()` (all characters, older than 7 days). `ts` is ms since the epoch;
+`talkerType` / `destination` are `null` when absent.
+
+**Capture records** (`src/capture/format.ts`). A line body that starts
+with ESC + an upper-case letter is a client record `<ts> ESC<TYPE>
+<payload>`; the assembler keeps only SGR (`ESC [ … m`) in `Line.raw`, so
+no inbound line can look like one, and Cockpit logs replay unchanged.
+`cat -v` shows `^[GMCP Char.Vitals {…}`.
+
+| Record | Payload | When |
+|---|---|---|
+| `GMCP` | `<Package.Name>[ <json>]`, JSON verbatim (CR/LF → space) | every inbound message except `Core.Ping`; the connection's messages from before the run (≤ 64, e.g. `Comm.Channel.List`, the starting `Char.Name`) are written first |
+| `VIEW` | `ViewSnapshot` JSON | run start; 500 ms after a change (last wins); pending change at run end |
+| `SIZE` | `{"cols":C,"rows":R}` (cockpit cells) | same as `VIEW` |
+
+`ReplaySocket` turns `GMCP` records into `IAC SB GMCP … IAC SE` at their
+timestamps, preceded once by `IAC WILL GMCP`, and skips other records. A
+recorded `Char.Name` takes the replay to `playing`, so panes are active
+during a replay. The recorder never starts a run for a connection whose
+`conn.state` has `replay`, which keeps "replays are never captured".
+When the replay ends the connection is `disconnected` and the panes
+blank again (UI stays).
+
+**Demo fixture.** `tests/fixtures/gmcp-demo.log` (regenerate with
+`node tests/fixtures/gmcp-demo.gen.ts`), ~58 s: login with
+`Comm.Channel.List` before `Char.Name`, StatusVars, full Vitals, a group
+(ally, labeled MERC, unlabeled dog) with Remove / re-Add under new ids and
+the dog promoted by `Group.Update {label}`, partial updates (only
+`hp-string`, then only `hp`), a fight with `buffer`/`opponent` and later
+`*-hits` only, comm on all ten channels (own messages as `you`, whisper
+with destination, ANSI in an enemy yell), `Event.Sun rise`, the `time`
+line and `The current time is 8:00am.`, `Wimpy set to: 50`,
+`Event.Achieved`, and a level-up from 5 770 000 to 5 795 500 XP (level 25
+→ 26 by the XP table). The dev server's fixture route searches
+`tests/fixtures` before `$WEBCOCKPIT_FIXTURES`: open
+`/?fixture=gmcp-demo.log` (add `&speed=0` for instant, `&speed=2` for
+double speed).
