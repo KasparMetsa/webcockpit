@@ -275,5 +275,5 @@ export class PaneShell {
   }
 }
 
-/** Builds pane `id` from the context (the table is in factories.ts). */
-export type PaneFactory = (ctx: PaneContext) => PaneShell;
+// PANE_FACTORIES lives in ./factories.ts: the pane subclasses import this
+// file, so the table cannot be here without an import cycle.

@@ -4,10 +4,10 @@
 // there is no Apply and Back never discards.
 //
 //   Options hub:  Panes · Appearance · Back
-//   Panes hub:    General · Group · Back (Cockpit: General · Timers ·
-//                 Communication · Group · Back; the others join as their
-//                 panes are built)
+//   Panes hub:    General · Communication · Group · Back (Cockpit also
+//                 has Timers, stage 5)
 //   General:      pane × colour grid with a Border column, reset layout
+//   Communication: comm-options.tsx
 //   Group:        options-group.tsx
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
 //                 live preview box
@@ -35,6 +35,7 @@ import {
   presetName,
 } from '../../theme/presets';
 import { useGrid, useServices, useSettings } from '../kit/hooks';
+import { CommOptionsFrame } from './comm-options';
 import { GroupOptionsFrame } from './options-group';
 import { centreLeft, cycle, stepValue } from '../kit/nav';
 import { useKeys, useNav } from '../kit/stack';
@@ -81,6 +82,7 @@ export function PanesHub(): VNode {
   const nav = useNav();
   const items: MenuItem[] = [
     { key: 'general', label: 'General', activate: () => nav.push(<PanesFrame />) },
+    { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
     { key: 'group', label: 'Group', activate: () => nav.push(<GroupOptionsFrame />) },
     { key: 'sp', spacer: true },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
@@ -119,8 +121,6 @@ export function PanesFrame(): VNode {
   const s = useSettings();
   const nav = useNav();
   const { cols } = useGrid();
-  // Rows 0–4: panes; 5: reset layout; 6: Back.
-  const ROWS = PANE_IDS.length + 2;
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
 
@@ -138,6 +138,8 @@ export function PanesFrame(): VNode {
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];
   const tailIdx = row - PANE_IDS.length;
+  // Rows: the panes, then the tail (Reset layout, Back).
+  const ROWS = PANE_IDS.length + tail.length;
 
   useKeys((_e, nk) => {
     switch (nk) {

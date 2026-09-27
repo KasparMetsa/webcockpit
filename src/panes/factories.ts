@@ -1,17 +1,23 @@
-// One shell per pane (ADR 0016). Kept apart from pane.ts because every
-// pane subclass imports PaneShell from there: a table in pane.ts would be
-// an import cycle. Plain shells until a stage swaps in its subclass here
-// (P1: character, group; P2: comm, ui; stage 5: timers).
+// Pane factories (ADR 0016 "Pane context"): one per pane id. The cockpit
+// builds every side pane through this table with the app's PaneContext.
+// Plain shells until a stage swaps in its subclass (stage 5: timers).
+// Kept apart from pane.ts, which the subclasses import.
 
 import type { PaneId } from '../layout/types';
 import { CharacterPane } from './character';
+import { CommPane } from './comm';
+import type { PaneContext } from './context';
 import { GroupPane } from './group';
-import { type PaneFactory, PaneShell } from './pane';
+import { PaneShell } from './pane';
+import { UiPane } from './ui';
+
+/** Builds pane `id` from the context. */
+export type PaneFactory = (ctx: PaneContext) => PaneShell;
 
 export const PANE_FACTORIES: Readonly<Record<PaneId, PaneFactory>> = {
   character: (ctx) => new CharacterPane(ctx),
   timers: (ctx) => new PaneShell(ctx, 'timers'),
   group: (ctx) => new GroupPane(ctx),
-  comm: (ctx) => new PaneShell(ctx, 'comm'),
-  ui: (ctx) => new PaneShell(ctx, 'ui'),
+  comm: (ctx) => new CommPane(ctx),
+  ui: (ctx) => new UiPane(ctx),
 };

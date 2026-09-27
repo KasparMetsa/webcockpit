@@ -160,6 +160,23 @@ describe('App + script engine', () => {
     expect(t.sentLines(sock).slice(-2)).toEqual(['old', 'new']);
   });
 
+  it('reports profile load and apply to the UI pane', async () => {
+    const t = await setup('#alias {x} {old}');
+    const ui: string[] = [];
+    t.app.bus.on('ui.message', (m) => ui.push(m.kind + ': ' + m.parts.map((p) => (typeof p === 'string' ? p : `<${p.value}>`)).join('')));
+    await t.connect();
+    t.app.applyProfile('#alias {x} {new');
+    t.app.applyProfile('#alias {x} {new}');
+    t.app.applyProfile('#alias {x} {new}\n#lua {x}');
+    expect(ui).toEqual([
+      'system: Connecting to MUME...',
+      'system: Profile <pvp> loaded.',
+      'error: Profile <pvp> not applied.',
+      'system: Profile <pvp> applied.',
+      'warn: Profile <pvp> applied with <1> warning.',
+    ]);
+  });
+
   it('writes runtime variables back to the stored profile (top-level ones only)', async () => {
     const text = '#nop keep me\n#VARIABLE {target} {*elf*}\n\n#ALIAS {z} {#variable {target} {%1};#variable {other} {x}}\n';
     const t = await setup(text);
@@ -190,6 +207,17 @@ describe('App + script engine', () => {
     enter(t.app, 'two');
     expect(t.sockets).toHaveLength(2);
     expect(t.app.session.state).toBe('connecting');
+  });
+
+  it('warns in the UI pane when run capture is off', async () => {
+    document.body.innerHTML = '';
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const app = new App({ root, offline: true, recorder: { openStore: () => Promise.reject(new Error('no store')), win: null } });
+    const ui: string[] = [];
+    app.bus.on('ui.message', (m) => ui.push(`${m.kind}: ${m.parts.join('')}`));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ui).toEqual(['warn: Run capture is off: no IndexedDB.']);
   });
 
   it('says how to connect in offline mode, once per line', async () => {

@@ -87,8 +87,9 @@ Carried: the owner wants per-character state to survive sessions
 - [x] P1. Character pane, Group pane (+ options), clock model and
       input strip. GameState hub in the pane context, replay end keeps
       the panes, demo fixture in MUME's output shape. Notes in ADR 0016.
-- [ ] P2. Comm pane (+ options, archive), UI messages pane and its
-      emitters.
+- [x] P2. Comm pane (+ options, archive), UI messages pane and its
+      emitters. Notes in ADR 0016 (`PANE_FACTORIES` moved to
+      `src/panes/factories.ts`).
 - [ ] Merge P1 + P2; bench still passes (§1.3).
 - [ ] Main-session verification in a browser.
 - [ ] Test guide ready.
@@ -109,4 +110,9 @@ Carried: the owner wants per-character state to survive sessions
 
 ## Owner feedback
 
-(After testing.)
+### 2026-09-27 — demo fixture (during the build)
+
+1. The demo log works but lacks MUME's blank lines. Cause: the synthetic
+   fixture, not the client. Real MUME sends an empty line before every
+   prompt, and unsolicited output is framed by empty lines (checked
+   against Cockpit's run logs). The generator is being fixed in P1.
