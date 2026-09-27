@@ -160,3 +160,24 @@ gets content (stage 4).
 ## Owner feedback
 
 (After testing.)
+
+### 2026-09-27 — first test
+
+1. Corner style: always quadrant. Remove the setting (Options → Panes and
+   the settings model).
+2. Docking: panes can dock anywhere — right, left, bottom **and top**.
+   Panes can also **float**: free position and free size anywhere on the
+   screen. Docked or floating is per pane (main-session decision; a
+   floating pane is dropped over the game area, a docked one on a screen
+   edge). Default stays: all docked in the right column as now.
+3. Fonts and font sizes work well.
+4. Quotes: assume they are good.
+5. Nothing else to remark on.
+
+Follow-up tasks:
+
+- [ ] Remove corner-style setting; frames always quadrant.
+- [ ] Top dock.
+- [ ] Floating panes: drag out of a dock to float, move, resize from
+      edges/corners, bring to front, dock again by dropping on an edge;
+      persisted; clamped to the window on resize.
