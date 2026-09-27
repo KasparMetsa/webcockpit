@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **5 — Timers and trackers** (not started).
+Current stage: **5 — Timers and trackers** (in progress).
 
 ## Stages
 
@@ -10,7 +10,7 @@ Current stage: **5 — Timers and trackers** (not started).
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
-| 5 | Timers and trackers | Next | — |
+| 5 | Timers and trackers | In progress | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | — | — |
 | 7 | Sharing | — | — |
 | 8 | Hardening → v1 | — | — |
