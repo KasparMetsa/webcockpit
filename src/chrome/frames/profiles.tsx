@@ -52,7 +52,7 @@ const SEL_W = 8;
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 export function ProfileFrame(): VNode {
-  const { profiles, settings } = useServices();
+  const { profiles, settings, onProfileSaved } = useServices();
   const s = useSettings();
   const nav = useNav();
   const isTop = useIsTop();
@@ -152,7 +152,7 @@ export function ProfileFrame(): VNode {
       case 'NEW':
         return nav.push(<NameFrame mode="create" done={done} />);
       case 'EDIT':
-        if (cur) void editProfile(nav, profiles, cur.name, { isLive: () => false });
+        if (cur) void editProfile(nav, profiles, cur.name, { isLive: () => false, onSaved: onProfileSaved });
         return;
       case 'RENAME':
         return nav.push(<NameFrame mode="rename" from={curName} done={done} />);

@@ -16,6 +16,8 @@ export interface EditOptions {
   apply?: ((text: string) => ApplyResult | Promise<ApplyResult>) | undefined;
   /** Runs before the stored text is read (flushes pending variable write-back). */
   beforeLoad?: (() => Promise<void>) | undefined;
+  /** Called after the editor saved the profile. */
+  onSaved?: ((name: string) => void) | undefined;
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -37,7 +39,10 @@ export async function editProfile(nav: Nav, profiles: ProfileStore, name: string
       name,
       text: rec.text,
       isLive: opts.isLive,
-      save: (text) => profiles.save(name, text),
+      save: async (text) => {
+        await profiles.save(name, text);
+        opts.onSaved?.(name);
+      },
       ...(opts.apply ? { apply: opts.apply } : {}),
     });
   } catch (e) {

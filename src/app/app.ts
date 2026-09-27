@@ -41,7 +41,7 @@
 // MUME; `#connect` does. After a live disconnect, Enter reconnects.
 
 import { downloadRun } from '../capture/download';
-import { Recorder, type RecorderOptions } from '../capture/recorder';
+import { Recorder, type RecorderOptions, STATUS as CAPTURE_STATUS } from '../capture/recorder';
 import type { ProfileStore } from '../profiles';
 import { type LoadResult, type Scheduler, ScriptEngine } from '../script/engine';
 import { Bus } from '../core/bus';
@@ -57,6 +57,14 @@ import { createPaneContext, defaultRequestFrame, lazyDb } from '../panes/context
 import { OutputPane } from '../ui/output-pane';
 import { AppStatus, type AppStatusView, formatStatus } from './status';
 import { VariableWriteBack } from './writeback';
+import { attachUiMessages, uiMsg, uiValue } from './ui-messages';
+
+/** UI pane warnings for capture states that mean runs are not recorded. */
+const CAPTURE_WARNINGS: Readonly<Record<string, string>> = {
+  [CAPTURE_STATUS.noDb]: 'Run capture is off: no IndexedDB.',
+  [CAPTURE_STATUS.noLocks]: 'Run capture is off: no Web Locks.',
+  [CAPTURE_STATUS.anotherTab]: 'Run capture is off: another tab records this character.',
+};
 
 /** Reason used when a live or replay connection is closed to start a replay. */
 export const REASON_REPLAY_START = 'replay started';
@@ -167,6 +175,7 @@ export class App {
     opts.root.appendChild(this.el);
 
     this.statusImpl = new AppStatus(bus);
+    attachUiMessages(bus);
     this.status = this.statusImpl;
     this.el.dataset.status = formatStatus(this.status.get());
     this.status.subscribe((st) => {
@@ -187,6 +196,9 @@ export class App {
       ...recOpts,
       onStatus: (s) => {
         this.statusImpl.set({ capture: s });
+        const warn = CAPTURE_WARNINGS[s];
+        if (warn) this.bus.emit('ui.message', uiMsg('warn', warn));
+        else if (s === CAPTURE_STATUS.error) this.bus.emit('ui.message', uiMsg('error', 'Run capture failed.'));
         recOpts.onStatus?.(s);
       },
     });
@@ -241,7 +253,10 @@ export class App {
     this.writeBack = this.profiles
       ? new VariableWriteBack(this.profiles, {
           ...(opts.writeBackDelayMs !== undefined ? { delayMs: opts.writeBackDelayMs } : {}),
-          onError: (m) => this.sys(m),
+          onError: (m) => {
+            this.sys(m);
+            this.ui('warn', 'Profile variables were not saved.');
+          },
         })
       : null;
     doc.defaultView?.addEventListener('pagehide', () => void this.writeBack?.flush());
@@ -347,12 +362,18 @@ export class App {
       const rec = await store.get(name);
       if (token !== this.loadToken) return;
       if (!rec) {
-        if (announce) this.sys(`Profile ${name} not found; no profile loaded.`);
+        if (announce) {
+          this.sys(`Profile ${name} not found; no profile loaded.`);
+          this.ui('warn', `Profile {${uiValue(name)}} not found.`);
+        }
         return;
       }
       text = rec.text;
     } catch (err) {
-      if (token === this.loadToken) this.sys(`Profile ${name} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+      if (token === this.loadToken) {
+        this.sys(`Profile ${name} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+        this.ui('error', `Profile {${uiValue(name)}} could not be read.`);
+      }
       return;
     }
     await this.writeBack?.setTarget(null);
@@ -360,6 +381,7 @@ export class App {
     const r = this.script.loadProfile(text);
     if (!r.ok) {
       this.sys(`Profile ${name} not loaded: ${r.reason}`);
+      this.ui('error', `Profile {${uiValue(name)}} not loaded.`);
       return;
     }
     void this.writeBack?.setTarget(name);
@@ -367,10 +389,15 @@ export class App {
   }
 
   private reportLoad(name: string, warnings: readonly string[], announce: boolean): void {
+    const v = uiValue(name);
     if (warnings.length === 0) {
-      if (announce) this.sys(`Profile ${name} loaded.`);
+      if (announce) {
+        this.sys(`Profile ${name} loaded.`);
+        this.ui('system', `Profile {${v}} loaded.`);
+      }
       return;
     }
+    this.ui('warn', `Profile {${v}} loaded with {${warnings.length}} warning${warnings.length === 1 ? '' : 's'}.`);
     this.sys(`Profile ${name} loaded with ${warnings.length} warning${warnings.length === 1 ? '' : 's'}:`);
     const MAX = 10;
     for (const w of warnings.slice(0, MAX)) this.sys('  ' + w);
@@ -385,8 +412,15 @@ export class App {
   applyProfile(text: string): { ok: true; warnings: string[] } | { ok: false; reason: string } {
     this.loadToken++;
     const r: LoadResult = this.script.loadProfile(text);
-    if (!r.ok) return r;
+    const name = uiValue(this.settings.get().profile);
+    if (!r.ok) {
+      this.ui('error', `Profile {${name}} not applied.`);
+      return r;
+    }
     if (this.writeBack && this.writeBack.target === null) void this.writeBack.setTarget(this.settings.get().profile);
+    const n = r.warnings.length;
+    if (n === 0) this.ui('system', `Profile {${name}} applied.`);
+    else this.ui('warn', `Profile {${name}} applied with {${n}} warning${n === 1 ? '' : 's'}.`);
     return { ok: true, warnings: r.warnings };
   }
 
@@ -522,5 +556,10 @@ export class App {
 
   private sys(text: string): void {
     this.bus.emit('sys.message', { text });
+  }
+
+  /** A UI pane line (template: `{value}` parts, src/app/ui-messages.ts). */
+  ui(kind: 'system' | 'warn' | 'error', template: string): void {
+    this.bus.emit('ui.message', uiMsg(kind, template));
   }
 }
