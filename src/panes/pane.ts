@@ -27,7 +27,8 @@
 //   It is also called on a size change, on a pane colour / appearance
 //   change and when the pane becomes active.
 // - `active` follows `conn.state`: `playing` → active, anything else
-//   inactive. While inactive a pane with `blankWhenInactive` (Character,
+//   inactive, except that when a replay ends (`disconnected` with
+//   `replay`) the pane stays as it is until the next connection starts. While inactive a pane with `blankWhenInactive` (Character,
 //   Timers, Group, Comm; not UI) shows `blank()` (default: empty content)
 //   instead of `render()`; frame, size and position are unchanged (Inv §2.1).
 // - Nothing renders while the pane is hidden; showing it renders.
@@ -120,7 +121,14 @@ export class PaneShell {
     this.content.className = 'wc-pane-content';
     this.el.append(this.frameEl, this.content);
     this.el.toggleAttribute('data-active', this._active);
-    this.own(ctx.bus.on('conn.state', (s) => this.setActive(isActiveState(s.state))));
+    this.own(
+      ctx.bus.on('conn.state', (s) => {
+        // A finished replay keeps its last picture until the next
+        // connection starts (a live disconnect blanks, Inv §2.1).
+        if (s.state === 'disconnected' && s.replay) return;
+        this.setActive(isActiveState(s.state));
+      }),
+    );
   }
 
   /** True while the connection is `playing` (see the file header). */
@@ -267,17 +275,5 @@ export class PaneShell {
   }
 }
 
-/** Builds pane `id` from the context. */
+/** Builds pane `id` from the context (the table is in factories.ts). */
 export type PaneFactory = (ctx: PaneContext) => PaneShell;
-
-/**
- * One shell per pane. Plain shells until a stage swaps in its subclass
- * here (P1: character, group; P2: comm, ui; stage 5: timers).
- */
-export const PANE_FACTORIES: Readonly<Record<PaneId, PaneFactory>> = {
-  character: (ctx) => new PaneShell(ctx, 'character'),
-  timers: (ctx) => new PaneShell(ctx, 'timers'),
-  group: (ctx) => new PaneShell(ctx, 'group'),
-  comm: (ctx) => new PaneShell(ctx, 'comm'),
-  ui: (ctx) => new PaneShell(ctx, 'ui'),
-};

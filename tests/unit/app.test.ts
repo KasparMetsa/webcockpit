@@ -177,7 +177,7 @@ describe('App wiring against MUME opening bytes', () => {
     expect(t.sockets).toHaveLength(0);
   });
 
-  it('a replay with recorded GMCP reaches playing: panes active, nothing captured', async () => {
+  it('a replay with recorded GMCP reaches playing: panes active, nothing captured, kept after the end', async () => {
     const t = setup();
     const { app } = t;
     const states: string[] = [];
@@ -195,11 +195,16 @@ describe('App wiring against MUME opening bytes', () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(states).toEqual(['connecting', 'login', 'playing', 'disconnected']);
     expect(activeWhilePlaying).toBe(true);
-    expect(app.cockpit.pane('group').active).toBe(false);
+    // A finished replay keeps its last picture until the next connection.
+    expect(app.cockpit.pane('group').active).toBe(true);
+    expect(app.game.char.name).toBe('Rasta');
     expect(t.outputText()).toContain('[SYSTEM] Rasta logged in.');
     await app.recorder.idle();
     expect(app.recorder.runId).toBeNull();
     expect(await (await app.recorder.getStore())!.listRuns()).toEqual([]);
+    app.startReplay('1790366274272195 Just text.\n', 'plain.log', 0);
+    expect(app.cockpit.pane('group').active).toBe(false);
+    expect(app.game.char.name).toBeNull();
   });
 
   it('announces the screen settings as view.settings once per change', () => {
