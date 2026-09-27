@@ -3,7 +3,7 @@
 // applies live (ADR 0010: one store, no launcher/popup asymmetry), so
 // there is no Apply and Back never discards.
 //
-//   Options hub:  Panes · Appearance · Back
+//   Options hub:  Panes · Appearance · Spotlights · Back
 //   Panes hub:    General · Timers · Communication · Group · Back
 //                 (Cockpit's order)
 //   General:      pane × colour grid with a Border column, reset layout
@@ -12,6 +12,7 @@
 //   Group:        options-group.tsx
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
 //                 live preview box
+//   Spotlights:   options-spotlights.tsx
 
 import type { VNode } from 'preact';
 import { useState } from 'preact/hooks';
@@ -38,6 +39,7 @@ import {
 import { useGrid, useServices, useSettings } from '../kit/hooks';
 import { CommOptionsFrame } from './comm-options';
 import { GroupOptionsFrame } from './options-group';
+import { SpotlightsOptionsFrame } from './options-spotlights';
 import { TimersOptionsFrame } from './options-timers';
 import { centreLeft, cycle, stepValue } from '../kit/nav';
 import { useKeys, useNav } from '../kit/stack';
@@ -65,6 +67,7 @@ export function OptionsHub(): VNode {
   const items: MenuItem[] = [
     { key: 'panes', label: 'Panes', activate: () => nav.push(<PanesHub />) },
     { key: 'appearance', label: 'Appearance', activate: () => nav.push(<AppearanceFrame />) },
+    { key: 'spotlights', label: 'Spotlights', activate: () => nav.push(<SpotlightsOptionsFrame />) },
     { key: 'sp', spacer: true },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];
