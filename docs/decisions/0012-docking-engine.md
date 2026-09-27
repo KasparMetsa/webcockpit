@@ -1,6 +1,7 @@
 # 0012 — Docking engine, pane frame and cockpit view
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0014 (top dock, floating panes,
+  quadrant corners only)
 - Date: 2026-09-27
 
 ## Context

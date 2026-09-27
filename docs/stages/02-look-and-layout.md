@@ -176,8 +176,8 @@ gets content (stage 4).
 
 Follow-up tasks:
 
-- [ ] Remove corner-style setting; frames always quadrant.
-- [ ] Top dock.
-- [ ] Floating panes: drag out of a dock to float, move, resize from
+- [x] Remove corner-style setting; frames always quadrant.
+- [x] Top dock.
+- [x] Floating panes: drag out of a dock to float, move, resize from
       edges/corners, bring to front, dock again by dropping on an edge;
-      persisted; clamped to the window on resize.
+      persisted; clamped to the window on resize. (ADR 0014)
