@@ -21,6 +21,10 @@
 //   and focus changes, never synchronously in a key handler, so the
 //   Enter → send path does no extra work. It is hidden while a range is
 //   selected (like the native caret) and hollow/hidden while blurred.
+// - Macros (stage 3, ADR 0015): before its own key handling the pane asks
+//   `onMacroKey` with the key's canonical name (src/script/keys.ts); a
+//   bound macro wins and the key is consumed. Not in password mode, not
+//   while AltGr is down. The macro runs synchronously in the keydown.
 
 import type { Bus } from '../core/bus';
 import type { Sender } from '../core/types';
