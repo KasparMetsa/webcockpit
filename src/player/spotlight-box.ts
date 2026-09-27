@@ -1,5 +1,5 @@
 // The Spotlights info box (Inv §7.6): a 30 × 7 framed box and a countdown
-// row under it, top-right over the reel (row 2, 4 cells in from the right,
+// row under it, top-right over the game text (row 2, 4 cells in from its right,
 // clear of the strip), always shown (a PlayerView overlay with
 // `keepVisible`), hidden when the player is too narrow for it.
 //

@@ -155,6 +155,36 @@ describe('loadReel', () => {
     expect(await loadReel(lib, off)).toEqual({ empty: 'filtered' });
     expect(await loadReel(await library(), defaultSettings().spotlights)).toEqual({ empty: 'no_data' });
   });
+
+  it('reads the login stretch for its state when the prefix starts later', async () => {
+    const lib = await library();
+    const login = makeLog(BASE_US, [
+      { at: 1, gmcp: 'Char.Name', json: { name: 'Rasta' } },
+      { at: 2, gmcp: 'Char.Vitals', json: { hp: 120, maxhp: 120 } },
+      { at: 3, in: 'Welcome back.' },
+    ]);
+    const late = makeLog(BASE_US, [
+      { at: 3000, in: 'You hit the orc.' },
+      { at: 3002, in: 'Ibuki is dead! R.I.P.' },
+    ]);
+    const events: RunEvent[] = [
+      { type: 'run_start', us: us(2), character: 'Rasta', level: 42, schema: 1 },
+      { type: 'pkill', us: us(3002), logUs: us(3002), name: 'Ibuki', race: 'the Half-Elf', xpDelta: 5 },
+    ];
+    await lib.store.putWholeRun(
+      meta('Rasta/1', BASE_US, { bytes: login.length + late.length }),
+      events.map((event, seq) => ({ runId: 'Rasta/1', seq, event })),
+      [
+        { runId: 'Rasta/1', seq: 0, firstUs: us(1), lastUs: us(3), text: login },
+        { runId: 'Rasta/1', seq: 1, firstUs: us(3000), lastUs: us(3002), text: late },
+      ],
+    );
+    const reel = await loadReel(lib, defaultSettings().spotlights);
+    if (!('spots' in reel)) throw new Error('no reel');
+    const text = reel.chain[0]!.text;
+    expect(text).toContain('Char.Name');
+    expect(text.indexOf('Char.Name')).toBeLessThan(text.indexOf('Ibuki is dead'));
+  });
 });
 
 describe('Credits roll', () => {

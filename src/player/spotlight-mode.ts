@@ -89,12 +89,20 @@ export function openSpotlightReel(host: PlayerHost, reel: Reel): void {
     const p = eng.position;
     const i = spotAt(starts, p);
     const cellW = box.el.offsetWidth / BOX_W;
+    // Top-right of the game text, not of the player: the right dock's
+    // panes (Character, Group) stay in view (owner review, stage 7).
+    const out = host.el.querySelector<HTMLElement>('.wc-output');
+    const hostBox = host.el.getBoundingClientRect();
+    const outBox = out?.getBoundingClientRect();
+    const width = outBox && outBox.width > 0 ? outBox.width : host.el.clientWidth;
+    const inset = outBox && outBox.width > 0 ? Math.max(0, hostBox.right - outBox.right) : 0;
+    box.el.style.right = `calc(${inset}px + var(--cell-w) * 4)`;
     box.update({
       index: i,
       total,
       spot: spots[i]!,
       half: countdownHalf(starts[i] ?? 0, moments[i] ?? 0, p),
-      cols: cellW > 0 ? Math.floor(host.el.clientWidth / cellW) : Infinity,
+      cols: cellW > 0 ? Math.floor(width / cellW) : Infinity,
     });
   };
   const schedule = (): void => {

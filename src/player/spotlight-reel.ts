@@ -7,6 +7,11 @@
 // then read on its own with `RunLibrary.chainLogRange(runId, prefixFromUs,
 // toUs)`: only the chunks around the window (the state prefix of at most
 // 10 minutes and the 15 s window), never the whole run, a few at a time.
+// MUME sends some state only at login (Char.Name, Char.StatusVars, the first
+// full Char.Vitals), so the run's login stretch (its capture start up to
+// LOGIN_US after `run_start`) is read too and put before the prefix; the
+// timeline keeps only its GMCP / VIEW / SIZE (everything before the window
+// is state prefix).
 // A window with no visible entry is dropped. The reel opens once every
 // window is read: the header's TOTAL, the strip and the markers cover the
 // whole reel, and one timeline cannot grow while it plays (a reel of a
@@ -19,6 +24,7 @@
 
 import type { RunLibrary } from '../runs/library';
 import type { SpotlightSettings } from '../settings';
+import { runStartUs } from '../runs/stitch';
 import { type Spotlight, emptyState, hasVisibleEntry, selectSpotlights } from '../share/spotlights';
 import type { MarkLetter } from './strip';
 import { type ChainRun, type Timeline, playAtLogUs } from './timeline';
@@ -33,12 +39,32 @@ export type ReelEmpty = 'no_data' | 'filtered';
 
 /** Windows read at the same time while loading. */
 const LOAD_PARALLEL = 4;
+/** The login stretch read for its state: up to this long after run_start (µs). */
+const LOGIN_US = 10_000_000;
+
+/** The capture timestamp of the first line of `text`, or Infinity. */
+function firstTs(text: string): number {
+  const t = Number(text.slice(0, 16));
+  return text.length >= 16 && Number.isFinite(t) ? t : Infinity;
+}
+
+/** The lines of `text` stamped before `us`. */
+function linesBefore(text: string, us: number): string {
+  let end = 0;
+  while (end < text.length) {
+    if (!(Number(text.slice(end, end + 16)) < us)) break;
+    const nl = text.indexOf('\n', end);
+    end = nl < 0 ? text.length : nl + 1;
+  }
+  return text.slice(0, end);
+}
 
 /** Loads the reel, or says which empty state to show. */
 export async function loadReel(lib: RunLibrary, filters: SpotlightSettings): Promise<Reel | { empty: ReelEmpty }> {
   const metas = (await lib.store.listRuns()).filter((m) => m.sealed && m.bytes > 0);
   const runs = await Promise.all(metas.map(async (meta) => ({ meta, events: await lib.events([meta.runId]) })));
   const picked = selectSpotlights(runs, filters);
+  const metaOf = new Map(metas.map((m) => [m.runId, m]));
   const logs: Array<ChainRun | null> = new Array<ChainRun | null>(picked.length).fill(null);
   let next = 0;
   const worker = async (): Promise<void> => {
@@ -46,7 +72,14 @@ export async function loadReel(lib: RunLibrary, filters: SpotlightSettings): Pro
       const i = next++;
       const s = picked[i]!;
       const r = await lib.chainLogRange(s.runId, s.prefixFromUs, s.toUs);
-      if (r && hasVisibleEntry(r.text, s.fromUs, s.toUs)) logs[i] = r;
+      if (!r || !hasVisibleEntry(r.text, s.fromUs, s.toUs)) continue;
+      const meta = metaOf.get(s.runId);
+      const from = firstTs(r.text);
+      if (meta && meta.startedUs < from) {
+        const login = await lib.chainLogRange(s.runId, meta.startedUs, Math.min(runStartUs(meta) + LOGIN_US, from));
+        if (login) r.text = linesBefore(login.text, from) + r.text;
+      }
+      logs[i] = r;
     }
   };
   await Promise.all(Array.from({ length: Math.min(LOAD_PARALLEL, picked.length) }, worker));
