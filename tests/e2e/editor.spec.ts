@@ -279,11 +279,10 @@ test('ESC menu → Profile while connected: Keep editing, Discard, Apply', async
   await page.keyboard.type('z');
   await page.keyboard.press('Escape');
   await page.keyboard.press('y');
-  // Without a live apply on the app (P2 adds it) Apply saves.
-  await expect(page.locator('.wc-overlay .wc-frame:not([hidden]) .wc-flash')).toHaveText(
-    /^(Saved default\. It loads on the next connect\.|Profile updated\.)/,
-  );
+  // Apply swaps the live rule set, then saves.
+  await expect(page.locator('.wc-overlay .wc-frame:not([hidden]) .wc-flash')).toHaveText('Profile updated.');
   expect(await stored(page)).toBe('#alias {a} {b}\n#alias {z} {}\n');
+  expect(await page.evaluate(() => window.__wc!.app.script.user.plainAlias('z') !== undefined)).toBe(true);
 });
 
 test('editor keys: line swap, undo, copy line, Tab and ↑ to the toggle', async ({ page }) => {

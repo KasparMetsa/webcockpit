@@ -26,12 +26,10 @@ export interface EscActions {
   reconnect: () => void;
   /** End the session and return to the start page. */
   exit: () => void;
-  /**
-   * The live profile apply (Inv §4.5), when the running app offers one.
-   * Null: Apply in the editor only saves; the profile loads on the next
-   * connect.
-   */
-  liveApply?: () => ((text: string) => ApplyResult) | null;
+  /** The live profile apply (Inv §4.5, ADR 0015). Absent: Apply only saves. */
+  liveApply?: (text: string) => ApplyResult;
+  /** Saves pending runtime variable values before the editor reads the profile. */
+  flushWriteBack?: () => Promise<void>;
 }
 
 export interface EscMainProps extends EscActions {
@@ -73,7 +71,8 @@ export function EscMain(p: EscMainProps): VNode {
       activate: () =>
         void editProfile(nav, profiles, settings.profile, {
           isLive: () => isLive(p.status.get()),
-          apply: p.liveApply?.() ?? undefined,
+          apply: p.liveApply,
+          beforeLoad: p.flushWriteBack,
         }),
     },
     { key: 'options', label: 'Options', activate: () => nav.push(<OptionsHub />) },

@@ -12,6 +12,9 @@
 // - scrollback:     flush cost with 0 vs 20 000 rows present (no slowdown)
 // - burst:          the biggest fixture replayed at max speed; no frame
 //                   longer than 50 ms
+// - script (stage 3): 500 user rules through the display pipeline
+//                   (< 0.2 ms per line); key → send with an alias and a
+//                   macro in the path (< 1 ms)
 //
 // Writes bench/results/latest.md. Skips gracefully without fixtures.
 
@@ -33,6 +36,7 @@ registerHooks({
 });
 
 const { biggestFixture, FIXTURES_ROOT } = await import('../tests/e2e/fixtures');
+const { makeRuleProfile, RULE_COUNT } = await import('./rules');
 const { chromium, firefox } = await import('@playwright/test');
 const { build, preview } = await import('vite');
 type Browser = import('@playwright/test').Browser;
@@ -40,6 +44,7 @@ type Page = import('@playwright/test').Page;
 
 const FRAME_BUDGET_MS = 50;
 const KEY_BUDGET_MS = 1;
+const RULE_BUDGET_US = 200;
 
 const fixture = biggestFixture();
 if (!fixture) {
@@ -47,6 +52,9 @@ if (!fixture) {
   process.exit(0);
 }
 const logText = readFileSync(fixture.path, 'utf8');
+const ruleProfile = makeRuleProfile(
+  logText.split('\n').map((l) => l.slice(l.indexOf(' ') + 1).replace(/\x1b\[[0-9;]*m/g, '')),
+);
 
 // ------------------------------------------------------------------ stats
 
@@ -141,6 +149,34 @@ async function benchKey(browser: Browser, base: string) {
     n: times.length,
     failedSends: times.filter((t) => t < 0).length,
   };
+}
+
+async function benchScript(browser: Browser, base: string) {
+  const page = await openBench(browser, base);
+  await page.evaluate(() => window.__wcBench!.connectFake());
+  const loaded = await page.evaluate((t) => window.__wcBench!.applyProfile(t), ruleProfile);
+  if (!loaded) throw new Error('benchmark profile did not load');
+  const alias: number[] = [];
+  const macro: number[] = [];
+  for (let i = 0; i < 220; i++) {
+    const a = await page.evaluate(() => window.__wcBench!.keyToSend('bb'));
+    const m = await page.evaluate(() => window.__wcBench!.macroToSend('F5', 'F5'));
+    if (i >= 20) {
+      alias.push(a);
+      macro.push(m);
+    }
+    if (i % 10 === 0) await pause(5);
+  }
+  await page.evaluate((t) => {
+    (window as unknown as { __benchText: string }).__benchText = t;
+  }, logText);
+  const rules = await page.evaluate(
+    (p) => window.__wcBench!.ruleBench((window as unknown as { __benchText: string }).__benchText, p),
+    ruleProfile,
+  );
+  await page.close();
+  const stats = (xs: number[]) => ({ median: median(xs), p99: pct(xs, 99), max: max(xs), failed: xs.filter((x) => x < 0).length });
+  return { alias: stats(alias), macro: stats(macro), rules };
 }
 
 async function benchFramePaint(browser: Browser, base: string) {
@@ -280,6 +316,7 @@ type Row = { browser: string; version: string } & {
   paint: Awaited<ReturnType<typeof benchFramePaint>>;
   scroll: Awaited<ReturnType<typeof benchScrollback>>;
   burst: Awaited<ReturnType<typeof benchBurst>>;
+  script: Awaited<ReturnType<typeof benchScript>>;
 };
 const results: Row[] = [];
 
@@ -305,7 +342,12 @@ try {
       console.log(
         `  burst: ${burst.lines} lines in ${f1(burst.ms)} ms (${burst.linesPerSec.toFixed(0)} lines/s), max frame ${f1(burst.maxDelta)} ms, >50 ms: ${burst.over50}, LoAF max ${f1(burst.loafMax)}`,
       );
-      results.push({ browser: name, version: browser.version(), key, paint, scroll, burst });
+      const script = await benchScript(browser, base);
+      console.log(
+        `  script: ${RULE_COUNT} rules ${f2(script.rules.rulesUs)} µs/line (none ${f2(script.rules.baseUs)}); ` +
+          `alias Enter p99 ${f3(script.alias.p99)} ms, macro p99 ${f3(script.macro.p99)} ms`,
+      );
+      results.push({ browser: name, version: browser.version(), key, paint, scroll, burst, script });
     } finally {
       await browser.close();
     }
@@ -363,12 +405,23 @@ row('', 'longest LoAF / long task (ms)', (r) =>
 row('', 'drain: lines, total ms, lines/s, MB/s', (r) =>
   `${r.burst.lines}, ${f1(r.burst.ms)}, ${r.burst.linesPerSec.toFixed(0)}, ${f1(r.burst.mbPerSec)}`,
 );
+row(`${RULE_COUNT} user rules < 0.2 ms per line`, 'display pipeline µs per line with the rules (with none); lines', (r) =>
+  `${f2(r.script.rules.rulesUs)} (${f2(r.script.rules.baseUs)}); ${r.script.rules.lines} ${pass(r.script.rules.rulesUs < RULE_BUDGET_US)}`,
+);
+row('Key → send < 1 ms, script in the path', 'Enter on alias `bb`, median / p99 / max (ms)', (r) =>
+  `${f3(r.script.alias.median)} / ${f3(r.script.alias.p99)} / ${f3(r.script.alias.max)} ${pass(r.script.alias.p99 < KEY_BUDGET_MS && r.script.alias.failed === 0)}`,
+);
+row('', 'F5 macro → alias → `_send`, median / p99 / max (ms)', (r) =>
+  `${f3(r.script.macro.median)} / ${f3(r.script.macro.p99)} / ${f3(r.script.macro.max)} ${pass(r.script.macro.p99 < KEY_BUDGET_MS && r.script.macro.failed === 0)}`,
+);
 lines.push('');
 lines.push('## Method', '');
 lines.push(
   '- **Key → send:** `?bench` probe sets the input to `look`, dispatches a synthetic Enter `keydown` on it and reads the time `Socketish.send` was called on a fake socket. 200 samples after 20 warm-up runs. Pass is judged on p99, so a single GC pause does not decide it; the max is reported.',
   '- **Frame → paint:** 400 telnet frames of the fixture (as the replay socket groups them at speed 1), after 10 warm-up frames, are fed through the fake socket at random 20–80 ms intervals. "Painted" is a MessageChannel message posted from the output pane\'s frame callback, which runs after that frame\'s rendering. A frame is late when its flush started more than 1.5 frame intervals after receipt, i.e. it missed the next frame (vsync jitter of a few ms is not a missed frame). Pass: at most 1 % of frames late and none because our flush script ran longer than a frame; a headless browser occasionally skips a frame on its own (GC, compositor), and the count is reported as measured.',
   '- **Scrollback:** 40 flushes of 50 synthetic lines (some coloured) on an empty pane, then 22 000 more lines, then 40 more flushes with the pane at its 20 000-row cap (a 200-row chunk is dropped from the top every fourth flush). Frame time = frame callback start → after rendering. Pass: median at full ≤ 1.5 × median at empty + 0.5 ms.',
+  `- **${RULE_COUNT} user rules:** \`bench/rules.ts\` builds a seeded profile from the fixture's words: 250 actions (anchored and unanchored, %N captures, bodies that set a variable), 125 substitutes (colour codes around %0) and 125 highlights. In the page, the fixture's lines are assembled once, then run through a separate ScriptEngine's \`processLine\` (actions, substitutes, gags, highlights, \`text.display\`); median of 5 passes after a warm-up, divided by the line count. \`node bench/script-bench.ts\` prints the same measure for Node.`,
+  '- **Key → send with script:** the same profile is applied to the app. `bb` + Enter runs the alias `bb` → `_send bash $target`; F5 runs the macro `bb` → the alias → `_send`. Timed like Key → send, 200 samples each.',
   '- **Burst:** the whole fixture replayed at speed 0 (16 KB frames, delivered in slices of at most 8 ms, then the replay waits for the next animation frame) through the real Session, telnet parser, line assembler and output pane. rAF gaps are measured for the whole replay until the output has drained; Chromium also reports Long Animation Frames.',
   '',
 );
@@ -382,6 +435,11 @@ lines.push(
 lines.push('## Stage 2 notes', '');
 lines.push(
   '- **Package A (theme, web fonts, cell grid, custom caret), 2026-09-27.** Burst drain times and longest frames were ~2× the stage-1 figures on this day, but the stage-1 commit (c815295) run back to back on the same machine measured the same (Chromium: 1152 ms drain, 46.4 ms longest frame; Firefox: 1097 ms, 37.0 ms), so the difference is the machine\'s state, not the change. Scrollback medians are noisy run to run (one of four runs missed the Chromium ratio at 3.30 → 6.53 ms; the others passed, as does the stage-1 commit).',
+  '',
+);
+lines.push('## Stage 3 notes', '');
+lines.push(
+  '- **P2 (script engine), 2026-09-27.** The output pane now shows `text.display` copies from the engine; with no rules a line passes through untouched (the same object). The burst, paint and scrollback rows include that step. Rules are pre-filtered with an `indexOf` on the longest literal of each pattern, so a rule that cannot match costs one string search.',
   '',
 );
 mkdirSync(new URL('./results/', import.meta.url), { recursive: true });

@@ -14,6 +14,8 @@ export interface EditOptions {
   isLive: () => boolean;
   /** The live apply, when the app offers one; absent = save only. */
   apply?: ((text: string) => ApplyResult | Promise<ApplyResult>) | undefined;
+  /** Runs before the stored text is read (flushes pending variable write-back). */
+  beforeLoad?: (() => Promise<void>) | undefined;
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -26,6 +28,7 @@ export async function editProfile(nav: Nav, profiles: ProfileStore, name: string
   loading = true;
   const depth = nav.depth();
   try {
+    await opts.beforeLoad?.();
     const [rec, mod] = await Promise.all([profiles.get(name), import('../../editor')]);
     if (!rec) return nav.flash(`No profile "${name}".`, 'fail');
     // The user moved on while the chunk loaded.

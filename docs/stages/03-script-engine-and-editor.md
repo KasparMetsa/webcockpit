@@ -76,8 +76,9 @@ this stage builds the system store they will use), `#list`,
 - [x] Stage file and ADR 0015.
 - [x] P1. Document model and key table (`src/script/doc/`,
       `src/script/keys.ts`). Round-trip corpus tests.
-- [ ] P2. Script engine, display pipeline, app wiring, macros, runtime
-      variable write-back, benchmark (`src/script/engine/`).
+- [x] P2. Script engine, display pipeline, app wiring, macros, runtime
+      variable write-back, benchmark (`src/script/engine/`). API for P3:
+      `App.applyProfile(text)`, `App.script`; bus `text.display`.
 - [x] P3. Profile editor (lite + editor views), entry points, live apply
       flow (`src/editor/`).
 - [ ] Merge P2 + P3; wire the editor's live host to the engine.

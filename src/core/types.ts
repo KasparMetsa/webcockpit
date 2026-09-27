@@ -128,6 +128,16 @@ export interface BusEvents {
    * completed text; an empty `text` clears it. Never recorded by capture.
    */
   'text.partial': Line;
+  /**
+   * A line to show in the game output (ADR 0015 "Display pipeline"):
+   * `line` is the display copy (after substitutes and highlights), `source`
+   * the line as received. Emitted by the script engine once per `text.line`
+   * that is not gagged, and for each `#showme` (`local: true`; a local line
+   * is not part of the game stream and never supersedes the partial).
+   */
+  'text.display': { line: Line; source: Line; local?: boolean };
+  /** The display copy of a `text.partial` (substitutes and highlights, no gags). */
+  'text.displayPartial': { line: Line; source: Line };
   /** GMCP message as received: package name as sent, JSON text ('' if none). */
   'gmcp.raw': { pkg: string; json: string };
   /**

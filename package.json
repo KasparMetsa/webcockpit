@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "bench": "node bench/text-bench.ts && node bench/browser-bench.ts",
+    "bench": "node bench/text-bench.ts && node bench/script-bench.ts && node bench/browser-bench.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

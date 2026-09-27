@@ -36,21 +36,6 @@ import { App, REASON_REPLAY_START } from './app';
 
 type ChromeModule = typeof import('../chrome');
 
-/**
- * The live profile apply the ESC menu's editor calls (ADR 0015, Inv §4.5).
- * Package P2 adds `App.applyProfile`; until it exists the adapter reports
- * none and the editor's Apply only saves.
- */
-interface LiveProfileApp {
-  applyProfile?: (text: string) => ApplyResult;
-}
-
-/** The app's live apply, bound, or null when it has none. */
-export function liveApplyOf(app: object): ((text: string) => ApplyResult) | null {
-  const a = app as LiveProfileApp;
-  return typeof a.applyProfile === 'function' ? (text) => a.applyProfile!.call(app, text) : null;
-}
-
 /** Delay before the profile editor chunk is prefetched on the start page. */
 const EDITOR_PREFETCH_MS = 2000;
 
@@ -184,6 +169,7 @@ export class Shell {
       offline,
       cells,
       settings,
+      profiles: this.profiles,
       onEscape: () => void this.openMenu(),
       ...(probe ? { requestFrame: probe.requestFrame } : {}),
     });
@@ -245,7 +231,8 @@ export class Shell {
         app.onCommand('#reconnect');
       },
       exit: () => void this.exitSession(),
-      liveApply: () => liveApplyOf(app),
+      liveApply: (text) => app.applyProfile(text),
+      flushWriteBack: () => app.flushWriteBack(),
     });
     return this.menu;
   }
