@@ -1,0 +1,70 @@
+// The `stat` / `info` reconcile (Inv §2.6.5, §2.6.6). After a header line
+//
+//   Affected by:                                          (stat)
+//   You are subjected to the following temporary effects: (info)
+//
+// every `- <name>` line is collected until the first line that does not
+// start with `- ` (in practice the empty line or the prompt). Then the
+// affects tracker gets the plain names and the stored-spells tracker the
+// `stored spell <x>` ones. The block is the truth at that moment.
+
+import type { AffectsTracker } from './affects';
+import type { LineRouter } from './lines';
+import type { StoredTracker } from './stored';
+
+export const RECONCILE_HEADERS: readonly string[] = [
+  'Affected by:',
+  'You are subjected to the following temporary effects:',
+];
+const ITEM = '- ';
+const STORED = 'stored spell ';
+
+export class StatReconcile {
+  private collecting = false;
+  private names: string[] = [];
+  private readonly affects: AffectsTracker;
+  private readonly stored: StoredTracker;
+  private readonly now: () => number;
+
+  constructor(affects: AffectsTracker, stored: StoredTracker, now: () => number) {
+    this.affects = affects;
+    this.stored = stored;
+    this.now = now;
+  }
+
+  route(router: LineRouter): void {
+    // The watcher sees every line first: it ends a block on the first
+    // non-item line (which is then routed as usual, and may be a header).
+    router.watch((text) => {
+      if (!this.collecting) return;
+      if (text.startsWith(ITEM)) this.names.push(text.slice(ITEM.length).trim());
+      else this.finish();
+    });
+    for (const h of RECONCILE_HEADERS) {
+      router.onLine(h, () => {
+        this.collecting = true;
+        this.names = [];
+      });
+    }
+  }
+
+  private finish(): void {
+    this.collecting = false;
+    const affects: string[] = [];
+    const stored: string[] = [];
+    for (const n of this.names) {
+      if (n.toLowerCase().startsWith(STORED)) stored.push(n.slice(STORED.length).trim());
+      else affects.push(n);
+    }
+    this.names = [];
+    const now = this.now();
+    this.affects.reconcile(affects, now);
+    this.stored.reconcile(stored);
+  }
+
+  /** Forgets a block in progress (new connection). */
+  reset(): void {
+    this.collecting = false;
+    this.names = [];
+  }
+}
