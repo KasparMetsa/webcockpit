@@ -79,6 +79,7 @@ beforeAll(() => {
 
 let cleanup: Array<() => void> = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const c of cleanup.splice(0)) c();
   document.body.innerHTML = '';
 });
@@ -111,7 +112,9 @@ describe('start page', () => {
     cleanup.push(() => document.removeEventListener('keydown', docKeys, true));
     const page = mountStartPage(host, services(), { onEnter });
     cleanup.push(() => page.dispose());
+    const started = vi.spyOn(window, 'setInterval');
     await act(() => page.show());
+    expect(started).toHaveBeenCalledWith(expect.any(Function), 83); // 12 Hz
 
     expect(host.querySelectorAll('.wc-banner .wc-line')).toHaveLength(11);
     expect(host.querySelector('[data-star]')).not.toBeNull();
@@ -145,8 +148,10 @@ describe('start page', () => {
     await key('Enter');
     expect(onEnter).toHaveBeenCalledTimes(1);
 
-    // Hidden: keys pass through.
+    // Hidden: the star timer stops and keys pass through.
+    const cleared = vi.spyOn(window, 'clearInterval');
     await act(() => page.hide());
+    expect(cleared).toHaveBeenCalled();
     await key('ArrowDown');
     expect(docKeys).toHaveBeenCalledTimes(1);
   });
@@ -189,7 +194,9 @@ describe('ESC menu', () => {
     const exit = vi.fn();
     const menu = mountEscMenu(host, services(), { status: st, close, reconnect: vi.fn(), exit });
     cleanup.push(() => menu.dispose());
+    const started = vi.spyOn(window, 'setInterval');
     await act(() => menu.open());
+    expect(started).toHaveBeenCalledWith(expect.any(Function), 167); // 6 Hz
     expect(selected(host)).toBe('<< Continue >>');
     expect(host.querySelector('.wc-esc-header')?.textContent).toBe(
       'Profile: default  ·  Link: 38ms  ·  capture: recording',

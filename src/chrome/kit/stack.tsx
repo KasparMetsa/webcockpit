@@ -73,7 +73,7 @@ export function useNav(): Nav {
   return useFrameCtx().nav;
 }
 
-/** True while this frame is the visible one. */
+/** True while this frame is the visible one (top of an active, shown stack). */
 export function useIsTop(): boolean {
   return useFrameCtx().isTop;
 }
@@ -201,7 +201,7 @@ export function FrameStack(props: FrameStackProps): VNode {
         const isTop = i === stack.length - 1;
         return (
           <div key={entry.id} class="wc-frame" data-frame={entry.id} hidden={!isTop}>
-            <FrameCtx.Provider value={{ entry, nav, isTop, flash: isTop ? flash : null }}>
+            <FrameCtx.Provider value={{ entry, nav, isTop: isTop && props.active, flash: isTop ? flash : null }}>
               {entry.node}
             </FrameCtx.Provider>
           </div>
