@@ -1,6 +1,7 @@
 # 0010 — Stage 2: settings, theme, docking and chrome
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0014 (no corner setting, top dock,
+  floating panes)
 - Date: 2026-09-27
 
 ## Context

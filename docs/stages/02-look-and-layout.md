@@ -1,6 +1,7 @@
 # Stage 2 — Look and layout
 
-> Status: Owner testing (build done 2026-09-27).
+> Status: Owner testing (build done 2026-09-27; feedback round 1 done,
+> ADR 0014).
 > Source: spec §5 row 2, §1.3 (cell grid, cold start), §1.4, §2.3, §2.5,
 > §2.6 (skeleton), Inv §2.1, §3, §4, §10. ADR 0010.
 
@@ -115,8 +116,8 @@ start page; nothing connects until you choose Enter MUME.
    are dimmed (later stages).
 2. **Profile:** create (blank or copy), rename, delete, export (downloads
    `<name>.tin`), import a `.tin` file. EDIT is dimmed until stage 3.
-3. **Options → Panes:** the pane × colour grid, Border column, corner
-   style, Reset layout.
+3. **Options → Panes:** the pane × colour grid, Border column, Reset
+   layout. Corners are always quadrant (owner feedback).
 4. **Options → Appearance:** font (DejaVu Sans Mono / JetBrains Mono),
    size, padding, font colour, background, ANSI palette, cursor style and
    blink. Everything applies at once. If a setting makes the page
@@ -127,10 +128,12 @@ start page; nothing connects until you choose Enter MUME.
 
 1. Enter MUME, log in and play. Right column: Character, Timers, Group,
    Comm, UI (empty frames until stages 4–5).
-2. Arrange panes: drag a pane by its title row to the left edge, the
-   bottom (under the game pane) or another place in a column. Drag the
-   gaps to resize a dock or two neighbouring panes. Reload: the layout
-   is kept.
+2. Arrange panes: drag a pane by its title row to a screen edge (left,
+   right, top, bottom) or another place in a dock. Drop it over the game
+   text to make it float; move it by its title row, resize it from its
+   edges and corners, click to bring it to front, drop it on a screen
+   edge to dock it again. Drag the gaps to resize a dock or two
+   neighbouring panes. Reload: the layout is kept.
 3. Make the window narrow and small: side docks collapse; below 60×18
    cells a "Window too small" notice shows.
 4. ESC opens the menu (ESC first leaves scrollback if you scrolled up).

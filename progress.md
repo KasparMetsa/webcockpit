@@ -37,6 +37,10 @@ Newest first.
 - **Open issues:** idle-timeout live check still open; Chromium burst
   worst frame borderline (39–57 ms vs 50 ms); chrome not light-themed
   on "paper"; Panes grid clipped near 60 cols.
+- **Owner test 1:** fonts OK, quotes OK. Asked for: corners always
+  quadrant (setting removed), a top dock, and floating panes (per pane,
+  free position and size). Done in ADR 0014; 348 unit, 66 e2e, bench
+  passes. Owner retests the docking.
 - **Commits:** c815295…(this commit).
 
 ### 2026-09-27 — Stage 1 build
