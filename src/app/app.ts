@@ -199,7 +199,13 @@ export class App {
     this.el.className = 'wc-app';
     opts.root.appendChild(this.el);
 
+    const now = opts.now ?? Date.now;
     this.statusImpl = new AppStatus(bus);
+    // Before the UI lines and the recorder: a kill folded when the run ends
+    // is announced before `logged out`, and its `run_end` is derived from
+    // the same `conn.state` that seals the run (the recorder copes with
+    // either order).
+    this.runEvents = new RunEventDeriver({ now, ...(opts.scheduler ? { scheduler: opts.scheduler } : {}) }).attach(bus);
     attachUiMessages(bus);
     this.status = this.statusImpl;
     this.el.dataset.status = formatStatus(this.status.get());
@@ -207,7 +213,6 @@ export class App {
       this.el.dataset.status = formatStatus(st);
     });
     const cells = opts.cells;
-    const now = opts.now ?? Date.now;
     const openDb = lazyDb(opts.paneDb);
     this.game = new GameState({
       now,
@@ -230,9 +235,6 @@ export class App {
     this.game.attach(bus);
     this.settings = opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null });
     this.profiles = opts.profiles ?? null;
-    // Before the recorder: a run's `run_end` is derived from the same
-    // `conn.state` that seals it (the recorder copes with either order).
-    this.runEvents = new RunEventDeriver({ now, ...(opts.scheduler ? { scheduler: opts.scheduler } : {}) }).attach(bus);
     // Before the cockpit, so the recorder sees its first `view.size`.
     const recOpts = opts.recorder ?? {};
     this.recorder = new Recorder(bus, {

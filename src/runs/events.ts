@@ -12,7 +12,7 @@
 //                    join order, only when the set changes); Event.Achieved
 //                    → achievement. `us` is the message's receive time (from
 //                    the `gmcp.raw` just before it).
-//   system rule      one catch-all action (priority 3) on the clean line:
+//   system rule      one catch-all action (`%0`, priority 3) on the clean line:
 //                    `*Name the Race* … R.I.P.` → pkill, `… is dead! R.I.P.`,
 //                    `… has drawn his/her last breath! R.I.P.`, `… disappears
 //                    into nothing.` → kill, `You are dead! Sorry...` →
@@ -248,9 +248,13 @@ export class RunEventDeriver {
     return this;
   }
 
-  /** Installs the death-line rule into the script engine's system store. */
+  /**
+   * Installs the death-line rule into the script engine's system store.
+   * `%0` (a lone wildcard, matched without the regex) and not `%*`: a rule
+   * with the same pattern would replace the timers' catch-all router.
+   */
   installRules(system: SystemRules): void {
-    system.define('action', '%*', '', {
+    system.define('action', '%0', '', {
       priority: DEATH_RULE_PRIORITY,
       fn: (m) => {
         const line = m.line as { text: string; ts?: number } | null;

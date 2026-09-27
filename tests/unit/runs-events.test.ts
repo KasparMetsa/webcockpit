@@ -229,6 +229,21 @@ describe('RunEventDeriver', () => {
     expect(t.d.events.map((e) => e.type)).toEqual(['run_start']);
   });
 
+  it('shares the line with other catch-all system actions', () => {
+    const bus = new Bus();
+    const d = new RunEventDeriver({ scheduler: new FakeScheduler() }).attach(bus);
+    const engine = new ScriptEngine({ send: () => {}, message: () => {} });
+    const seen: string[] = [];
+    engine.system.define('action', '%*', '', { priority: 3, fn: (m) => seen.push(m.line!.text) });
+    d.installRules(engine.system);
+    expect(engine.system.count('action')).toBe(2);
+    bus.emit('conn.state', { state: 'playing', prev: 'login' });
+    d.onGmcp('Char.Vitals', { xp: 1 }, 1);
+    engine.processLine({ text: 'You are dead! Sorry...', raw: '', runs: [], tags: [], prompt: false, ts: 5 });
+    expect(seen).toEqual(['You are dead! Sorry...']);
+    expect(d.events.map((e) => e.type)).toEqual(['run_start', 'char_death']);
+  });
+
   it('runs in replays too', () => {
     const t = setup();
     t.play('Gittan', true);
