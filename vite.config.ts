@@ -112,11 +112,123 @@ function fixturesPlugin(): Plugin {
   };
 }
 
+const define = { __WC_VERSION__: JSON.stringify(pkg.version) };
+// Preact JSX for the chrome (src/chrome, ADR 0013).
+const oxc = { jsx: { runtime: 'automatic', importSource: 'preact' } } as const;
+
+/** Where the HTML replay bundle is served and emitted (src/replay/export.ts REPLAY_BUNDLE_PATH). */
+const REPLAY_BUNDLE = 'replay/replay.js';
+const ROOT = fileURLToPath(new URL('.', import.meta.url));
+
+/**
+ * Bundles the HTML replay runtime (src/replay/main.ts) into one IIFE with
+ * its CSS inlined (a `<style>` added when it runs): the text that
+ * `buildReplayHtml` embeds in every exported file (ADR 0019).
+ */
+async function bundleReplay(): Promise<string> {
+  const { build } = await import('vite');
+  const inlineCss: Plugin = {
+    name: 'webcockpit-replay-inline-css',
+    enforce: 'post',
+    generateBundle(_, bundle) {
+      let css = '';
+      for (const [name, file] of Object.entries(bundle)) {
+        if (file.type === 'asset' && name.endsWith('.css')) {
+          css += typeof file.source === 'string' ? file.source : new TextDecoder().decode(file.source);
+          delete bundle[name];
+        }
+      }
+      const entry = Object.values(bundle).find((f) => f.type === 'chunk' && f.isEntry);
+      if (entry?.type === 'chunk' && css) {
+        entry.code =
+          `(()=>{const s=document.createElement("style");s.textContent=${JSON.stringify(css)};document.head.appendChild(s)})();\n` +
+          entry.code;
+      }
+    },
+  };
+  const out = await build({
+    configFile: false,
+    root: ROOT,
+    mode: 'production',
+    logLevel: 'warn',
+    publicDir: false,
+    define,
+    oxc,
+    plugins: [inlineCss],
+    build: {
+      write: false,
+      target: 'es2022',
+      copyPublicDir: false,
+      emptyOutDir: false,
+      lib: {
+        entry: resolve(ROOT, 'src/replay/main.ts'),
+        formats: ['iife'],
+        name: 'WebCockpitReplay',
+        fileName: () => 'replay.js',
+      },
+    },
+  });
+  const outputs = (Array.isArray(out) ? out : [out]) as Array<{ output?: Array<{ type: string; isEntry?: boolean; code?: string }> }>;
+  for (const o of outputs) {
+    const chunk = o.output?.find((f) => f.type === 'chunk' && f.isEntry);
+    if (chunk?.code) return chunk.code;
+  }
+  throw new Error('replay bundle: no entry chunk');
+}
+
+/**
+ * The HTML replay bundle (ADR 0019): `vite build` emits it as
+ * `dist/replay/replay.js`; `vite` (dev) builds it on the first request of
+ * `/replay/replay.js` and keeps it until a file under src/ changes. The
+ * app never loads it as a script (only as text, at export), so its cold
+ * start is unaffected.
+ */
+function replayBundlePlugin(): Plugin {
+  let cached: Promise<string> | null = null;
+  return {
+    name: 'webcockpit-replay-bundle',
+    configureServer(server) {
+      const src = resolve(ROOT, 'src') + sep;
+      const drop = (file: string): void => {
+        if (resolve(file).startsWith(src)) cached = null;
+      };
+      server.watcher.on('change', drop);
+      server.watcher.on('add', drop);
+      server.watcher.on('unlink', drop);
+      const path = `${server.config.base.replace(/\/?$/, '/')}${REPLAY_BUNDLE}`;
+      server.middlewares.use((req, res, next) => {
+        if ((req.method !== 'GET' && req.method !== 'HEAD') || req.url?.split('?')[0] !== path) return next();
+        const r = res as ServerResponse;
+        const p = (cached ??= bundleReplay());
+        p.then(
+          (code) => {
+            r.statusCode = 200;
+            r.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+            r.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+            r.setHeader('Cache-Control', 'no-store');
+            r.end(req.method === 'HEAD' ? undefined : code);
+          },
+          (err: unknown) => {
+            if (cached === p) cached = null;
+            server.config.logger.error(`replay bundle: ${err instanceof Error ? err.message : String(err)}`);
+            r.statusCode = 500;
+            r.setHeader('Content-Type', 'text/plain');
+            r.end('replay bundle failed');
+          },
+        );
+      });
+    },
+    async generateBundle() {
+      if (this.environment?.config.consumer !== undefined && this.environment.config.consumer !== 'client') return;
+      this.emitFile({ type: 'asset', fileName: REPLAY_BUNDLE, source: await bundleReplay() });
+    },
+  };
+}
+
 export default defineConfig({
-  define: { __WC_VERSION__: JSON.stringify(pkg.version) },
-  // Preact JSX for the chrome (src/chrome, ADR 0013).
-  oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
-  plugins: [fixturesPlugin()],
+  define,
+  oxc,
+  plugins: [fixturesPlugin(), replayBundlePlugin()],
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
   build: { target: 'es2022' },
