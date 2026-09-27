@@ -79,11 +79,11 @@ autosuggest, clock strip, run events and screens.
 - [x] Event bus and shared types (line model, events).
 - [ ] Telnet layer + GMCP registry + keep-alive, with unit tests.
 - [ ] Line layer: ANSI + XML parser, with unit tests.
-- [ ] Output pane and input pane.
-- [ ] Session wiring, status line, built-in commands.
-- [ ] Raw capture in IndexedDB, Web Lock, orphan sealing.
-- [ ] Replay mode (fake socket).
-- [ ] Benchmark and Playwright smoke tests.
+- [x] Output pane and input pane.
+- [x] Session wiring, status line, built-in commands.
+- [x] Raw capture in IndexedDB, Web Lock, orphan sealing.
+- [x] Replay mode (fake socket).
+- [x] Benchmark and Playwright smoke tests.
 - [ ] Main-session verification in a browser against replay.
 - [ ] Test guide ready; owner live test.
 
