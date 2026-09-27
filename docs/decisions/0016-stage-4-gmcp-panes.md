@@ -191,3 +191,78 @@ line and `The current time is 8:00am.`, `Wimpy set to: 50`,
 `tests/fixtures` before `$WEBCOCKPIT_FIXTURES`: open
 `/?fixture=gmcp-demo.log` (add `&speed=0` for instant, `&speed=2` for
 double speed).
+
+### P1 — Character, Group, clock (2026-09-27)
+
+**GameState hub** (`src/gmcp/state.ts`). The models live outside the
+panes so they keep state while a pane is hidden and so the input-line
+clock can share them. App builds one `GameState`, attaches it to the bus
+before the panes and the script engine, and passes it in the context:
+`PaneContext.game` (new field). `createPaneContext` gives an unattached
+one by default (tests call `ctx.game.attach(ctx.bus)` or `onGmcp`).
+
+```ts
+game.char   CharModel    // Char.Name / StatusVars / Vitals; view() → CharView
+game.group  GroupModel   // Group.*, Char.Vitals fight fields; displayed(opts)
+game.clock  ClockModel   // anchor, precision, syncs, nextTransition(now)
+game.subscribe((part: 'char' | 'group' | 'clock') => …)
+game.installRules(engine.system)   // wimpy + clock lines, priority 3
+game.mssp(vars)                    // Session option onMssp
+```
+
+Resets: `connecting` and a live `disconnected` reset char and group; a
+replay's `disconnected` does not. The clock never resets.
+
+**Replay end (changed).** `PaneShell` ignores a `disconnected` that
+carries `replay`: after a replay the panes keep their last picture until
+the next connection starts (`connecting` deactivates them). Live
+disconnects blank as before. This supersedes the last sentence of the P0
+capture note above.
+
+**Pane factories moved** to `src/panes/factories.ts` (the cockpit
+imports them from there). A table in `pane.ts` is an import cycle once a
+subclass (which imports `PaneShell`) is registered in it. P2 registers
+`comm` and `ui` there.
+
+**Drawing.** `src/panes/grid.ts` `CellLine` (per-cell char, fg, bg,
+bold/italic → `div.wc-prow` with merged spans), `centre`, `overflowLine`.
+`src/panes/shade.ts` `paneShade(settings, id)` → `{ ramp, light, bg }`
+resolved per render (never cached), `fillFor(hex, light)` = washout on a
+light pane. Layout functions are pure and unit tested:
+`characterLines(view, ramp, w, h)`, `groupLines(members, w, h, nameFg,
+light)`.
+
+**Options.** Options → Panes is now a hub (`PanesHub` in `options.tsx`):
+General (the pane grid, title `General`) · Group · Back. The Group page is
+`options-group.tsx`. P2 adds `{ key: 'comm', label: 'Communication' }`
+between General and Group (Cockpit order: General · Timers ·
+Communication · Group · Back). Settings apply live on both surfaces.
+
+**Clock.** `src/gmcp/clock.ts`: epoch in unix seconds; precision
+`unset < day < hour < minute`, never lowered while the page lives;
+`localStorage` `wc.clock` = `{ epoch, precision, lastSync, reason }`
+written after each sync, loaded with the age rules (> 7 d → seed/unset,
+24 h–7 d → at most day). MSSP: MUME's table carries `GAME YEAR`, `GAME
+MONTH` (name), `GAME DAY` (0-based), `GAME HOUR`, as MMapper reads it; it
+syncs to hour precision only while the clock is at day or below. The
+strip (`src/ui/clock-strip.ts`, `InputPane.clockEl`) renders ` ` + 5-cell
+time (left-aligned) + icon and re-renders 5 ms after each wall-clock
+second boundary while a countdown shows.
+
+**Deviations.**
+- TP bar: progress through the current level's TP range (the same rule
+  as XP). Inv §2.2's example "L5 with 100 TP = full for a troll" does not
+  match Cockpit's own table code; we follow the table.
+- Fight identities are matched against unlabeled NPCs too (after
+  members), so a tanking pet shows in npcMode `all`.
+- `Group.Update` for an unknown id is taken as an add when it carries a
+  `type`, else ignored.
+- Washed moves bar is `#c4b3a1` (Cockpit `#c4b2a1`, rounding).
+
+**Demo fixture (changed).** MUME output shape (owner feedback): replies
+end with an empty line and the prompt; unsolicited output is framed by
+empty lines; every comm message is also in the game output. Adds an
+unlabeled pony (npcMode `all`), the mercenary tanking via `buffer` /
+`buffer-hits`, a consistent clock (`6 am` time line, sunrise, `The
+current time is 7:03am.`), and XP 5 770 000 → 5 860 000 / TP 41 500 →
+42 700 across the level-up so both gain segments show. ~61 s.
