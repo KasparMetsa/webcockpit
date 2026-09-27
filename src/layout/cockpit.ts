@@ -37,7 +37,8 @@
 
 import './layout.css';
 import { type CellSource, type PaneContext, createPaneContext } from '../panes/context';
-import { PANE_FACTORIES, type PaneShell } from '../panes/pane';
+import { PANE_FACTORIES } from '../panes/factories';
+import type { PaneShell } from '../panes/pane';
 import type { SettingsStore } from '../settings';
 import {
   BOTTOM_DOCK_MIN,

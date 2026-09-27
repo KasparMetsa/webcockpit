@@ -1,0 +1,66 @@
+/* Comm and UI message panes (src/panes/comm.ts, ui.ts, anchored-list.ts). */
+
+.wc-msgpane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  white-space: pre;
+}
+
+.wc-alist {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wc-alist-stack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* One message: CSS wraps it inside the pane's whole-cell width. */
+.wc-alist-stack > div {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wc-alist-more {
+  flex: none;
+  height: var(--cell-h);
+  overflow: hidden;
+  color: #d4a04e;
+  font-style: italic;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wc-alist-more[hidden] {
+  display: none;
+}
+
+/* Comm header: one row of channel cells, flush left. The cells sit above
+ * the pane's title-row grip when the border is off, so clicks reach them. */
+.wc-comm-header {
+  flex: none;
+  height: var(--cell-h);
+  overflow: hidden;
+  user-select: none;
+}
+
+.wc-comm-header[hidden] {
+  display: none;
+}
+
+.wc-comm-cell {
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.wc-ui-row {
+  font-weight: bold;
+}
