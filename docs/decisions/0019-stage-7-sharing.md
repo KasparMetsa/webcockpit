@@ -695,3 +695,21 @@ creditsWidth(cols), creditsRoll(lines, rows, cellH) → { fromY, toY, ms }
   data.
 - The demo's windows are short; the countdown and the dwell were checked
   on the demo and unit tests only.
+
+### Main session — merge and review (2026-09-28)
+
+- Merged P2, P1 (P2's `src/replay/export.ts` kept over P1's stub) and P3.
+  959 unit, 158 e2e (both browsers); `npm run build` passes. Bench: all
+  §1.3 budgets pass except the known borderline Chromium burst frame
+  (39–58 ms over four runs, one frame > 50 ms in two; Firefox 36 ms),
+  unchanged from stage 6 and carried to the stage 8 perf pass.
+- **Spotlights info box** sits at the top right of the game text (left of
+  the right dock), not of the whole player: over the player's top right
+  it covered the Character pane, which Cockpit's full-width reel never
+  had (`spotlight-mode.ts` measures `.wc-output` on each draw).
+- **Login state in Spotlights.** MUME sends Char.Name, Char.StatusVars and
+  the first full Char.Vitals only at login, so a 10-minute prefix left
+  the Character pane empty for any moment more than 10 minutes into a
+  run. `loadReel` also reads the run's login stretch (capture start to
+  `run_start` + 10 s) and puts its lines before the prefix; the timeline
+  keeps only their GMCP / VIEW / SIZE. Unit test in `share-reel.test.ts`.

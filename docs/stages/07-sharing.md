@@ -68,9 +68,12 @@ owner may want to change after testing are listed in the test guide.
 - [x] P2. HTML replay: replay bundle (dev and build), page runtime,
       `buildReplayHtml`.
 - [x] P3. Spotlights reel, Credits, Options → Spotlights, start page.
-- [ ] Merge; bench still passes (§1.3).
-- [ ] Main-session verification (unit, e2e, screenshots).
-- [ ] Test guide ready.
+- [x] Merge; bench still passes (§1.3), except the known borderline
+      Chromium burst frame (stage 8).
+- [x] Main-session verification (959 unit, 158 e2e; screenshots of the
+      editor, the replay, the reel and Credits). Two reel fixes: info box
+      over the game text, login state read for the panes.
+- [x] Test guide ready.
 - [ ] Owner test 1.
 
 ## Live checks for the owner
@@ -82,7 +85,55 @@ owner may want to change after testing are listed in the test guide.
 
 ## Test guide
 
-(Written at the end of the stage.)
+**Start:** `cd ~/proj/webcockpit && npm run dev` (restart it if it was
+already running), then open http://localhost:5173/. If History is empty,
+History → RESTORE → `~/proj/webcockpit/tests/fixtures/runs-demo.jsonl.gz`
+(the stage 6 demo: Gittan and Rasta, with kills, a PvP kill, a death, a
+level-up and achievements).
+
+1. **Export editor:** History → the Rasta row → EXPORT. Move with ↑/↓ and
+   PgUp/PgDn; `C` adds a comment before the cursor line (preview and hold
+   time shown), `E`/`D` edit/delete it; `X` starts excluding from the
+   cursor line, `X` again further down stops (red bar, grey lines); `T`
+   sets a title; `F` toggles HTML / TEXT; the map on the right shows the
+   comment, excluded parts and K/D/A/L. BACK and open it again: your edits
+   are still there (also after reloading the page).
+2. **Text export:** FORMAT: TEXT → EXPORT. Open the `.txt` from Downloads:
+   no timestamps or colour codes, your comment as `## …`, the excluded
+   lines gone.
+3. **HTML replay:** FORMAT: HTML → EXPORT. Close the dev server if you
+   like, then double-click the `.html` in Downloads. It plays by itself:
+   game text and panes as recorded, the comment in yellow holding the
+   playback for a few seconds, the cut lines not there at all. Try Space,
+   `1`–`6`, ↑/↓ in pause, click/drag the strip (hover shows the time),
+   click a marker, `F` or the Fullscreen button, ESC (leaves fullscreen
+   only). Try it in the other browser too.
+4. **Spotlights:** start page → Spotlights. Five moments play one after
+   another, newest first, alternating characters; the info box (top right
+   of the game text) says what and counts down to the moment; → / ← jump;
+   move the mouse to see the header and strip. It stops on the last one.
+   ESC back.
+5. **Credits:** start page → Credits. The chronicle rolls up slowly and
+   returns by itself at `The End.` (or ESC).
+6. **Options → Spotlights:** turn kinds off; Spotlights and Credits
+   follow. All off gives the "all disabled" message.
+
+**Choices you may want to change** (tell me):
+
+- The HTML file is ~0.7 MB for the demo and ~2 MB for a 5 h log; it holds
+  the whole player and the font. Trimming the fonts would save ~0.3 MB.
+- The replay uses the same speeds as the player (0.25×–8×), not
+  Cockpit's 0.25×–1×.
+- In the editor, commands are on their own lines (`> kill bat`), not after
+  the prompt as in the game; empty Enters are not shown.
+- A cut plays as a jump of at most 0.5 s; the panes (vitals, group,
+  timers) still follow what happened during the cut, but the Comm pane
+  and the text do not show it.
+- Credits' wording is our own, in a light chronicle tone.
+
+Feedback wanted: does the exported file open and play well on another
+computer; is the editor comfortable for cutting a fight; do Spotlights
+and Credits feel like Cockpit's.
 
 ## Owner feedback
 

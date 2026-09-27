@@ -12,7 +12,7 @@ Current stage: **7 — Sharing** (in progress).
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
-| 7 | Sharing | In progress | `docs/stages/07-sharing.md` |
+| 7 | Sharing | Owner testing | `docs/stages/07-sharing.md` |
 | 8 | Hardening → v1 | — | — |
 | 9 | Map (after v1) | — | — |
 
@@ -21,6 +21,24 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-28 — Stage 7 build
+
+- **Done:** stage file, ADR 0019. P0 DB v6 export docs, edits model,
+  timeline cuts/comments/holds/spotlight windows, `PlayerView` modes,
+  text export, replay payload, spotlight selection, chronicle. P1 export
+  editor (History → EXPORT). P2 self-contained HTML replay (same player
+  App, offline from `file://`, 0.7 MB demo / 2 MB for 5 h). P3 Spotlights
+  reel, Credits, Options → Spotlights. Review fixes: info box over the
+  game text; reel reads the login stretch for pane state. Owner fix
+  during the build: output scrollbar only while scrolled back. 959 unit,
+  158 e2e; bench as before.
+- **Next:** owner tests (guide in the stage file), then stage 8.
+- **Open issues:** Chromium burst max frame borderline (39–58 ms, stage
+  8); replay fonts not subset (~0.3 MB); JetBrains Mono exports lack
+  DejaVu fallback glyphs; a comment before the first line holds on a
+  near-blank screen; reel load time on a large real library unmeasured.
+- **Commits:** 5dca49e…(this commit).
 
 ### 2026-09-28 — Stage 6 owner test 1 fixes
 
