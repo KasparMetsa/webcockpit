@@ -22,6 +22,19 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 6 owner test 1 fixes
+
+- **Done:** three player fixes from the owner's first test (stage file
+  "Owner feedback"): the run lead-in (login GMCP, VIEW/SIZE up to the
+  first text) plays instantly, also between runs, fixing existing
+  recordings; the player fills the window with the recorded layout (no
+  letterbox); header key hints. ADR 0018 amended + package note. 882
+  unit, 140 e2e.
+- **Next:** owner retest of the player, then stage 7.
+- **Open issues:** as before (Chromium burst frame margin, post-seek
+  paint).
+- **Commits:** fad5cc4…(this commit).
+
 ### 2026-09-27 — Stage 6 build
 
 - **Done:** stage file, ADR 0018. P0 run events (kill fold, pkill,

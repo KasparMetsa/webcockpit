@@ -77,7 +77,8 @@ owner may want to change after testing are listed in the test guide.
 - [x] Main-session verification (874 unit, 138 e2e; screenshots of
       History, Statistics, player playing and paused).
 - [x] Test guide ready.
-- [ ] Owner test.
+- [x] Owner test 1 (2026-09-28): three player fixes, see Owner feedback.
+- [ ] Owner test 2.
 
 ## Live checks for the owner
 
@@ -135,3 +136,30 @@ a star row (`Rate & save this run`); pick stars, Y, and the session is
 Feedback wanted: does History/Statistics/the player look and feel like
 Cockpit's; are the kills, pkills and deaths right after a real session;
 anything that stutters in the player.
+
+## Owner feedback
+
+### Test 1 (2026-09-28)
+
+1. *Delay from RUN LOG until anything shows.* Cause: the recorder keeps
+   the login phase's GMCP with its receive times (`Comm.Channel.List` at
+   connect, `Char.Name` after the password), and the player played those
+   seconds in real time on a blank screen. Fixed in the player's
+   timeline (so existing recordings play right too): each run's lead-in
+   up to its first visible line or typed command takes no time; text
+   shows at 00:00, and run 2 of a session starts straight after run 1.
+   Clock, strip and markers follow the shortened timeline (ADR 0018
+   amendment).
+2. *Empty space left and right.* No more letterboxing to the recorded
+   size: the player fills the window left of the strip with the recorded
+   layout and font size, docks keep their widths and the game text
+   reflows, as when playing. The font only shrinks on a window too small
+   for the 60 × 18 minimum.
+3. *Only `ESC Back` in the header.* The header now shows `Space
+   Play/Pause · 1–6 Speed · ↑↓ Cursor · ESC Back`; on a narrow window
+   Cursor goes first, then Speed, then Play/Pause; `ESC Back` always
+   stays.
+
+Retest: open a real session from History (text at once), check the
+layout at your usual window size, and read the header hints.
+

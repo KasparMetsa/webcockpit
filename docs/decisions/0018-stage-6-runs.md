@@ -178,7 +178,11 @@ duration, level. Everything in Inv §7.3 that is data, not layout.
   scheduler for its trackers follow log time (ADR 0017 "Time"), so bars,
   countdowns and the kill fold are right at any speed and after a seek.
   Gaps longer than 10 s in the log collapse to 0 wall time (Inv §7.5);
-  log time still jumps by the real gap.
+  log time still jumps by the real gap. *Amended 2026-09-28 (owner
+  feedback):* each run's lead-in — every entry up to and including its
+  first visible one (an inbound line with non-blank text, or a command
+  the output echoes) — also takes 0 playback time, so text shows at 00:00
+  and run 2 of a chain starts straight after run 1.
 - **Chain:** the runs of the session play as one timeline; the header
   shows `Run X of Y`. Between runs the player's connection passes
   through `disconnected` so the panes behave as they did live.
@@ -190,10 +194,16 @@ duration, level. Everything in Inv §7.3 that is data, not layout.
   is missed, P2 adds checkpoints or a faster path and notes it here.
 - **Recorded layout:** the player's settings are the viewer's current
   settings overlaid with the latest `VIEW` record at the playhead (an
-  in-memory store, never saved). The grid is laid out at the recorded
+  in-memory store, never saved). ~~The grid is laid out at the recorded
   `SIZE` cols × rows; the font size is chosen so that grid fits the
-  window (centred). Runs without `VIEW`/`SIZE` use the current settings
-  and the window. The input pane is not shown.
+  window (centred).~~ *Amended 2026-09-28 (owner decision): no
+  letterboxing.* The cockpit is laid out on the viewer's window less the
+  strip's 2 columns, at the recorded font size, so docks keep their
+  recorded cell sizes and the game pane flexes to fill the rest, as live;
+  the text reflows (the server sends width 500, the client wraps). The
+  font size only shrinks when the grid would be below the cockpit's
+  60 × 18 minimum. `SIZE` records are not used for the layout. Runs
+  without `VIEW` use the current settings. The input pane is not shown.
 - **Echo:** replayed commands are echoed in the output the way live
   sends are (closes the stage 5 open issue; applies to `#replay` and
   fixtures too).
@@ -649,3 +659,47 @@ two width commands sent on entering `playing` are skipped when replayed
   only the last screenful first, would hide it if the owner minds.
 - A window too small for the recorded grid even at font size 6 clips the
   grid (the player's too-small handling is the cockpit's own notice).
+
+### Owner test 1 fixes (2026-09-28)
+
+**Lead-in (delay from RUN LOG to the first text).** Verified cause: the
+recorder writes the GMCP of the login phase (up to `PRE_RUN_GMCP_MAX`) at
+its receive times: `Comm.Channel.List` arrives at connect (after
+`Core.Supports.Set`), `Char.Name` only after the name and password were
+typed. Then come VIEW/SIZE, the width commands and `Char.Vitals`, and the
+first text line a moment later. The timeline played every gap ≤ 10 s in
+real time, so the player spent the login time (a synthetic run with 8 s
+of login: first text at playback 8.4 s) on a blank screen; logins over
+10 s collapsed, which is why it varied. The demo backup has only 0.3 s.
+Fix in `buildTimeline`, so recordings already in the browser play right:
+entries up to and including each run's first visible one take no
+playback time (`hasInk`: text other than blanks and SGR; or an `OUT` that
+is not empty and not one of `PLAYING_COMMANDS`, which the output does not
+echo). The engine delivers them all at playback 0 (records applied, the
+replay clock moved through their log times), `logUsAt(0)` is the first
+line's time, and `durationMs`, the `MM:SS / MM:SS` clock, the strip and
+the markers (`playAtLogUs`: an event in the lead-in maps to the run's
+start) all use the same shortened timeline. The same holds at the start
+of run 2 … N of a chain, whatever the gap (≤ 10 s used to play). The
+recorder is unchanged: GMCP keeps its receive time (ADR 0008 / 0016
+semantics); the capture stays a faithful log and the player decides how
+to play it.
+
+**Layout (no letterbox).** `fitFontSize` (fit the SIZE grid) is replaced
+by `playerFontSize(appearance, w, h, reserveCols)`: the recorded size, or
+the largest smaller one whose grid left of the strip meets
+`MIN_VIEW_COLS × MIN_VIEW_ROWS` (else `FONT_SIZE_MIN`). The stage is
+`left 0`, full height, `width = player − 2 cells`. The target's `size()`
+is kept in `PlayerTarget` (the stage 7 HTML replay may want it) but the
+in-app host ignores it. The P2 open issue about a grid too big for the
+window is gone: the cockpit's own layout handles any window.
+
+**Header hints.** The right part is `Space Play/Pause · 1–6 Speed · ↑↓
+Cursor · ESC Back` (`HINTS`, `fitHints` in `strip.ts`), styled as the
+header (`C_HINT`, ` · ` like the footers). The header is 80 columns, wider
+only as far as the full list needs (96 with a typical left part), centred
+left of the strip. On a narrow window `↑↓ Cursor`, then `1–6 Speed`, then
+`Space Play/Pause` give way; `ESC Back` always stays (clickable) and at
+least 2 columns separate the hints from the left part, which is clipped
+only if even `ESC Back` does not fit.
+
