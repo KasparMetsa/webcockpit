@@ -1,0 +1,107 @@
+// The HTML replay's payload (ADR 0019 "Replay payload"): a session with its
+// export edits applied, ready to be embedded in the file. Pure.
+//
+// What an exclusion removes (ADR 0019): inside an excluded range, inbound
+// lines, commands and the Comm pane's channel text (`Comm.*` GMCP other than
+// `Comm.Channel.List`) are dropped from the capture texts, so the file never
+// contains them. Other GMCP, VIEW, SIZE (and unknown records) are kept: the
+// timeline plays them in no time at the cut, so the panes are right when the
+// log resumes. Every range becomes a cut (the timeline plays a cut between
+// kept entries in at most 500 ms, one at either end of the log in 0).
+// Markers inside a range are dropped; comments anchored on a removed entry
+// move to the next kept visible entry (or to the end).
+
+import type { RunMeta } from '../capture/store';
+import type { ChainRun } from '../player/timeline';
+import { markersOf } from '../player/strip';
+import type { RunEvent } from '../runs/events';
+import { runStartUs } from '../runs/stitch';
+import type { Settings } from '../settings';
+import { captureEntries, isCommText, isVisible } from './capture';
+import { type ExcludeRange, type ExportDoc, commentHoldMs, isExcluded } from './edits';
+
+export const PAYLOAD_SCHEMA = 1;
+
+export interface PayloadComment {
+  beforeUs: number | null;
+  text: string;
+  holdMs: number;
+}
+
+export interface ReplayPayload {
+  schema: 1;
+  /** The doc's title; '' = none (the header then starts with the character). */
+  title: string;
+  character: string;
+  level?: number;
+  /** The first run's start, µs (the header date). */
+  startUs: number;
+  /** The exporter's settings at export time (appearance, panes). */
+  settings: Settings;
+  /** Edited capture texts, oldest run first. */
+  runs: Array<{ meta: RunMeta; text: string }>;
+  comments: PayloadComment[];
+  /** The excluded ranges, as `TimelineEdits.cuts`. */
+  cuts: ExcludeRange[];
+  markers: Array<{ us: number; kind: 'A' | 'D' | 'K' | 'L' }>;
+}
+
+/** The capture text of a run with the excluded content removed. */
+export function editRunText(text: string, doc: ExportDoc): string {
+  if (doc.excludes.length === 0) return text;
+  let out = '';
+  for (const e of captureEntries(text)) {
+    if (isExcluded(doc, e.ts) && (isVisible(e) || isCommText(e))) continue;
+    out += e.line;
+  }
+  return out;
+}
+
+/** Builds the payload of a chain (oldest run first) with its events and export doc. */
+export function buildReplayPayload(
+  chain: readonly ChainRun[],
+  events: readonly RunEvent[],
+  doc: ExportDoc,
+  settings: Settings,
+): ReplayPayload {
+  const runs = chain.map((r) => ({ meta: r.meta, text: editRunText(r.text, doc) }));
+
+  // Kept visible entries' times, for moving comments off removed entries.
+  const kept: number[] = [];
+  for (const r of runs) for (const e of captureEntries(r.text)) if (isVisible(e)) kept.push(e.ts);
+  const nextKept = (us: number): number | null => {
+    let lo = 0;
+    let hi = kept.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (kept[mid]! < us) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo < kept.length ? kept[lo]! : null;
+  };
+  const comments = doc.comments.map((c) => ({
+    beforeUs: c.beforeUs === null ? null : nextKept(c.beforeUs),
+    text: c.text,
+    holdMs: commentHoldMs(c.text),
+  }));
+
+  const markers = markersOf(events)
+    .filter((m) => !isExcluded(doc, m.us))
+    .map((m) => ({ us: m.us, kind: m.letter }));
+
+  let level: number | undefined;
+  for (const r of chain) if (r.meta.summary?.level !== undefined) level = r.meta.summary.level;
+  const first = chain[0]?.meta;
+  return {
+    schema: PAYLOAD_SCHEMA,
+    title: doc.title.trim(),
+    character: first?.character ?? '',
+    ...(level !== undefined ? { level } : {}),
+    startUs: first ? runStartUs(first) : 0,
+    settings: JSON.parse(JSON.stringify(settings)) as Settings,
+    runs,
+    comments,
+    cuts: doc.excludes.map((r) => [r[0], r[1]] as ExcludeRange),
+    markers,
+  };
+}
