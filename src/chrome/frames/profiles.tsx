@@ -4,7 +4,8 @@
 //
 // Two focus zones: the table (default, cursor on the selected profile) and
 // the buttons. Tab/Shift+Tab toggle, ← focuses the buttons, → the table.
-// Buttons: SELECT (disabled on the selected row), NEW, EDIT (stage 3),
+// Buttons: SELECT (disabled on the selected row), NEW, EDIT (the profile
+// editor, src/editor, loaded on demand),
 // RENAME and DELETE (disabled on `default`), IMPORT, EXPORT, BACK.
 // Feedback goes to the flash row under the package (~3 s).
 
@@ -20,6 +21,7 @@ import {
   nameError,
 } from '../../profiles';
 import { useGrid, useServices, useSettings } from '../kit/hooks';
+import { editProfile } from './profile-edit';
 import { cellLen, centreLeft, scrollToShow, step } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
 import {
@@ -82,8 +84,7 @@ export function ProfileFrame(): VNode {
   const curName = cur?.name ?? '';
 
   const disabled = (b: ButtonId): boolean => {
-    if (b === 'EDIT') return true;
-    if (!cur) return b === 'SELECT' || b === 'RENAME' || b === 'DELETE' || b === 'EXPORT';
+    if (!cur) return b === 'SELECT' || b === 'EDIT' || b === 'RENAME' || b === 'DELETE' || b === 'EXPORT';
     if (b === 'SELECT') return cur.name === s.profile;
     if (b === 'RENAME' || b === 'DELETE') return cur.name === DEFAULT_PROFILE;
     return false;
@@ -150,6 +151,9 @@ export function ProfileFrame(): VNode {
         return select();
       case 'NEW':
         return nav.push(<NameFrame mode="create" done={done} />);
+      case 'EDIT':
+        if (cur) void editProfile(nav, profiles, cur.name, { isLive: () => false });
+        return;
       case 'RENAME':
         return nav.push(<NameFrame mode="rename" from={curName} done={done} />);
       case 'DELETE':

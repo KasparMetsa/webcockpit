@@ -13,7 +13,9 @@
 //
 // The chrome (Preact) is a separate chunk. On `/` it is loaded at once
 // (the start page is chrome); in the offline modes it is prefetched after
-// start-up (not in `?bench`, where it loads on the first ESC).
+// start-up (not in `?bench`, where it loads on the first ESC). The profile
+// editor (CodeMirror) is a chunk of its own, imported by the chrome when it
+// is opened and prefetched when idle once the start page is up.
 //
 // ESC menu auto-open (Inv §4.7): on a transition from login/playing to
 // disconnected on a live connection, unless the user caused it (#reconnect,
@@ -23,6 +25,7 @@
 
 import type { BenchProbe } from './bench-hook';
 import type { ChromeServices, EscMenuHandle, StartPageHandle } from '../chrome';
+import type { ApplyResult } from '../editor';
 import type { ConnState } from '../core/types';
 import { CLIENT_VERSION } from '../net/gmcp';
 import { REASON_USER_DISCONNECT, REASON_USER_RECONNECT } from '../net/session';
@@ -32,6 +35,21 @@ import type { CellMetrics } from '../theme/cells';
 import { App, REASON_REPLAY_START } from './app';
 
 type ChromeModule = typeof import('../chrome');
+
+/**
+ * The live profile apply the ESC menu's editor calls (ADR 0015, Inv §4.5).
+ * Package P2 adds `App.applyProfile`; until it exists the adapter reports
+ * none and the editor's Apply only saves.
+ */
+interface LiveProfileApp {
+  applyProfile?: (text: string) => ApplyResult;
+}
+
+/** The app's live apply, bound, or null when it has none. */
+export function liveApplyOf(app: object): ((text: string) => ApplyResult) | null {
+  const a = app as LiveProfileApp;
+  return typeof a.applyProfile === 'function' ? (text) => a.applyProfile!.call(app, text) : null;
+}
 
 /** Reasons that never auto-open the menu: the user asked for the disconnect. */
 const QUIET_REASONS = new Set([REASON_USER_RECONNECT, REASON_USER_DISCONNECT, REASON_REPLAY_START]);
@@ -94,6 +112,7 @@ export class Shell {
     const chrome = await this.loadChrome();
     this.start = chrome.mountStartPage(this.startHost, this.services(), { onEnter: () => this.enter() });
     this.showStart();
+    this.idle(() => void import('../editor').catch(() => undefined));
   }
 
   /** Enter MUME: shows the cockpit and connects. */
@@ -200,8 +219,12 @@ export class Shell {
   }
 
   private prefetchChrome(): void {
+    this.idle(() => void this.loadChrome().catch(() => (this.chromeP = null)));
+  }
+
+  /** Runs `go` when the page is idle (at most ~2 s later). */
+  private idle(go: () => void): void {
     const win = this.opts.root.ownerDocument.defaultView;
-    const go = (): void => void this.loadChrome().catch(() => (this.chromeP = null));
     if (win?.requestIdleCallback) win.requestIdleCallback(go, { timeout: 2000 });
     else setTimeout(go, 500);
   }
@@ -217,6 +240,7 @@ export class Shell {
         app.onCommand('#reconnect');
       },
       exit: () => void this.exitSession(),
+      liveApply: () => liveApplyOf(app),
     });
     return this.menu;
   }

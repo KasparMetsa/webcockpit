@@ -291,7 +291,7 @@ test('profiles: create, rename, delete, export and import', async ({ page }) => 
   const table = page.locator('.wc-start .wc-frame:not([hidden]) .wc-table');
   await expect(table.locator('.wc-tr.is-cur-focus')).toContainText('default');
   await expect(page.locator('.wc-start [data-btn="SELECT"]')).toHaveAttribute('aria-disabled', 'true');
-  await expect(page.locator('.wc-start [data-btn="EDIT"]')).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.locator('.wc-start [data-btn="EDIT"]')).not.toHaveAttribute('aria-disabled', 'true');
   await expect(page.locator('.wc-start [data-btn="DELETE"]')).toHaveAttribute('aria-disabled', 'true');
 
   // NEW: invalid name, then a good one, then Blank.
