@@ -35,6 +35,7 @@ import {
   type PaneSettings,
   SETTINGS_VERSION,
   type Settings,
+  type SpotlightSettings,
   TIMER_COLOR_ORDER,
   TIMER_COLS_MIN,
   type TimersSettings,
@@ -194,6 +195,18 @@ export function migrateTimers(raw: unknown): TimersSettings {
   return { groups: d.groups, headers: bool(t.headers, d.headers), compact: bool(t.compact, d.compact) };
 }
 
+/** Spotlights filters from anything (every kind defaults to shown). */
+export function migrateSpotlights(raw: unknown): SpotlightSettings {
+  const d = defaultSettings().spotlights;
+  const x = isObj(raw) ? raw : {};
+  return {
+    achievements: bool(x.achievements, d.achievements),
+    deaths: bool(x.deaths, d.deaths),
+    levelUps: bool(x.levelUps, d.levelUps),
+    pvp: bool(x.pvp, d.pvp),
+  };
+}
+
 /** A complete, valid `Settings` from anything (stored data of any version). */
 export function migrateSettings(raw: unknown): Settings {
   const d = defaultSettings();
@@ -208,5 +221,6 @@ export function migrateSettings(raw: unknown): Settings {
     group: migrateGroup(s.group),
     comm: migrateComm(s.comm),
     timers: migrateTimers(s.timers),
+    spotlights: migrateSpotlights(s.spotlights),
   };
 }

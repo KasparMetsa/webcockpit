@@ -131,6 +131,14 @@ export interface TimersSettings {
   compact: boolean;
 }
 
+/** Options → Spotlights (Inv §3.8, ADR 0019): event kinds shown in the reel and Credits, global. */
+export interface SpotlightSettings {
+  achievements: boolean;
+  deaths: boolean;
+  levelUps: boolean;
+  pvp: boolean;
+}
+
 export interface Settings {
   /** Schema version of the stored object (bumped only for non-additive changes). */
   version: number;
@@ -142,6 +150,7 @@ export interface Settings {
   group: GroupSettings;
   comm: CommSettings;
   timers: TimersSettings;
+  spotlights: SpotlightSettings;
 }
 
 /**
@@ -194,6 +203,7 @@ export function defaultSettings(): Settings {
     group: { showPlayers: true, npcMode: 'labeled' },
     comm: { filters: {}, showHeader: true },
     timers: defaultTimersSettings(),
+    spotlights: { achievements: true, deaths: true, levelUps: true, pvp: true },
   };
 }
 

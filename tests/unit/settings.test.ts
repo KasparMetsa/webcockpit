@@ -10,6 +10,7 @@ import {
   defaultSettings,
   migrateComm,
   migrateTimers,
+  migrateSpotlights,
   defaultTimersSettings,
   TIMER_COLOR_HEX,
   migrateGroup,
@@ -183,6 +184,20 @@ describe('migrateSettings', () => {
     const store = new SettingsStore({ factory: null, storage: null, win: null });
     store.update({ timers: { groups: { debuff: { cols: 3 } } } });
     expect(store.get().timers.groups.debuff).toMatchObject({ cols: 3, color: 'red' });
+  });
+
+  it('adds the Spotlights filters with defaults and checks each key (Inv §3.8)', () => {
+    expect(migrateSettings({ profile: 'x' }).spotlights).toEqual({ achievements: true, deaths: true, levelUps: true, pvp: true });
+    expect(migrateSpotlights({ deaths: false, pvp: 'no', levelUps: 0 })).toEqual({
+      achievements: true,
+      deaths: false,
+      levelUps: true,
+      pvp: true,
+    });
+    expect(migrateSpotlights(null)).toEqual(defaultSettings().spotlights);
+    const store = new SettingsStore({ factory: null, storage: null, win: null });
+    store.update({ spotlights: { achievements: false } });
+    expect(store.get().spotlights).toMatchObject({ achievements: false, deaths: true });
   });
 
   it('viewSnapshot picks the screen settings', () => {
