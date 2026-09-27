@@ -1,39 +1,33 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { Cockpit } from '../../src/layout/cockpit';
-import { frameBottom, frameEdge, frameText, frameTop, resolveCorners } from '../../src/panes/frame';
+import { frameBottom, frameEdge, frameText, frameTop } from '../../src/panes/frame';
 import { PaneShell } from '../../src/panes/pane';
 import { SettingsStore } from '../../src/settings';
 
 describe('frame', () => {
   it('draws the top row with the label after ▀▀ and fills to the width', () => {
-    expect(frameTop(20, 'Timers', 'quadrant')).toBe('▛▀▀ Timers ▀▀▀▀▀▀▀▀▜');
-    expect(frameTop(20, 'Timers', 'quadrant')).toHaveLength(20);
-    expect(frameTop(6, 'Timers', 'block')).toBe('█▀▀ T█');
-    expect(frameTop(2, 'UI', 'quadrant')).toBe('▛▜');
-    expect(frameTop(1, 'UI', 'quadrant')).toBe('▛');
-    expect(frameTop(0, 'UI', 'quadrant')).toBe('');
+    expect(frameTop(20, 'Timers')).toBe('▛▀▀ Timers ▀▀▀▀▀▀▀▀▜');
+    expect(frameTop(20, 'Timers')).toHaveLength(20);
+    expect(frameTop(6, 'Timers')).toBe('▛▀▀ T▜');
+    expect(frameTop(2, 'UI')).toBe('▛▜');
+    expect(frameTop(1, 'UI')).toBe('▛');
+    expect(frameTop(0, 'UI')).toBe('');
   });
 
   it('draws edges and the bottom row', () => {
     expect(frameEdge(5)).toBe('▌   ▐');
-    expect(frameBottom(5, 'quadrant')).toBe('▙▄▄▄▟');
-    expect(frameBottom(5, 'block')).toBe('█▄▄▄█');
+    expect(frameBottom(5)).toBe('▙▄▄▄▟');
   });
 
   it('builds h rows of w cells', () => {
-    const t = frameText(12, 4, 'Comm', 'quadrant').split('\n');
+    const t = frameText(12, 4, 'Comm').split('\n');
     expect(t).toEqual(['▛▀▀ Comm ▀▀▜', '▌          ▐', '▌          ▐', '▙▄▄▄▄▄▄▄▄▄▄▟']);
     for (const row of t) expect([...row]).toHaveLength(12);
-    expect(frameText(5, 1, 'X', 'quadrant')).toBe('▛▀▀ ▜');
-    expect(frameText(0, 3, 'X', 'quadrant')).toBe('');
+    expect(frameText(5, 1, 'X')).toBe('▛▀▀ ▜');
+    expect(frameText(0, 3, 'X')).toBe('');
   });
 
-  it('resolves auto corners to quadrant', () => {
-    expect(resolveCorners('auto')).toBe('quadrant');
-    expect(resolveCorners('quadrant')).toBe('quadrant');
-    expect(resolveCorners('block')).toBe('block');
-  });
 });
 
 describe('PaneShell', () => {
@@ -42,7 +36,7 @@ describe('PaneShell', () => {
     const sizes: [number, number][] = [];
     p.onResize((c, r) => sizes.push([c, r]));
     const rect = { x: 2, y: 3, w: 10, h: 5 };
-    p.place({ rect, content: { x: 3, y: 4, w: 8, h: 3 }, framed: true, corners: 'quadrant' }, { w: 9, h: 17 });
+    p.place({ rect, content: { x: 3, y: 4, w: 8, h: 3 }, framed: true }, { w: 9, h: 17 });
     expect(p.el.hidden).toBe(false);
     expect(p.el.style.left).toBe('18px');
     expect(p.el.style.top).toBe('51px');
@@ -51,7 +45,7 @@ describe('PaneShell', () => {
     expect(p.content.style.height).toBe('51px');
     expect(p.el.querySelector('.wc-pane-frame')!.textContent!.split('\n')[0]).toBe('▛▀▀ Comm ▜');
     expect([p.cols, p.rows, p.visible]).toEqual([8, 3, true]);
-    p.place({ rect, content: rect, framed: false, corners: 'quadrant' }, { w: 9, h: 17 });
+    p.place({ rect, content: rect, framed: false }, { w: 9, h: 17 });
     expect(p.el.querySelector('.wc-pane-frame')!.textContent).toBe('');
     p.place(null, { w: 9, h: 17 });
     expect(p.el.hidden).toBe(true);

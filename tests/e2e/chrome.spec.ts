@@ -201,7 +201,7 @@ test('Exit session returns to the start page and closes the connection', async (
   await expect(page.locator('.wc-app')).toHaveAttribute('data-status', /^login/);
 });
 
-test('Options → Panes toggles panes, borders and corners live', async ({ page }) => {
+test('Options → Panes toggles panes and borders live', async ({ page }) => {
   await openStart(page);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
@@ -219,18 +219,16 @@ test('Options → Panes toggles panes, borders and corners live', async ({ page 
   // Border column by mouse.
   await page.locator('.wc-start .wc-check[title="Comm: border"]').click();
   await expect.poll(async () => (await settings(page)).panes.comm.border).toBe(false);
-  // Corner style cycles (the click moved the cursor to Comm).
-  for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
-  await expect(startSel(page)).toHaveText('<< Corner style: Auto >>');
-  await page.keyboard.press('ArrowRight');
-  await expect.poll(async () => (await settings(page)).corners).toBe('quadrant');
-  // Reset layout.
+  // No corner style row: the frames are always quadrant.
+  await expect(page.locator('.wc-start')).not.toContainText('Corner style');
+  // Reset layout (the click moved the cursor to Comm; UI, then Reset).
   await page.evaluate(() =>
     window.__wc!.settings.update((d) => {
       d.layout.docks.right.size = 40;
     }),
   );
-  await page.keyboard.press('ArrowDown');
+  for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+  await expect(startSel(page)).toHaveText('<< Reset layout >>');
   await page.keyboard.press('Enter');
   await expect(startFlash(page)).toHaveText('Layout reset.');
   await expect.poll(async () => (await settings(page)).layout.docks.right.size).toBe(33);

@@ -31,7 +31,6 @@
 
 import './layout.css';
 import { PANE_FACTORIES, type PaneShell } from '../panes/pane';
-import { resolveCorners } from '../panes/frame';
 import type { SettingsStore } from '../settings';
 import {
   BOTTOM_DOCK_MIN,
@@ -223,11 +222,10 @@ export class Cockpit {
     placeEl(this.gameEl, r.game, cell);
     placeEl(this.inputEl, r.input, cell);
     const boxes = new Map(r.panes.map((p) => [p.id, p]));
-    const corners = resolveCorners(s.corners);
     for (const [id, shell] of this.shells) {
       shell.applyTheme(s);
       const b = boxes.get(id);
-      shell.place(b ? { rect: b.rect, content: b.content, framed: b.framed, corners } : null, cell);
+      shell.place(b ? { rect: b.rect, content: b.content, framed: b.framed } : null, cell);
     }
     this.renderHandles(r, cell);
   }

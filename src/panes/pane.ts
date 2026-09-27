@@ -12,7 +12,7 @@ import { applyPaneTheme } from '../theme/apply';
 import type { Settings } from '../settings/types';
 import type { Rect } from '../layout/allocate';
 import { PANE_LABELS, type PaneId } from '../layout/types';
-import { type CornerGlyphs, frameText } from './frame';
+import { frameText } from './frame';
 
 export type PaneResizeListener = (cols: number, rows: number) => void;
 
@@ -21,7 +21,6 @@ export interface PanePlacement {
   rect: Rect;
   content: Rect;
   framed: boolean;
-  corners: CornerGlyphs;
 }
 
 export class PaneShell {
@@ -103,10 +102,10 @@ export class PaneShell {
     cs.top = `${(content.y - rect.y) * cell.h}px`;
     cs.width = `${content.w * cell.w}px`;
     cs.height = `${content.h * cell.h}px`;
-    const key = p.framed ? `${rect.w}x${rect.h}:${p.corners}` : '';
+    const key = p.framed ? `${rect.w}x${rect.h}` : '';
     if (key !== this.frameKey) {
       this.frameKey = key;
-      this.frameEl.textContent = p.framed ? frameText(rect.w, rect.h, this.label, p.corners) : '';
+      this.frameEl.textContent = p.framed ? frameText(rect.w, rect.h, this.label) : '';
     }
     this.el.toggleAttribute('data-framed', p.framed);
     this.el.hidden = false;

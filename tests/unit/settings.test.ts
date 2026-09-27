@@ -101,7 +101,8 @@ describe('migrateSettings', () => {
     expect(s.appearance.cursorStyle).toBe('beam');
     expect(s.appearance.font).toBe('dejavu');
     expect(s.panes.ui).toEqual({ on: false, color: 'black', border: true });
-    expect(s.corners).toBe('block');
+    // The removed corner style setting is dropped silently.
+    expect('corners' in s).toBe(false);
     expect(s.profile).toBe('default');
     expect(migrateSettings({ appearance: { size: 1, padding: -4 } }).appearance).toMatchObject({
       size: 6,
@@ -237,10 +238,10 @@ describe('SettingsStore', () => {
     const s = new SettingsStore({ factory, storage: null, win: win as unknown as Window, debounceMs: 250 });
     stores.push(s);
     await s.load();
-    s.update({ corners: 'block' });
+    s.update({ profile: 'hidden' });
     win.dispatchEvent(new Event('pagehide'));
     await s.flush();
-    expect(await stored(factory)).toMatchObject({ corners: 'block' });
+    expect(await stored(factory)).toMatchObject({ profile: 'hidden' });
   });
 
   it('safe mode: default appearance, nothing saved until a change', async () => {
@@ -278,12 +279,12 @@ describe('SettingsStore', () => {
 
     const b = make({ factory });
     const p = b.load();
-    b.update({ corners: 'quadrant' });
+    b.update({ appearance: { size: 20 } });
     await p;
-    expect(b.get().corners).toBe('quadrant');
+    expect(b.get().appearance.size).toBe(20);
     expect(b.get().profile).toBe('stored');
     await b.flush();
-    expect(await stored(factory)).toMatchObject({ corners: 'quadrant', profile: 'stored' });
+    expect(await stored(factory)).toMatchObject({ appearance: { size: 20 }, profile: 'stored' });
   });
 
   it('works in memory without IndexedDB', async () => {

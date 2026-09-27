@@ -3,7 +3,9 @@
 // an old version, a partial object, garbage — and always returns a
 // complete, valid `Settings`: missing or invalid values take the
 // default, numbers are clamped, enums checked, colours normalised, and a
-// damaged layout is repaired so every pane appears exactly once.
+// damaged layout is repaired so every pane appears exactly once. Keys
+// that are no longer part of `Settings` (e.g. `corners`, removed after the
+// stage 2 feedback) are dropped silently.
 
 import {
   DEFAULT_PANE_DESIRED,
@@ -17,7 +19,6 @@ import {
 import { normalizeHex } from '../theme/color';
 import {
   type AppearanceSettings,
-  CORNER_STYLES,
   CURSOR_STYLES,
   FONT_IDS,
   FONT_SIZE_MAX,
@@ -126,7 +127,6 @@ export function migrateSettings(raw: unknown): Settings {
     version: SETTINGS_VERSION,
     appearance: migrateAppearance(s.appearance),
     panes: migratePanes(s.panes),
-    corners: oneOf(s.corners, CORNER_STYLES, d.corners),
     layout: migrateLayout(s.layout),
     profile,
   };

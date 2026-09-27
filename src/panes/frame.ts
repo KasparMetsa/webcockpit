@@ -10,41 +10,27 @@
 // foreground only: the pane background shows through the unlit halves and
 // the spaces. The content element sits on top of the inner area.
 
-import type { CornerStyle } from '../settings/types';
-
-/** Resolved corner glyph set. */
-export type CornerGlyphs = 'quadrant' | 'block';
-
-const CORNERS: Record<CornerGlyphs, { tl: string; tr: string; bl: string; br: string }> = {
-  quadrant: { tl: '▛', tr: '▜', bl: '▙', br: '▟' },
-  block: { tl: '█', tr: '█', bl: '█', br: '█' },
-};
-
-/**
- * The corner glyphs for a setting. `auto` is quadrant: both bundled fonts
- * have the quadrant glyphs (ADR 0010, checked by tests/unit/font-glyphs).
- */
-export function resolveCorners(style: CornerStyle): CornerGlyphs {
-  return style === 'block' ? 'block' : 'quadrant';
-}
+/** Frame corners: always the quadrant glyphs (owner feedback, stage 2). */
+const TL = '▛';
+const TR = '▜';
+const BL = '▙';
+const BR = '▟';
 
 /** The top row, `w` cells: `▛▀▀ Label ▀…▀▜`, the label chopped when narrow. */
-export function frameTop(w: number, label: string, corners: CornerGlyphs): string {
+export function frameTop(w: number, label: string): string {
   if (w <= 0) return '';
-  const c = CORNERS[corners];
-  if (w === 1) return c.tl;
+  if (w === 1) return TL;
   const inner = w - 2;
   const head = label ? `▀▀ ${label} ` : '';
   const mid = head.length >= inner ? head.slice(0, inner) : head + '▀'.repeat(inner - head.length);
-  return c.tl + mid + c.tr;
+  return TL + mid + TR;
 }
 
 /** The bottom row, `w` cells: `▙▄…▄▟`. */
-export function frameBottom(w: number, corners: CornerGlyphs): string {
+export function frameBottom(w: number): string {
   if (w <= 0) return '';
-  const c = CORNERS[corners];
-  if (w === 1) return c.bl;
-  return c.bl + '▄'.repeat(w - 2) + c.br;
+  if (w === 1) return BL;
+  return BL + '▄'.repeat(w - 2) + BR;
 }
 
 /** A middle row, `w` cells: `▌`, spaces, `▐`. */
@@ -55,13 +41,13 @@ export function frameEdge(w: number): string {
 }
 
 /** The whole frame for a `w` × `h` pane, rows joined by `\n`. */
-export function frameText(w: number, h: number, label: string, corners: CornerGlyphs): string {
+export function frameText(w: number, h: number, label: string): string {
   if (w <= 0 || h <= 0) return '';
-  const rows = [frameTop(w, label, corners)];
+  const rows = [frameTop(w, label)];
   if (h > 1) {
     const edge = frameEdge(w);
     for (let i = 0; i < h - 2; i++) rows.push(edge);
-    rows.push(frameBottom(w, corners));
+    rows.push(frameBottom(w));
   }
   return rows.join('\n');
 }

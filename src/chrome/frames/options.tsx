@@ -4,8 +4,7 @@
 // there is no Apply and Back never discards.
 //
 //   Options hub:  Panes · Appearance · Back
-//   Panes:        pane × colour grid with a Border column, corner style,
-//                 reset layout
+//   Panes:        pane × colour grid with a Border column, reset layout
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
 //                 live preview box
 
@@ -13,9 +12,7 @@ import type { VNode } from 'preact';
 import { useState } from 'preact/hooks';
 import { PANE_COLORS, PANE_IDS, PANE_LABELS, type PaneColor, type PaneId, defaultLayout } from '../../layout/types';
 import {
-  CORNER_STYLES,
   CURSOR_STYLES,
-  type CornerStyle,
   FONT_IDS,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
@@ -50,8 +47,6 @@ import {
   menuKey,
   useMenuCursor,
 } from '../kit/widgets';
-
-const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 const MENU_FOOTER = ['↑↓ Navigate', 'Enter Select', 'ESC Back'];
 
@@ -99,8 +94,8 @@ export function PanesFrame(): VNode {
   const s = useSettings();
   const nav = useNav();
   const { cols } = useGrid();
-  // Rows 0–4: panes; 5: corner style; 6: reset layout; 7: Back.
-  const ROWS = PANE_IDS.length + 3;
+  // Rows 0–4: panes; 5: reset layout; 6: Back.
+  const ROWS = PANE_IDS.length + 2;
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
 
@@ -109,15 +104,11 @@ export function PanesFrame(): VNode {
       d.panes[id] = gridToggle(d.panes[id], c);
     });
   };
-  const corner = (delta: number): void => {
-    settings.update({ corners: cycle<CornerStyle>(CORNER_STYLES, settings.get().corners, delta) });
-  };
   const resetLayout = (): void => {
     settings.update({ layout: defaultLayout() });
     nav.flash('Layout reset.');
   };
   const tail: MenuItem[] = [
-    { key: 'corner', label: `Corner style: ${cap(s.corners)}`, adjust: corner },
     { key: 'reset', label: 'Reset layout', activate: resetLayout },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];

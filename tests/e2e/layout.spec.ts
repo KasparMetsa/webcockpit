@@ -90,18 +90,18 @@ test('default layout: game left, right column 33 cells in Cockpit order, input a
   expect(errors).toEqual([]);
 });
 
-test('toggles, colours, borders and corners apply live', async ({ page }) => {
+test('toggles, colours and borders apply live; corners are always quadrant', async ({ page }) => {
   const { ch } = await open(page);
   const set = (patch: object) => page.evaluate((p) => window.__wc!.settings.update(p), patch);
   await set({ panes: { group: { on: false } } });
   await expect(page.locator('.wc-pane-group')).toBeHidden();
   expect((await box(page, '.wc-pane-comm')).y).toBe((11 + 10) * ch);
-  await set({ panes: { group: { on: true, color: 'purple', border: false } }, corners: 'block' });
+  await set({ panes: { group: { on: true, color: 'purple', border: false } } });
   await expect(page.locator('.wc-pane-group')).toBeVisible();
   await expect(page.locator('.wc-pane-group .wc-pane-frame')).toHaveText('');
   expect((await box(page, '.wc-pane-group')).height).toBe(6 * ch);
   expect(await page.locator('.wc-pane-group').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(22, 16, 28)');
-  expect((await page.locator('.wc-pane-ui .wc-pane-frame').textContent())!.startsWith('█▀▀ UI ▀')).toBe(true);
+  expect((await page.locator('.wc-pane-ui .wc-pane-frame').textContent())!.startsWith('▛▀▀ UI ▀')).toBe(true);
 });
 
 test('drag a pane by its title row to the left dock', async ({ page }) => {

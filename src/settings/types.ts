@@ -13,10 +13,6 @@ export const FONT_IDS: readonly FontId[] = ['dejavu', 'jetbrains'];
 export type CursorStyle = 'block' | 'beam' | 'underline';
 export const CURSOR_STYLES: readonly CursorStyle[] = ['block', 'beam', 'underline'];
 
-/** Pane frame corners (Inv §2.1). `auto` resolves to quadrant for both bundled fonts. */
-export type CornerStyle = 'auto' | 'quadrant' | 'block';
-export const CORNER_STYLES: readonly CornerStyle[] = ['auto', 'quadrant', 'block'];
-
 /** Font size range in CSS px (Inv §10.1). */
 export const FONT_SIZE_MIN = 6;
 export const FONT_SIZE_MAX = 32;
@@ -54,7 +50,6 @@ export interface Settings {
   version: number;
   appearance: AppearanceSettings;
   panes: Record<PaneId, PaneSettings>;
-  corners: CornerStyle;
   layout: LayoutModel;
   /** Selected profile name. */
   profile: string;
@@ -86,7 +81,6 @@ export function defaultSettings(): Settings {
       comm: { on: true, color: 'blue', border: true },
       ui: { on: true, color: 'black', border: true },
     },
-    corners: 'auto',
     layout: defaultLayout(),
     profile: 'default',
   };
