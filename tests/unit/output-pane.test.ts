@@ -231,9 +231,10 @@ describe('OutputPane command echo', () => {
     expect(t.rows()).toEqual(['You are hungry.', 'eat bread']);
   });
 
-  it('skips empty, secret and echo:false commands', () => {
+  it('skips empty, secret, echo:false and replayed commands', () => {
     const t = setup();
     t.bus.emit('text.line', line('oO>', true));
+    t.bus.emit('cmd.sent', { text: 'from a replayed log', ts: 0, replay: true });
     t.bus.emit('cmd.sent', { text: '', ts: 0 });
     t.bus.emit('cmd.sent', { text: '', ts: 0, secret: true });
     t.bus.emit('cmd.sent', { text: 'change width all 500', ts: 0, echo: false } as never);

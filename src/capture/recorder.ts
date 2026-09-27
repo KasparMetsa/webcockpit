@@ -176,8 +176,9 @@ export class Recorder {
         if (this.active) this.capture(line.ts, formatInbound(line.ts, line.raw));
       }),
       bus.on('cmd.sent', (c) => {
-        // echo:false commands were still sent, so they are captured.
-        if (this.active && !c.secret) this.capture(c.ts, formatOutbound(c.ts, c.text));
+        // echo:false commands were still sent, so they are captured; a
+        // replayed log's commands were not sent now.
+        if (this.active && !c.secret && !c.replay) this.capture(c.ts, formatOutbound(c.ts, c.text));
       }),
     );
 

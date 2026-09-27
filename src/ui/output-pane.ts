@@ -207,7 +207,10 @@ export class OutputPane {
   }
 
   private onCmdSent(c: BusEvents['cmd.sent']): void {
-    if (c.secret || c.echo === false || c.text === '') return;
+    // A replayed log's commands are not echoed: the log cannot tell typed
+    // commands from housekeeping (`change width`), and replays show only
+    // what the server sent, as before (ADR 0017 P0).
+    if (c.secret || c.echo === false || c.replay || c.text === '') return;
     // An open partial (a prompt without GA, e.g. the login name prompt) gets
     // the echo; it moves onto the completed line when that arrives.
     if (this.partial && this.partialEcho === null) {

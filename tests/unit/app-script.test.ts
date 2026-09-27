@@ -99,6 +99,18 @@ describe('App + script engine', () => {
     expect(t.app.input.getHistory()).toEqual(['bb;look']);
   });
 
+  it('an empty Enter sends a bare newline and emits cmd.sent with empty text (timers input tap)', async () => {
+    const t = await setup();
+    const sock = await t.connect();
+    const sent: Array<{ text: string; replay?: true }> = [];
+    t.app.bus.on('cmd.sent', (c) => sent.push(c));
+    const before = sock.sentBytes().length;
+    enter(t.app, '');
+    expect(sent).toEqual([expect.objectContaining({ text: '' })]);
+    expect(sent[0]!.replay).toBeUndefined();
+    expect(Array.from(sock.sentBytes().slice(before))).toEqual([13, 10]);
+  });
+
   it('runs macros from keydown, and a bound macro wins over input keys', async () => {
     const t = await setup('#macro {Numpad8} {north}\n#macro {Alt+B} {_send bash}\n');
     const sock = await t.connect();

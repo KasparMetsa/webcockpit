@@ -57,6 +57,11 @@ function forcesUtf8(s: Socketish): boolean {
  */
 export interface IsReplay {
   readonly replay: true;
+  /**
+   * Set by Session on connect: a recorded outbound command, emitted as
+   * `cmd.sent` with `replay: true` (not sent, echoed or captured again).
+   */
+  onSent?: ((text: string) => void) | null;
 }
 
 function isReplay(s: Socketish): boolean {
@@ -194,8 +199,15 @@ export class Session implements Sender {
         this.frameTs = null;
       }
     };
+    if (this.replayConn) {
+      (sock as unknown as IsReplay).onSent = (text) => {
+        if (this.socket !== sock) return;
+        this.bus.emit('cmd.sent', { text, ts: nowUs(), replay: true });
+      };
+    }
     sock.onClose = (reason) => {
       if (this.socket !== sock) return;
+      if (this.replayConn) (sock as unknown as IsReplay).onSent = null;
       this.socket = null;
       this.open = false;
       this.dropped(reason);
@@ -231,6 +243,7 @@ export class Session implements Sender {
     sock.onOpen = null;
     sock.onData = null;
     sock.onClose = null;
+    if (isReplay(sock)) (sock as unknown as IsReplay).onSent = null;
     try {
       sock.close();
     } catch {

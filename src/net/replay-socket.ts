@@ -5,7 +5,11 @@
 //   <16-digit µs ts> <inbound line, ANSI SGR kept>
 //   <16-digit µs ts> > <outbound command>
 //   <16-digit µs ts> ESC <TYPE> <payload>          (client record, ADR 0016)
-// Outbound lines are skipped. Inbound lines become UTF-8 bytes + CR LF.
+// Inbound lines become UTF-8 bytes + CR LF. Outbound lines are skipped by
+// `logToFrames` unless `sends` is set; ReplaySocket sets it and hands each
+// recorded command (`''` = empty Enter) to `onSent` at its time, between
+// the inbound frames around it, and Session emits it as `cmd.sent` with
+// `replay: true` (trackers see it; nothing re-sends, echoes or captures it).
 // `ESC GMCP <pkg> [json]` records become `IAC SB GMCP <pkg> [json] IAC SE`
 // at their timestamps; the first one is preceded by `IAC WILL GMCP` so the
 // telnet layer accepts them (a recorded Char.Name then takes the session to
@@ -41,13 +45,22 @@ export interface LogFrameOptions {
    * `speed > 0`, like one server write. Default 1000.
    */
   groupUs?: number;
+  /**
+   * Yield the recorded outbound commands as frames of their own
+   * (`sent`, empty `bytes`). Default false: they are skipped.
+   */
+  sends?: boolean;
 }
 
 export interface ReplayFrame {
   /** Delivery time in ms after the replay starts. */
   atMs: number;
   bytes: Uint8Array;
+  /** A recorded outbound command (`sends`); `bytes` is then empty. */
+  sent?: string;
 }
+
+const NO_BYTES = new Uint8Array(0);
 
 const TS_DIGITS = 16;
 const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g;
@@ -72,6 +85,7 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
   const maxGapMs = opts.maxGapMs ?? 2000;
   const chunk = Math.max(256, opts.chunkBytes ?? 16384);
   const groupUs = opts.groupUs ?? 1000;
+  const sends = opts.sends ?? false;
   const enc = new TextEncoder();
 
   let buf = new Uint8Array(chunk * 2);
@@ -105,6 +119,17 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
     // Outbound: "> cmd" ("> " alone is an empty Enter). A bare ">" is an
     // inbound prompt.
     if (logText.charCodeAt(bodyStart) === 62 && logText.charCodeAt(bodyStart + 1) === 32 && bodyStart + 1 < end) {
+      if (!sends) continue;
+      // Its own frame, after what came before it. The clock does not move:
+      // the next inbound line's gap is measured as without sends.
+      const ts = Number(logText.slice(start, start + TS_DIGITS));
+      const deltaUs = lastTs >= 0 ? Math.max(0, ts - lastTs) : 0;
+      const at = clock + (speed > 0 ? Math.min(deltaUs / 1000, maxGapMs) / speed : 0);
+      if (len > 0) {
+        yield { atMs: frameAt, bytes: buf.slice(0, len) };
+        len = 0;
+      }
+      yield { atMs: at, bytes: NO_BYTES, sent: logText.slice(bodyStart + 2, end) };
       continue;
     }
     // Client record: ESC + upper-case letter. Only GMCP is replayed.
@@ -178,7 +203,7 @@ export function charNamePreamble(name: string): Uint8Array {
   return out;
 }
 
-export interface ReplayOptions extends LogFrameOptions {
+export interface ReplayOptions extends Omit<LogFrameOptions, 'sends'> {
   /**
    * When set, the replay starts by announcing GMCP and sending
    * `Char.Name` with this name, so the session reaches `playing`.
@@ -203,6 +228,8 @@ export class ReplaySocket implements Socketish, IsReplay {
   onOpen: (() => void) | null = null;
   onData: ((bytes: Uint8Array) => void) | null = null;
   onClose: ((reason: string) => void) | null = null;
+  /** A recorded outbound command at its time (`''` = empty Enter); session.ts `IsReplay`. */
+  onSent: ((text: string) => void) | null = null;
 
   /** Replay text is UTF-8; Session skips CHARSET negotiation. */
   readonly forceUtf8 = true as const;
@@ -233,7 +260,7 @@ export class ReplaySocket implements Socketish, IsReplay {
   connect(): void {
     if (this.running || this.frames) return;
     this.running = true;
-    this.frames = logToFrames(this.text, this.opts);
+    this.frames = logToFrames(this.text, { ...this.opts, sends: true });
     this.schedule(() => {
       if (!this.running) return;
       this.onOpen?.();
@@ -299,7 +326,8 @@ export class ReplaySocket implements Socketish, IsReplay {
           return;
         }
       }
-      this.deliver(f.bytes);
+      if (f.sent !== undefined) this.onSent?.(f.sent);
+      else this.deliver(f.bytes);
       if (!this.running) return;
       if (performance.now() - sliceStart >= SLICE_MS) {
         this.yieldToFrame();

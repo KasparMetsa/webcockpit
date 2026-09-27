@@ -76,7 +76,7 @@ function setup(opts: { factory?: IDBFactory; locks?: LockManagerLike | null; flu
 }
 
 describe('Recorder', () => {
-  it('records lines and commands in order, skipping secrets and partials', async () => {
+  it('records lines and commands in order, skipping secrets, replayed commands and partials', async () => {
     const t = setup();
     t.play();
     t.bus.emit('text.line', line('oO>', 1790449245424000, true));
@@ -85,6 +85,7 @@ describe('Recorder', () => {
     t.bus.emit('cmd.sent', { text: 'change width all 500', ts: 1790449245424816, echo: false } as never);
     t.bus.emit('text.partial', line('partial', 1790449245424817));
     t.bus.emit('text.line', line('\x1b[33mAllies\x1b[0m', 1790449245596613));
+    t.bus.emit('cmd.sent', { text: 'replayed', ts: 1790449245596650, replay: true });
     t.bus.emit('cmd.sent', { text: '', ts: 1790449245596700 });
     await t.rec.idle();
     const runId = t.rec.runId!;

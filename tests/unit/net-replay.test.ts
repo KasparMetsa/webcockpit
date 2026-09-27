@@ -88,6 +88,22 @@ describe('logToFrames', () => {
   });
 });
 
+describe('logToFrames with sends', () => {
+  it('yields recorded commands as their own frames, bytes unchanged, times monotone', () => {
+    for (const speed of [0, 1]) {
+      const frames = [...logToFrames(LOG, { speed, sends: true })];
+      expect(frames.filter((f) => f.sent !== undefined).map((f) => f.sent)).toEqual(['who', 'arm', '']);
+      expect(frames.filter((f) => f.sent !== undefined).every((f) => f.bytes.length === 0)).toBe(true);
+      expect(decode(frames)).toBe(decode([...logToFrames(LOG, { speed })]));
+      for (let i = 1; i < frames.length; i++) expect(frames[i]!.atMs).toBeGreaterThanOrEqual(frames[i - 1]!.atMs);
+    }
+    expect([...logToFrames(LOG, { speed: 1 })].at(-1)!.atMs).toBe(
+      [...logToFrames(LOG, { speed: 1, sends: true })].filter((f) => f.sent === undefined).at(-1)!.atMs,
+    );
+    expect([...logToFrames(LOG, { speed: 0 })].some((f) => f.sent !== undefined)).toBe(false);
+  });
+});
+
 describe('logToFrames with client records', () => {
   const REC = [
     '1790449245000000 ' + E + 'VIEW {"appearance":{}}',
@@ -152,6 +168,28 @@ describe('ReplaySocket through Session', () => {
     expect(states.at(-1)!.reason).toBe('replay finished');
     expect(sink.out).toContain('Xaark narrates \'åäö\'');
     expect(sink.gas).toBe(2);
+  });
+
+  it('re-emits recorded commands as cmd.sent with replay, in order with the lines', async () => {
+    const bus = new Bus();
+    const sink = new RecSink();
+    const sent: BusEvents['cmd.sent'][] = [];
+    const at: Record<string, number> = {};
+    bus.on('cmd.sent', (c) => (sent.push(c), (at[c.text] = sink.out.length)));
+    const sock = new ReplaySocket(LOG, { speed: 0 });
+    const s = new Session({ bus, sink });
+    const done = new Promise<void>((res) => bus.on('conn.state', (p) => p.state === 'disconnected' && res()));
+    s.connect(sock);
+    await done;
+    expect(sent.map((c) => c.text)).toEqual(['who', 'arm', '']);
+    expect(sent.every((c) => c.replay === true && typeof c.ts === 'number')).toBe(true);
+    // Nothing goes to the (absent) server.
+    // Emitted between the text before and after it in the log.
+    expect(at.who).toBe(0);
+    expect(sink.out.slice(0, at.arm)).toMatch(/oO>⟨GA⟩$/);
+    expect(sink.out.slice(at.arm)).toMatch(/^\[cast n 'armour'\]/);
+    expect(sink.out.slice(at[''])).toBe('');
+    expect(sock.onSent).toBeNull();
   });
 
   it('stops on close()', async () => {

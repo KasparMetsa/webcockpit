@@ -157,9 +157,11 @@ export interface BusEvents {
    * Sender sets `text` to '' and consumers must not log, echo or store it.
    * `echo: false` means the command must not be echoed locally in the
    * output pane (client housekeeping such as `change width`); absent means
-   * echo.
+   * echo. `replay: true` marks a command re-emitted from a replayed log
+   * (ReplaySocket): it was not sent now, so it is never sent, echoed or
+   * captured again; trackers take it as a send of that session (ADR 0017).
    */
-  'cmd.sent': { text: string; ts: number; secret?: boolean; echo?: boolean };
+  'cmd.sent': { text: string; ts: number; secret?: boolean; echo?: boolean; replay?: true };
   /**
    * Connection state change. `reason` explains a disconnect. `replay` is
    * set on every change of a replay connection (ReplaySocket): a replay can
@@ -188,7 +190,7 @@ export interface BusEvents {
   'ui.message': UiMessage;
   /**
    * The screen settings (src/settings `viewSnapshot`: appearance, panes,
-   * layout, group, comm) as JSON. App emits it once at start and again
+   * layout, group, comm, timers) as JSON. App emits it once at start and again
    * whenever the snapshot changes; the recorder captures it so a log player
    * can rebuild the screen (ADR 0016).
    */
