@@ -64,7 +64,14 @@ XP folding (stage 5–6 with runs), map and `Room.*` consumers (stage 9),
 
 ## Owner decisions
 
-None needed at start. Technical choices in ADR 0016.
+Technical choices in ADR 0016.
+
+- **2026-09-27 — full-screen replay.** The HTML replay export (stage 7)
+  and the log player (stage 6) show all panes in the layout the player
+  had, not only the game output; the input pane is left out. Owner:
+  "a replay that actually matches what the player saw". So from this
+  stage on, the run capture records GMCP, layout/appearance snapshots
+  and the window size in cells, in addition to lines and commands.
 
 Carried: the owner wants per-character state to survive sessions
 (2026-09-27). This stage covers comm history. Timers follow in stage 5.

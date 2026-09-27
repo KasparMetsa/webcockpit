@@ -86,6 +86,12 @@ in our own format in `src/gmcp/levels.ts`. No code from Cockpit.
 
 - Stage 6's log player can replay GMCP-driven panes from runs recorded
   from stage 4 on.
+- Owner decision 2026-09-27: the log player and the HTML replay show
+  every pane in the player's layout (not the input pane). The capture
+  therefore also records snapshots of the layout and appearance
+  settings and the window size in cells, at run start and on change.
+  Text-derived pane content (UI messages, timers) is rebuilt from the
+  recorded lines, GMCP and sent commands.
 - The pane context is where stage 5's Timers pane plugs in.
 
 ## Package notes

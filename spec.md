@@ -284,6 +284,10 @@ Mapped to Inv §7.
   - Export editor with cuts and comments. It exports plain text or a
     self-contained HTML replay.
   - The log player and the HTML replay share one renderer.
+  - The log player and the HTML replay show the whole screen as the
+    player saw it: the game output and every pane, in the player's
+    layout. The input pane is left out. (Owner, 2026-09-27; the run
+    capture records GMCP and layout from stage 4, ADR 0016.)
 - **Retention.** Runs older than 14 days are deleted automatically,
   unless they have been saved.
 
