@@ -15,6 +15,7 @@ export class StatusLine {
   private link = 'Link: —';
   private xml = false;
   private capture = '';
+  private replay = false;
   private readonly unsubs: Array<() => void> = [];
 
   constructor(bus: Bus, root: HTMLElement) {
@@ -59,13 +60,25 @@ export class StatusLine {
     this.render();
   }
 
+  /**
+   * Replay mode: while the replay socket is connected the state reads
+   * `replay` instead of `connecting`/`login`, so a replay is never mistaken
+   * for a live login.
+   */
+  setReplay(on: boolean): void {
+    if (on === this.replay) return;
+    this.replay = on;
+    this.render();
+  }
+
   /** The rendered text (for tests). */
   get text(): string {
     return this.el.textContent ?? '';
   }
 
   private render(): void {
-    const parts: string[] = [this.state];
+    const live = this.state === 'connecting' || this.state === 'login' || this.state === 'playing';
+    const parts: string[] = [this.replay && live ? 'replay' : this.state];
     if (this.name) parts.push(this.name);
     parts.push(this.link, this.xml ? 'XML: on' : 'XML: off');
     if (this.capture) parts.push(this.capture);
