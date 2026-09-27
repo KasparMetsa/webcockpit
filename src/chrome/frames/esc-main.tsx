@@ -1,21 +1,39 @@
-// ESC menu main frame (Inv §4.2, §4.3) and Exit confirm (§4.6, no rating
-// until stage 6).
+// ESC menu main frame (Inv §4.2, §4.3) and Exit confirm with the rating
+// row (§4.6, ADR 0018).
 //
 //   Profile: default  ·  Link: 38ms  ·  capture: recording     (C_HINT)
 //   banner (6 Hz, dropped when short)
-//   Continue (connected) · Reconnect · Profile · Options · Exit session
+//   Continue (connected) · Reconnect · Statistics (while a run is on) ·
+//   Profile · Options · Exit session
 //   flash row
 //   ↑↓ Navigate · Enter Select · ESC Close
 
 import type { VNode } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { type AppStatusState, type AppStatusView, formatLink, isLive } from '../../app/status';
 import { Banner } from '../banner';
 import { BANNER_H, bannerFits } from '../banner-data';
 import { useGrid, useServices, useSettings, useStatus } from '../kit/hooks';
 import { cellLen, centreLeft } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
-import { Blank, Centered, FlashRow, Footer, type MenuItem, MenuRows, Page, indent, menuKey, useMenuCursor } from '../kit/widgets';
+import {
+  Blank,
+  Centered,
+  FlashRow,
+  Footer,
+  type MenuItem,
+  MenuRows,
+  Page,
+  STARS_W,
+  Stars,
+  indent,
+  menuKey,
+  ratingKey,
+  useMenuCursor,
+} from '../kit/widgets';
+import type { LiveRuns } from '../../runs/live';
 import { OptionsHub } from './options';
+import { LiveStatsFrame } from './statistics';
 import { type ApplyResult, editProfile } from './profile-edit';
 
 export interface EscActions {
@@ -30,6 +48,8 @@ export interface EscActions {
   liveApply?: (text: string) => ApplyResult;
   /** Saves pending runtime variable values before the editor reads the profile. */
   flushWriteBack?: () => Promise<void>;
+  /** The live run (`app.runs`): Statistics and the Exit rating. Absent: neither is offered. */
+  runs?: LiveRuns;
 }
 
 export interface EscMainProps extends EscActions {
@@ -61,10 +81,20 @@ export function EscMain(p: EscMainProps): VNode {
   const settings = useSettings();
   const { profiles, onProfileSaved } = useServices();
   const connected = isLive(st);
+  const runOn = useRunOn(p.runs);
 
   const items: MenuItem[] = [
     ...(connected ? [{ key: 'continue', label: 'Continue', activate: p.close }] : []),
     { key: 'reconnect', label: 'Reconnect', activate: p.reconnect },
+    ...(runOn && p.runs
+      ? [
+          {
+            key: 'stats',
+            label: 'Statistics',
+            activate: () => nav.push(<LiveStatsFrame runs={p.runs!} status={p.status} />),
+          },
+        ]
+      : []),
     {
       key: 'profile',
       label: 'Profile',
@@ -77,7 +107,7 @@ export function EscMain(p: EscMainProps): VNode {
         }),
     },
     { key: 'options', label: 'Options', activate: () => nav.push(<OptionsHub />) },
-    { key: 'exit', label: 'Exit session', activate: () => nav.push(<ExitConfirm exit={p.exit} />) },
+    { key: 'exit', label: 'Exit session', activate: () => nav.push(<ExitConfirm exit={p.exit} runs={p.runs} />) },
   ];
   const [cursor, setCursor] = useMenuCursor(items, p.preselect);
   useKeys((_e, nk) => menuKey(items, cursor, setCursor, nk));
@@ -117,23 +147,96 @@ export function EscMain(p: EscMainProps): VNode {
   );
 }
 
-function ExitConfirm(p: { exit: () => void }): VNode {
+/**
+ * True while `runs` has a run in progress. Re-read after every run event
+ * (a tick later, so the end of a run is seen after the deriver's reset)
+ * and on every render (status changes re-render the menu).
+ */
+function useRunOn(runs: LiveRuns | undefined): boolean {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (!runs) return;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const off = runs.subscribe(() => {
+      if (t === null) t = setTimeout(() => ((t = null), bump((n) => n + 1)), 0);
+    });
+    return () => {
+      off();
+      if (t !== null) clearTimeout(t);
+    };
+  }, [runs]);
+  return runs?.current() != null;
+}
+
+/**
+ * Exit session (Inv §4.6): `Rate & save this run (optional)` and a star
+ * row when there is a run to rate (the recording run, or the latest run
+ * of this tab), prefilled with the chain's saved rating. 0–5 / ←→ / click
+ * rate; Y saves (`saveChain`: > 0 saves the chain, 0 keeps an existing
+ * save) and exits; ESC cancels.
+ */
+export function ExitConfirm(p: { exit: () => void; runs?: LiveRuns }): VNode {
   const nav = useNav();
+  const { cols } = useGrid();
+  const rateable = !!p.runs && p.runs.anchor() !== null;
+  const [rating, setRating] = useState(0);
+  const touched = useRef(false);
+  const busy = useRef(false);
+  useEffect(() => {
+    if (!rateable) return;
+    let alive = true;
+    void p.runs!.chain().then(
+      (s) => {
+        if (alive && !touched.current && s?.saved) setRating(s.rating);
+      },
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const set = (n: number): void => {
+    touched.current = true;
+    setRating(n);
+  };
+  const exit = async (): Promise<void> => {
+    if (busy.current) return;
+    busy.current = true;
+    if (rateable) {
+      try {
+        await p.runs!.saveChain(rating);
+      } catch {
+        /* exiting matters more than the save */
+      }
+    }
+    p.exit();
+  };
   useKeys((e) => {
     if ((e.key === 'y' || e.key === 'Y') && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      p.exit();
+      void exit();
+      return true;
+    }
+    const r = rateable ? ratingKey(e, rating) : null;
+    if (r !== null) {
+      set(r);
       return true;
     }
     return false;
   });
+  const footer = [
+    ...(rateable ? ['0-5 Rate', '←→ Adjust'] : []),
+    { text: 'Y Exit', onClick: () => void exit() },
+    { text: 'ESC Cancel', onClick: () => nav.pop() },
+  ];
   return (
-    <Page
-      title="Exit session"
-      footer={[
-        { text: 'Y Exit', onClick: p.exit },
-        { text: 'ESC Cancel', onClick: () => nav.pop() },
-      ]}
-    >
+    <Page title="Exit session" footer={footer}>
+      {rateable && (
+        <>
+          <Blank />
+          <Centered text="Rate & save this run (optional)" class="wc-c-hint" />
+          <Stars value={rating} at={centreLeft(cols, STARS_W)} onSet={set} />
+        </>
+      )}
       <Blank />
       <Centered text="Attention! This terminates the current session." class="wc-c-err" />
     </Page>

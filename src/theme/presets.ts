@@ -139,3 +139,23 @@ export const UI_MESSAGE_COLORS: Readonly<Record<string, string>> = {
   herb: '#9ccc65',
   value: '#ffee58',
 };
+
+/**
+ * Statistics and History data colours (Inv §7.3, §7.4; Cockpit's private
+ * statistics palette), set on :root as `--st-<key>`.
+ */
+export const STATS_COLORS: Readonly<Record<string, string>> = {
+  value: '#ffffff',
+  label: '#909090',
+  gained: '#6fe060',
+  loss: '#e03c3c',
+  tp: '#ffc847',
+  track: '#1f1f1f',
+  thumb: '#707070',
+  total: '#b0b0b0',
+  arrow: '#b0b0b0',
+  hint: '#5c5c5c',
+  pvp: '#ff5f5f',
+  ally: '#00d7d7',
+  star: '#ffd060',
+};

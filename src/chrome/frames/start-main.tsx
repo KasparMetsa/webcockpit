@@ -12,6 +12,7 @@ import { useIsTop, useKeys, useNav } from '../kit/stack';
 import { Blank, Centered, FlashRow, Footer, type MenuItem, MenuRows, menuKey, useMenuCursor } from '../kit/widgets';
 import type { Quote } from '../quotes';
 import { AboutFrame } from './about';
+import { HistoryFrame } from './history';
 import { OptionsHub } from './options';
 import { ProfileFrame } from './profiles';
 
@@ -31,7 +32,7 @@ export function StartMain(p: StartMainProps): VNode {
     { key: 'enter', label: 'Enter MUME', activate: p.onEnter },
     { key: 'profile', label: 'Profile', activate: () => nav.push(<ProfileFrame />) },
     { key: 'options', label: 'Options', activate: () => nav.push(<OptionsHub />) },
-    { key: 'history', label: 'History', dim: true, activate: later },
+    { key: 'history', label: 'History', activate: () => nav.push(<HistoryFrame />) },
     { key: 'spotlights', label: 'Spotlights', dim: true, activate: later },
     { key: 'credits', label: 'Credits', dim: true, activate: later },
     { key: 'about', label: 'About', activate: () => nav.push(<AboutFrame />) },

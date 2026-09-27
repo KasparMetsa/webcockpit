@@ -12,6 +12,9 @@
 //   character whenever a new run for it starts.
 // - Every store operation runs on one promise chain, so start, flushes and
 //   seal are strictly ordered.
+// - Each run has its own buffers (`RunCapture`): a run that starts before
+//   the previous run's seal task has run never shares lines or events with
+//   it.
 // - Replays are never captured: a `conn.state` with `replay` never starts a
 //   run, even when recorded GMCP takes the replay to `playing`.
 //
@@ -95,6 +98,24 @@ export const STATUS = {
   error: 'capture: error',
 } as const;
 
+/** One run's capture state (per run, so runs never share buffers). */
+interface RunCapture {
+  character: string;
+  /** Set by the start task once the meta is stored; null until then (or when it failed). */
+  runId: string | null;
+  release: (() => void) | null;
+  /** Next chunk seq. */
+  seq: number;
+  buf: string[];
+  bufFirstUs: number;
+  bufLastUs: number;
+  /** Run events not written yet, and their state. */
+  evBuf: RunEvent[];
+  evSeq: number;
+  hasStart: boolean;
+  summary: RunSummary | null;
+}
+
 export class Recorder {
   private readonly opts: RecorderOptions;
   private readonly locks: LockManagerLike | null;
@@ -104,32 +125,23 @@ export class Recorder {
 
   private state: ConnState = 'idle';
   private character: string | null = null;
-  /** True from `playing` until the run stops (lines are being buffered). */
-  private active = false;
+  /** The run lines are buffered for, from `playing` until it stops. */
+  private run: RunCapture | null = null;
+  /**
+   * The run that takes run events: the current run, or after it stopped
+   * the stopped run until its final write (a `run_end` from the same
+   * `conn.state` is kept whatever the subscription order). A newer run
+   * takes over at its start.
+   */
+  private evRun: RunCapture | null = null;
   /** Set once a start was attempted for the current `playing` period. */
   private triedThisPlaying = false;
+  /** The recording run's id (stored and not yet sealed). */
   private current: string | null = null;
-  private release: (() => void) | null = null;
-  private seq = 0;
-  /** Bumped per start; a stale failed start must not touch a newer one. */
-  private session = 0;
 
-  /** The character of the current run (for `previousRunId`). */
-  private runCharacter = '';
   /** The latest run started in this tab (kept after its seal), and the one before. */
   private lastRunId: string | null = null;
   private prevLastRunId: string | null = null;
-
-  /** Run events of the current run not written yet, and their state. */
-  private evBuf: RunEvent[] = [];
-  private evSeq = 0;
-  private evOpen = false;
-  private hasStart = false;
-  private summary: RunSummary | null = null;
-
-  private buf: string[] = [];
-  private bufFirstUs = 0;
-  private bufLastUs = 0;
 
   /** The current connection is a replay (never recorded). */
   private replay = false;
@@ -191,7 +203,7 @@ export class Recorder {
         if (m.pkg === 'Core.Ping' || this.replay) return;
         const ts = m.ts ?? this.now();
         const line = formatGmcpRecord(ts, m.pkg, m.json);
-        if (this.active) this.capture(ts, line);
+        if (this.run) this.capture(ts, line);
         else if (this.state === 'login' || this.state === 'connecting') {
           this.preRun.push({ ts, line });
           if (this.preRun.length > PRE_RUN_GMCP_MAX) this.preRun.shift();
@@ -206,21 +218,22 @@ export class Recorder {
         this.viewChanged();
       }),
       bus.on('text.line', (line) => {
-        if (this.active) this.capture(line.ts, formatInbound(line.ts, line.raw));
+        if (this.run) this.capture(line.ts, formatInbound(line.ts, line.raw));
       }),
       ...(opts.events
         ? [
             opts.events.subscribe((e) => {
-              if (!this.evOpen) return;
-              if (e.type === 'run_start') this.hasStart = true;
-              this.evBuf.push(e);
+              const run = this.evRun;
+              if (!run) return;
+              if (e.type === 'run_start') run.hasStart = true;
+              run.evBuf.push(e);
             }),
           ]
         : []),
       bus.on('cmd.sent', (c) => {
         // echo:false commands were still sent, so they are captured; a
         // replayed log's commands were not sent now.
-        if (this.active && !c.secret && !c.replay) this.capture(c.ts, formatOutbound(c.ts, c.text));
+        if (this.run && !c.secret && !c.replay) this.capture(c.ts, formatOutbound(c.ts, c.text));
       }),
     );
 
@@ -252,7 +265,8 @@ export class Recorder {
 
   /** Writes buffered lines now; resolves when all queued work is done. */
   flush(): Promise<void> {
-    this.enqueue(() => this.writeChunk());
+    const run = this.run;
+    if (run) this.enqueue(() => this.writeChunk(run));
     return this.chain;
   }
 
@@ -265,19 +279,21 @@ export class Recorder {
     for (const u of this.unsubs) u();
     this.win?.removeEventListener('pagehide', this.onHide);
     this.win?.document?.removeEventListener('visibilitychange', this.onVisibility);
-    if (this.active) this.stop();
+    if (this.run) this.stop();
   }
 
   // --------------------------------------------------------------- capture
 
   private capture(ts: number, s: string): void {
-    if (this.buf.length === 0) this.bufFirstUs = ts;
-    this.bufLastUs = ts;
-    this.buf.push(s);
+    const run = this.run;
+    if (!run) return;
+    if (run.buf.length === 0) run.bufFirstUs = ts;
+    run.bufLastUs = ts;
+    run.buf.push(s);
   }
 
   private readonly onHide = (): void => {
-    if (this.active) void this.flush();
+    if (this.run) void this.flush();
   };
 
   private readonly onVisibility = (): void => {
@@ -287,15 +303,24 @@ export class Recorder {
   // ------------------------------------------------------------- lifecycle
 
   private maybeStart(): void {
-    if (this.state !== 'playing' || this.replay || !this.character || this.active || this.triedThisPlaying) return;
+    if (this.state !== 'playing' || this.replay || !this.character || this.run || this.triedThisPlaying) return;
     this.triedThisPlaying = true;
-    this.active = true;
-    this.buf = [];
-    this.evBuf = [];
-    this.evSeq = 0;
-    this.evOpen = this.opts.events !== undefined;
-    this.hasStart = false;
-    this.summary = null;
+    const character = this.character;
+    const run: RunCapture = {
+      character,
+      runId: null,
+      release: null,
+      seq: 0,
+      buf: [],
+      bufFirstUs: 0,
+      bufLastUs: 0,
+      evBuf: [],
+      evSeq: 0,
+      hasStart: false,
+      summary: null,
+    };
+    this.run = run;
+    if (this.opts.events) this.evRun = run;
     // GMCP from before the start (it includes the Char.Name that started
     // the run), then the view, at the start frame's time.
     let ts = 0;
@@ -307,41 +332,34 @@ export class Recorder {
     this.viewWritten = '';
     this.sizeWritten = '';
     this.writeView(ts || this.now());
-    const character = this.character;
     const startedUs = this.now();
     const runId = makeRunId(character, new Date(startedUs / 1000));
-    const session = ++this.session;
-    this.enqueue(() => this.startRun(session, character, runId, startedUs));
+    this.enqueue(() => this.startRun(run, runId, startedUs));
     const ms = this.opts.flushMs ?? FLUSH_MS;
     this.timer = setInterval(() => {
-      if (this.buf.length || this.evBuf.length) this.enqueue(() => this.writeChunk());
+      if (run.buf.length || run.evBuf.length) this.enqueue(() => this.writeChunk(run));
     }, ms);
   }
 
-  private async startRun(
-    session: number,
-    character: string,
-    runId: string,
-    startedUs: number,
-  ): Promise<void> {
+  private async startRun(run: RunCapture, runId: string, startedUs: number): Promise<void> {
     const store = await this.storeP;
     const fail = (status: string) => {
-      if (session === this.session) this.abandon();
+      if (this.run === run) this.abandon();
       this.setStatus(status);
     };
     if (!store) return fail(STATUS.noDb);
     if (!this.locks) return fail(STATUS.noLocks);
-    const release = await acquire(this.locks, runLockName(character));
+    const release = await acquire(this.locks, runLockName(run.character));
     if (!release) return fail(STATUS.anotherTab);
-    this.release = release;
+    run.release = release;
     // We hold the character's lock: any unsealed run of theirs is an orphan.
-    await this.sealOrphans(store, character);
+    await this.sealOrphans(store, run.character);
     // Two runs of one character within the same second: keep both.
     let id = runId;
     for (let n = 2; await store.getRun(id); n++) id = runId + '-' + n;
     const meta: RunMeta = {
       runId: id,
-      character,
+      character: run.character,
       startedUs,
       endedUs: null,
       sealed: false,
@@ -350,54 +368,48 @@ export class Recorder {
     };
     if (this.opts.events) meta.summary = null;
     await store.putRun(meta);
+    run.runId = id;
     this.current = id;
-    this.runCharacter = character;
     this.prevLastRunId = this.lastRunId;
     this.lastRunId = id;
-    this.seq = 0;
     this.setStatus(STATUS.recording);
   }
 
   /** Gives up recording for this playing period (no lock / no store). */
   private abandon(): void {
-    this.active = false;
-    this.buf = [];
-    this.evBuf = [];
-    this.evOpen = false;
+    const run = this.run;
+    this.run = null;
+    if (run && this.evRun === run) this.evRun = null;
     this.clearTimer();
-    this.release?.();
-    this.release = null;
   }
 
   private stop(): void {
     this.triedThisPlaying = false;
-    if (!this.active) return;
+    const run = this.run;
+    if (!run) return;
     this.writeView(this.now());
-    this.active = false;
+    this.run = null;
     this.clearTimer();
     const endedUs = this.now();
-    const session = this.session;
-    const hadStart = this.hasStart;
     this.enqueue(async () => {
-      // Events of this `conn.state` (run_end) are in by now. A newer run
-      // (started before this task ran) keeps taking its own.
-      const same = session === this.session;
-      if (same) this.evOpen = false;
-      await this.writeChunk();
-      if (same) this.evBuf = [];
-      const runId = this.current;
+      // Events of this `conn.state` (run_end) are in by now; unless a newer
+      // run already took over, this run stops taking them here.
+      if (this.evRun === run) this.evRun = null;
+      await this.writeChunk(run);
+      run.evBuf = [];
+      const runId = run.runId;
       if (runId) {
         const store = await this.storeP;
-        if (this.opts.events && !hadStart) {
+        if (this.opts.events && !run.hasStart) {
           // Too short: nothing but a login.
           await store?.deleteRun(runId);
           if (this.lastRunId === runId) this.lastRunId = this.prevLastRunId;
         } else await store?.sealRun(runId, endedUs);
+        if (this.current === runId) this.current = null;
       }
-      this.current = null;
-      this.release?.();
-      this.release = null;
-      if (this.statusText === STATUS.recording) this.setStatus(STATUS.idle);
+      run.release?.();
+      run.release = null;
+      if (this.statusText === STATUS.recording && !this.current) this.setStatus(STATUS.idle);
     });
   }
 
@@ -411,10 +423,10 @@ export class Recorder {
   // ------------------------------------------------------------------ view
 
   private viewChanged(): void {
-    if (!this.active || this.viewTimer !== null) return;
+    if (!this.run || this.viewTimer !== null) return;
     this.viewTimer = setTimeout(() => {
       this.viewTimer = null;
-      if (this.active) this.writeView(this.now());
+      if (this.run) this.writeView(this.now());
     }, this.opts.viewDebounceMs ?? VIEW_DEBOUNCE_MS);
   }
 
@@ -430,34 +442,34 @@ export class Recorder {
     }
   }
 
-  private async writeChunk(): Promise<void> {
-    const runId = this.current;
-    if (!runId || (this.buf.length === 0 && this.evBuf.length === 0)) return;
+  private async writeChunk(run: RunCapture): Promise<void> {
+    const runId = run.runId;
+    if (!runId || (run.buf.length === 0 && run.evBuf.length === 0)) return;
     const store = await this.storeP;
     if (!store) return;
-    const lines = this.buf.length;
-    const text = this.buf.join('');
-    const firstUs = this.bufFirstUs;
-    const lastUs = this.bufLastUs;
-    const evs = this.evBuf;
-    this.buf = [];
-    this.evBuf = [];
+    const lines = run.buf.length;
+    const text = run.buf.join('');
+    const firstUs = run.bufFirstUs;
+    const lastUs = run.bufLastUs;
+    const evs = run.evBuf;
+    run.buf = [];
+    run.evBuf = [];
     const bytes = lines ? this.encoder.encode(text).byteLength : 0;
     let records: RunEventRecord[] | undefined;
     if (evs.length) {
       records = [];
       for (const e of evs) {
         if (e.type === 'run_start' && e.previousRunId === undefined) {
-          const prev = await store.latestSealedRun(this.runCharacter, runId);
+          const prev = await store.latestSealedRun(run.character, runId);
           if (prev) e.previousRunId = prev.runId;
         }
-        this.summary = summarize(this.summary, e);
-        records.push({ runId, seq: this.evSeq++, event: e });
+        run.summary = summarize(run.summary, e);
+        records.push({ runId, seq: run.evSeq++, event: e });
       }
     }
     await store.append(runId, {
-      ...(lines ? { chunk: { runId, seq: this.seq++, firstUs, lastUs, text }, bytes, lines } : {}),
-      ...(records ? { events: records, summary: this.summary } : {}),
+      ...(lines ? { chunk: { runId, seq: run.seq++, firstUs, lastUs, text }, bytes, lines } : {}),
+      ...(records ? { events: records, summary: run.summary } : {}),
     });
   }
 
