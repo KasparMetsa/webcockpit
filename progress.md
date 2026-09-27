@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **6 — Runs** (not started).
+Current stage: **6 — Runs** (in progress).
 
 ## Stages
 
@@ -11,7 +11,7 @@ Current stage: **6 — Runs** (not started).
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
-| 6 | Runs | Next | — |
+| 6 | Runs | In progress | `docs/stages/06-runs.md` |
 | 7 | Sharing | — | — |
 | 8 | Hardening → v1 | — | — |
 | 9 | Map (after v1) | — | — |
