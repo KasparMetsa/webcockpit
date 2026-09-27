@@ -1,6 +1,6 @@
 # Stage 3 — Script engine and profile editor
 
-> Status: In progress.
+> Status: Owner testing (built 2026-09-27).
 > Source: spec §5 row 3, §1.2 (layers 5–6), §1.3 (key → send, 500
 > rules), §2.2 (`_send`), §2.6 (Profile), §2.7, §3, §4. Inv §1.2
 > (macro keys), §4.5, §5, §6. ADR 0005, ADR 0015.
@@ -81,10 +81,17 @@ this stage builds the system store they will use), `#list`,
       `App.applyProfile(text)`, `App.script`; bus `text.display`.
 - [x] P3. Profile editor (lite + editor views), entry points, live apply
       flow (`src/editor/`).
-- [ ] Merge P2 + P3; wire the editor's live host to the engine.
-- [ ] Benchmarks pass (§1.3), cold start < 1 s, editor chunk lazy.
-- [ ] Main-session verification in a browser.
-- [ ] Test guide ready.
+- [x] Merge P2 + P3; wire the editor's live host to the engine
+      (`App.applyProfile`, variable write-back flushed before the editor
+      reads the profile).
+- [x] Benchmarks pass (§1.3): 500 rules 26 µs/line (Chromium), 17 µs
+      (Firefox); alias Enter p99 0.17/0.22 ms. Cold start 418 ms median
+      (throttled); editor chunk 304 kB (99 kB gzip), lazy.
+- [x] Main-session verification in a browser (540 unit, 88 e2e; the
+      owner's real profile opens in both views and survives open → flip
+      → ESC byte for byte; `#var`, `#showme` and aliases run in the
+      cockpit).
+- [x] Test guide ready.
 - [ ] Owner test.
 
 ## Live checks for the owner
@@ -98,7 +105,65 @@ this stage builds the system store they will use), `#list`,
 
 ## Test guide
 
-(Written when the stage is built.)
+**Start:** `cd ~/proj/webcockpit && npm install && npm run dev`, then open
+http://localhost:5173/ (CodeMirror is a new dependency, so `npm install`
+is needed).
+
+**Put your PvP profile in:**
+
+1. Start page → Profile → NEW (blank), name it e.g. `pvp`, SELECT it.
+2. EDIT → click `EDITOR` (top right) → select all (Ctrl+A) and paste the
+   whole text of `khazdul.tin`. ESC saves and goes back. (IMPORT of the
+   `.tin` file works too.)
+3. EDIT again: LITE shows ACTIONS, ALIASES, HIGHLIGHTS, MACROS,
+   SUBSTITUTES. Walk the lists; open an entry; look at the highlight
+   colour picker and a macro's key cell. `#variable`, `#ticker` and
+   comments stay in the text but have no lite tab (as in Cockpit).
+4. EDITOR view: colours, brace matching, `{` auto-close, the
+   `N unclosed {` indicator, `Ln, Col`, Ctrl+Z/Y, Alt+↑/↓ moves lines,
+   Ctrl+C with no selection copies the line. The leaked `#TICKER … #lua`
+   line is underlined: it is kept but does nothing.
+5. Export the profile and compare with the original: nothing should be
+   lost or reordered.
+
+**Play with it (live):**
+
+1. Enter MUME, log in. Your aliases, macros (numpad, F-keys), actions,
+   highlights and substitutes should work as in Cockpit. Try `#var`,
+   `#showme`, `#if` aliases, `autobashon`/`autobashoff`.
+2. Every command sent to MUME is echoed with what was actually sent
+   (an alias shows its expansion). `_send x` behaves like `x`.
+3. ESC → Profile while connected: change something, ESC → "Apply
+   changes to your profile?" Y applies at once (`Profile updated.`), N
+   discards, ESC keeps editing.
+4. Set a variable that exists in the profile (e.g. your target alias),
+   then reload the page: the new value is kept. A variable or action
+   created only at runtime is gone after reload.
+5. Typed `#` commands: `#help` lists the client commands; tt++ commands
+   work directly in the input line (`#alias {x} {look}`).
+6. Live checks 1–3 above.
+
+**Offline:** http://localhost:5173/?fixture=Rasta/2026-09-18T18-11-42.log&speed=0
+replays a log through the selected profile (highlights, substitutes,
+gags, actions with `#showme`).
+
+**Feedback wanted:**
+
+- Does the PvP profile play as in Cockpit? Anything that fires wrongly,
+  not at all, or differently?
+- The echo: all sent commands shown (alias expansions included), versus
+  Cockpit where only `_send` echoed. Keep, or change?
+- Lite and editor view: look, keys, anything missing (e.g. GAGS or
+  VARIABLES tabs)?
+- Macro keys: any key you want that is refused?
+
+Known in stage 3: undo in the editor view groups by time (CodeMirror)
+rather than Cockpit's step rules; Alt+↑/↓ moves a whole selected block;
+`White` in the highlight picker is bright white, not Cockpit's grey; the
+lite detail panel is cut off in very small windows; `#class` supports
+open/close/kill only; `^b%+1..d$` matches `b12` (digits as the range
+type), not `b12d`. Some tt++ details were decided without a reference
+(ADR 0015 P2 notes) — tell me if one bites.
 
 ## Owner feedback
 

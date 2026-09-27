@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **3 — Script engine and profile editor** (in progress).
+Current stage: **3 — Script engine and profile editor** (owner testing).
 
 ## Stages
 
@@ -8,7 +8,7 @@ Current stage: **3 — Script engine and profile editor** (in progress).
 |---|---|---|---|
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
-| 3 | Script engine and profile editor | In progress | `docs/stages/03-script-engine-and-editor.md` |
+| 3 | Script engine and profile editor | Owner testing | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | — | — |
 | 5 | Timers and trackers | — | — |
 | 6 | Runs | — | — |
@@ -21,6 +21,23 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-27 — Stage 3 build
+
+- **Done:** stage file, ADR 0015. Owner decision: only profile-defined
+  variables are written back at runtime. P1 lossless document model,
+  command table, key table. P2 script engine (tt++ Must + Should),
+  display pipeline (`text.display`), macros, `_send`, live profile and
+  variable write-back, benchmarks. P3 profile editor (LITE + CodeMirror
+  EDITOR), EDIT and ESC → Profile with live Apply. 540 unit, 88 e2e;
+  all §1.3 budgets pass (500 rules 17–26 µs/line); cold start 418 ms.
+- **Next:** owner tests with the PvP profile (test guide in the stage
+  file); then stage 4.
+- **Open issues:** idle-timeout and auto-open live checks still open;
+  Chromium burst worst frame borderline (49.8 ms); the owner wants
+  per-character state (timers, comm) to survive sessions (stages 4–5);
+  Firefox e2e flaked once on a cold Vite dep cache.
+- **Commits:** a95ac8c…(this commit).
 
 ### 2026-09-27 — Stage 2 build
 
