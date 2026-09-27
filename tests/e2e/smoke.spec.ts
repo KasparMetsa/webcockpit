@@ -85,7 +85,8 @@ test.describe('fixture replay', () => {
   });
 
   test('PageUp shows the live-tail bar and PageDown returns', async ({ page }) => {
-    await page.setViewportSize({ width: 900, height: 300 });
+    // Just above the 60 × 18-cell minimum (ADR 0010).
+    await page.setViewportSize({ width: 900, height: 360 });
     await replayDone(page);
     const bar = page.locator('.wc-tail-bar');
     await expect(bar).toBeHidden();

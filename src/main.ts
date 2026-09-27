@@ -54,6 +54,7 @@ const app = new App({
   root,
   offline,
   cells,
+  settings,
   ...(probe ? { requestFrame: probe.requestFrame } : {}),
 });
 if (import.meta.env.DEV) window.__wc = { app, settings, cells };
