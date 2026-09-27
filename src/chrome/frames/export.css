@@ -64,3 +64,9 @@
   color: var(--c-cursor);
   font-weight: bold;
 }
+
+/* A system line the player prints (`[SYSTEM] … logged in.`), coloured as
+ * the output pane's `.wc-sys`. */
+.wc-exp-sys {
+  color: var(--c-yellow);
+}

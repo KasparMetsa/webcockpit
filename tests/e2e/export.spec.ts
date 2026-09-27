@@ -40,7 +40,11 @@ test('export editor: comment, exclude, title, format, text download, persistence
   await expect(info(page)).toHaveText(
     /^Rasta \(L42\) · 2026-09-26 · \d+ lines · 0 excluded · 0 comments · → mume-Rasta-2026-09-26T21-00-\d\d\.html$/,
   );
-  await expect(rows(page).first()).toContainText('Reconnecting.');
+  // The player's login line is a row of its own, before the first game line.
+  await expect(rows(page).first()).toContainText('[SYSTEM] Rasta logged in.');
+  await expect(rows(page).first()).toHaveAttribute('data-kind', 'system');
+  await expect(rows(page).first().locator('.wc-exp-sys')).toHaveText('[SYSTEM] Rasta logged in.');
+  await expect(rows(page).nth(1)).toContainText('Reconnecting.');
   await expect(curRow(page)).toContainText('►');
   await expect(frame(page).locator('.wc-exp-map-row')).not.toHaveCount(0);
 
@@ -82,7 +86,7 @@ test('export editor: comment, exclude, title, format, text download, persistence
   const file = await download;
   expect(file.suggestedFilename()).toBe('Demo fight.txt');
   const text = await (await file.createReadStream()).toArray().then((b) => Buffer.concat(b).toString('utf8'));
-  expect(text.startsWith('## Start of the demo\nReconnecting.\n')).toBe(true);
+  expect(text.startsWith('## Start of the demo\n[SYSTEM] Rasta logged in.\nReconnecting.\n')).toBe(true);
   expect(text).not.toContain('\x1b');
   expect(text).not.toContain('change width');
   await expect(frame(page).locator('.wc-flash')).toHaveText('Exported Demo fight.txt');
@@ -109,6 +113,27 @@ test('export editor: comment, exclude, title, format, text download, persistence
   await page.keyboard.press('Escape');
   await expect(title(page)).toHaveText('─── History ───');
   expect(errors).toEqual([]);
+});
+
+test('export editor: excluding the login line drops it from the text export', async ({ page }) => {
+  await openHistory(page);
+  await openEditor(page);
+  // X on the login row, X again on the next row: only the login row is excluded.
+  await expect(curRow(page)).toHaveAttribute('data-kind', 'system');
+  await page.keyboard.press('x');
+  await expect(curRow(page)).toHaveAttribute('data-kind', 'excluded');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('x');
+  await expect(rows(page).first()).toHaveAttribute('data-kind', 'excluded');
+  await expect(rows(page).nth(1)).toHaveAttribute('data-kind', 'entry');
+  await expect(info(page)).toContainText('· 1 excluded ·');
+  await page.keyboard.press('f');
+  const download = page.waitForEvent('download');
+  await page.keyboard.press('s');
+  const text = await (await (await download).createReadStream()).toArray().then((b) => Buffer.concat(b).toString('utf8'));
+  expect(text.startsWith('Reconnecting.\n')).toBe(true);
+  // The second run's login line is still there.
+  expect(text.match(/^\[SYSTEM\] Rasta logged in\.$/gm)?.length).toBe(1);
 });
 
 test('export editor: HTML export reports the builder result in the feedback row', async ({ page }) => {

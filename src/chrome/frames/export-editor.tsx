@@ -62,6 +62,7 @@ import {
   ITEM_COMMENT,
   ITEM_END,
   ITEM_ENTRY,
+  KIND_SYS,
   buildEditorLog,
   buildItems,
   centredTop,
@@ -457,10 +458,12 @@ export function ExportEditorFrame(p: { session: Session }): VNode {
     const start = items.rowStart[i]!;
     const n = items.rowStart[i + 1]! - start;
     let excl = false;
+    let sys = false;
     let lines: VNode[] = [];
     if (kind === ITEM_ENTRY) {
       const e = items.ref[i]!;
       excl = isExcluded(doc, log.ts[e]!);
+      sys = log.kind[e] === KIND_SYS;
       lines = excl
         ? entryPlainRows(log, e, logW).map((txt) => <span class="wc-exp-excl">{txt}</span>)
         : entrySegments(log, e, logW).map((segs) => (
@@ -491,7 +494,7 @@ export function ExportEditorFrame(p: { session: Session }): VNode {
         <div
           class={'wc-line wc-exp-row' + (isCur ? ' is-cur' : '')}
           data-item={i}
-          data-kind={kind === ITEM_ENTRY ? (excl ? 'excluded' : 'entry') : kind === ITEM_COMMENT ? 'comment' : 'end'}
+          data-kind={kind === ITEM_ENTRY ? (excl ? 'excluded' : sys ? 'system' : 'entry') : kind === ITEM_COMMENT ? 'comment' : 'end'}
           onMouseDown={(ev) => ev.preventDefault()}
           onClick={click}
         >

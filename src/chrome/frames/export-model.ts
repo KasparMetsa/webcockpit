@@ -14,7 +14,8 @@ import { PLAYING_COMMANDS } from '../../net/session';
 import type { ChainRun } from '../../player/timeline';
 import { markersOf } from '../../player/strip';
 import type { RunEvent } from '../../runs/events';
-import { captureEntries, stripAnsi } from '../../share/capture';
+import { stripAnsi } from '../../share/capture';
+import { SYS_PREFIX, playerEntries } from '../../share/system-lines';
 import { COMMENT_COLS, type ExportComment, type ExportDoc, commentLines, rangeAt } from '../../share/edits';
 import { colorToCss, effectiveFg } from '../../ui/palette';
 
@@ -22,6 +23,8 @@ import { colorToCss, effectiveFg } from '../../ui/palette';
 
 export const KIND_IN = 0;
 export const KIND_OUT = 1;
+/** A system line the player prints (`[SYSTEM] Rasta logged in.`, src/share/system-lines.ts). */
+export const KIND_SYS = 2;
 
 /** A command row's prefix (commands sit on rows of their own in the editor). */
 export const OUT_PREFIX = '> ';
@@ -30,9 +33,9 @@ export const OUT_PREFIX = '> ';
 export interface EditorLog {
   /** Entry log µs (the anchors), ascending within a run. */
   ts: number[];
-  /** KIND_IN or KIND_OUT. */
+  /** KIND_IN, KIND_OUT or KIND_SYS. */
   kind: Uint8Array;
-  /** Inbound: the line with its SGR; command: the text sent. */
+  /** Inbound: the line with its SGR; command: the text sent; system line: the message. */
   raw: string[];
   /** Shown length in cells (a command's prefix included). */
   len: Uint32Array;
@@ -40,7 +43,8 @@ export interface EditorLog {
 
 /**
  * The entries the editor shows and excludes (ADR 0019 "What an exclusion
- * removes"): inbound lines and commands. Empty Enters and the width
+ * removes"): inbound lines, commands and the player's system lines (each
+ * anchored on the entry that prints it). Empty Enters and the width
  * commands sent on entering the game are left out, as the output pane and
  * the text export leave them out.
  */
@@ -49,20 +53,23 @@ export function buildEditorLog(chain: readonly ChainRun[]): EditorLog {
   const kinds: number[] = [];
   const raw: string[] = [];
   const lens: number[] = [];
-  for (const run of chain) {
-    for (const e of captureEntries(run.text)) {
-      if (e.kind === 'in') {
-        ts.push(e.ts);
-        kinds.push(KIND_IN);
-        raw.push(e.body);
-        lens.push(stripAnsi(e.body).length);
-      } else if (e.kind === 'out') {
-        if (e.body === '' || PLAYING_COMMANDS.includes(e.body)) continue;
-        ts.push(e.ts);
-        kinds.push(KIND_OUT);
-        raw.push(e.body);
-        lens.push(OUT_PREFIX.length + e.body.length);
-      }
+  for (const e of playerEntries(chain)) {
+    if (e.kind === 'in') {
+      ts.push(e.ts);
+      kinds.push(KIND_IN);
+      raw.push(e.body);
+      lens.push(stripAnsi(e.body).length);
+    } else if (e.kind === 'out') {
+      if (e.body === '' || PLAYING_COMMANDS.includes(e.body)) continue;
+      ts.push(e.ts);
+      kinds.push(KIND_OUT);
+      raw.push(e.body);
+      lens.push(OUT_PREFIX.length + e.body.length);
+    } else if (e.kind === 'sys') {
+      ts.push(e.ts);
+      kinds.push(KIND_SYS);
+      raw.push(e.body);
+      lens.push(SYS_PREFIX.length + e.body.length);
     }
   }
   return { ts, kind: Uint8Array.from(kinds), raw, len: Uint32Array.from(lens) };
@@ -461,6 +468,9 @@ export function entrySegments(log: EditorLog, e: number, width: number): Seg[][]
   if (log.kind[e] === KIND_OUT) {
     text = OUT_PREFIX + log.raw[e]!;
     runs = [{ start: 0, end: OUT_PREFIX.length, fg: -1 }];
+  } else if (log.kind[e] === KIND_SYS) {
+    text = SYS_PREFIX + log.raw[e]!;
+    runs = [{ start: 0, end: text.length, fg: -2 }];
   } else ({ text, runs } = parseSgr(log.raw[e]!));
   const rows: Seg[][] = [];
   const n = entryRows(text.length, w);
@@ -474,7 +484,14 @@ export function entrySegments(log: EditorLog, e: number, width: number): Seg[][]
       const s = Math.max(a, run.start);
       const t = Math.min(b, run.end);
       if (s > pos) segs.push({ text: text.slice(pos, s), cls: '' });
-      segs.push(run.fg === -1 ? { text: text.slice(s, t), cls: 'wc-exp-prefix' } : { text: text.slice(s, t), ...runStyle(run) });
+      const part = text.slice(s, t);
+      segs.push(
+        run.fg === -1
+          ? { text: part, cls: 'wc-exp-prefix' }
+          : run.fg === -2
+            ? { text: part, cls: 'wc-exp-sys' }
+            : { text: part, ...runStyle(run) },
+      );
       pos = t;
     }
     if (pos < b) segs.push({ text: text.slice(pos, b), cls: '' });
@@ -486,7 +503,8 @@ export function entrySegments(log: EditorLog, e: number, width: number): Seg[][]
 /** An entry's plain rows at `width` cells (excluded lines lose their colour). */
 export function entryPlainRows(log: EditorLog, e: number, width: number): string[] {
   const w = Math.max(1, width);
-  const text = log.kind[e] === KIND_OUT ? OUT_PREFIX + log.raw[e]! : stripAnsi(log.raw[e]!);
+  const k = log.kind[e];
+  const text = k === KIND_OUT ? OUT_PREFIX + log.raw[e]! : k === KIND_SYS ? SYS_PREFIX + log.raw[e]! : stripAnsi(log.raw[e]!);
   const n = entryRows(text.length, w);
   return Array.from({ length: n }, (_, r) => text.slice(r * w, (r + 1) * w));
 }
