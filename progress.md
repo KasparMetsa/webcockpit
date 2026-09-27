@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **4 — GMCP panes** (not started).
+Current stage: **4 — GMCP panes** (in progress).
 
 ## Stages
 
@@ -9,7 +9,7 @@ Current stage: **4 — GMCP panes** (not started).
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
-| 4 | GMCP panes | Next | — |
+| 4 | GMCP panes | In progress | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | — | — |
 | 6 | Runs | — | — |
 | 7 | Sharing | — | — |
