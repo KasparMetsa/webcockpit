@@ -259,3 +259,190 @@ Settings migration adds the defaults (P0).
 ## Package notes
 
 (Builders append here.)
+
+### P0 — foundation (2026-09-28)
+
+**Files.** New: `src/share/edits.ts` (ExportDoc model, names, comment
+wrap/hold, edit ops), `src/share/capture.ts` (capture line reader for the
+exports: `captureEntries`, `stripAnsi`, `isVisible`, `isCommText`),
+`src/share/text.ts`, `src/share/payload.ts`, `src/share/spotlights.ts`,
+`src/share/chronicle.ts`. Changed: `src/core/db.ts` (v6 `exports`),
+`src/runs/store.ts` (export CRUD, `getChunk`, `chunksFrom`),
+`src/runs/library.ts`, `src/player/timeline.ts`, `engine.ts`, `clock.ts`
+(`rebase`), `strip.ts` (`HeaderHint`, `fitHints(cols, hints?)`), `view.ts`,
+`player.css`, `src/app/player-host.ts`, `src/ui/output-pane.ts`
+(`pushRows`), `src/ui/ui.css` (`.wc-comment`), `src/settings` (spotlights).
+Tests: `tests/unit/share-{library,edits,export,spotlights}.test.ts`,
+`player-edits.test.ts`, `player-modes.test.ts`; `player-helpers.ts`'s
+RecordingTarget records `comment` / `blank`.
+
+**Public API.**
+
+```ts
+// src/runs/library.ts (RunLibrary)
+exportDoc(sessionId): Promise<ExportDoc>          // defaults when none; normalised
+saveExportDoc(doc): Promise<void>                 // every edit
+chainLogRange(runId, fromUs, toUs): Promise<{ meta, text } | null>
+  // whole chunks overlapping [fromUs, toUs] (binary search on seq, then a
+  // cursor; a seq hole falls back to reading all); text '' when none
+// remove(session) also deletes the doc of session.id; sweep deletes every doc
+// whose sessionId run is gone; backup writes {"type":"export","doc":…} after
+// the runs (sealed runs' docs only); restore adds a doc when none is stored.
+
+// src/share/edits.ts
+interface ExportDoc { sessionId; schema: 1; title; format: 'html'|'text';
+                      excludes: ExcludeRange[]; comments: ExportComment[] }
+type ExcludeRange = [fromUs: number, toUs: number | null];
+COMMENT_MAX 600, COMMENT_COLS 80, COMMENT_PREFIX '## ', COMMENT_COLOR '#ffd75f'
+defaultExportDoc(id); normalizeExportDoc(raw) → ExportDoc | null; mergeRanges(r)
+defaultTitle(char, startUs)  // mume-<char>-<YYYY-MM-DDTHH-MM-SS>; pass Session.startUs
+exportTitle(doc, char, startUs); exportFileName(doc, char, startUs) → '<title>.html|.txt'
+sanitizeFileName(s); collapseComment(t); commentLines(t, cols=80) → ['## …'];
+commentHoldMs(t) → ms
+rangeAt(doc, us); isExcluded(doc, us); excludedCount(doc, keysAscending)
+excludeFrom(doc, us); stopExcluding(doc, us, keys?)          // Inv §7.7 semantics
+addComment(doc, beforeUs|null, text, slot = Infinity)        // slot among same-anchor comments
+editComment(doc, index, text) (empty = delete); deleteComment(doc, index)
+setTitle(doc, t); toggleFormat(doc)                          // ops return new docs (no-op = same object)
+
+// src/share/text.ts, payload.ts
+buildTextExport(chain, doc) → string
+buildReplayPayload(chain, events, doc, settings) → ReplayPayload
+editRunText(text, doc) → string; payloadEdits(payload) → TimelineEdits
+interface ReplayPayload { schema: 1; title; character; level?; startUs; settings;
+  runs: { meta, text }[]; comments: { beforeUs, text, holdMs }[];
+  cuts: ExcludeRange[]; markers: { us, kind: 'A'|'D'|'K'|'L' }[] }
+
+// src/player/timeline.ts
+buildTimeline(chain, edits?: TimelineEdits)
+interface TimelineEdits { comments?: {beforeUs, text, holdMs}[];
+  cuts?: [from, to|null][]; windows?: ({fromUs, toUs} | null)[]; blankLines?: number (100) }
+ENTRY_COMMENT = 5, ENTRY_BLANK = 6, CUT_MAX_MS = 500, BLANK_LINES = 100
+Timeline gains hold: Float64Array (empty without comments), holds: {at, ms}[],
+  comments: string[], blankLines; durationMs includes a trailing hold / dwell
+advancePlay(tl, p0, wallMs, speed); wallBetween(tl, p0, p1, speed)
+playAtLogUs(tl, us, run?)       // with run: search that run only (spotlight reels)
+
+// src/player/engine.ts — PlayerTarget gains optional comment?(text), blank?(lines)
+// src/player/clock.ts — ReplayClock.rebase(us)
+
+// src/player/view.ts
+interface PlayerViewOptions { root; engine; marks; output; cells; hideMs?;
+  header: (run) => PlayerHeaderModel;           // { left: {text, cls?}[]; hints: HeaderHint[] }
+  onEsc: () => void;
+  keys?: (e) => boolean;                        // first, before modifiers; true = handled
+  overlay?: { el: HTMLElement; keepVisible?: boolean };
+  startHidden?: boolean; stripHoverTime?: boolean;
+  boxButtons?: { label: () => string; onClick: () => void }[] }  // extra box row above the clock
+runHeader(h: PlayerHeader, onEsc) → PlayerHeaderModel   // the in-app header
+PlayerView.refresh()
+// src/player/strip.ts
+interface HeaderHint { text; drop; onClick?; cls? }; fitHints(cols, hints = HINTS)
+
+// src/app/player-host.ts
+openChain(chain, events, info, opts?: PlayerOpenOptions)
+interface PlayerOpenOptions { edits?: TimelineEdits;
+  marks?: (tl) => { letter, offset }[];         // default markersOf(events) on playAtLogUs
+  view?: Partial<Pick<PlayerViewOptions, 'header'|'keys'|'overlay'|'startHidden'|
+                      'stripHoverTime'|'boxButtons'|'onEsc'>>;
+  autoplay?: boolean }                          // default true
+host.engine, host.app, host.playerView
+
+// src/share/spotlights.ts
+selectSpotlights(runs: { meta, events }[], filters) → Spotlight[]   // reel order
+interface Spotlight { id: '<runId>#<i>'; runId; character; level?; kind:
+  'pkill'|'death'|'level'|'achievement'; atUs; fromUs; toUs; prefixFromUs;
+  label; runStartUs; event }
+KIND_LABEL (info box type line), spotlightLabel(e, level?), eventAt(e),
+kindShown(kind, filters), hasVisibleEntry(text, fromUs, toUs),
+emptyState(filters) → 'no_data'|'filtered', WINDOW_BEFORE_US, WINDOW_AFTER_US,
+STATE_PREFIX_US
+
+// src/share/chronicle.ts
+buildChronicle(runs: { meta, events }[], filters, { width? = 60 }) → string[]  // '' = blank row; [] = empty
+CHRONICLE_OPENING, CHRONICLE_END ('The End.'), CHAPTER_HEADERS, TEMPLATES,
+eventSentence, datePhrase, stableHash (FNV-1a), wrapText
+
+// src/settings — settings.spotlights { achievements, deaths, levelUps, pvp }, migrateSpotlights
+```
+
+**How the pieces fit.** P1: `lib.exportDoc(session.id)`, apply ops, `lib.
+saveExportDoc(doc)` on each edit; the editor's lines and anchors come from
+`captureEntries` (visible = `isVisible`); counts with `excludedCount`; text
+download = `buildTextExport(chain, doc)`; HTML = `buildReplayHtml(
+buildReplayPayload(chain, events, doc, settings.get()))`. P2: a
+`PlayerHost` over an in-memory `SettingsStore` holding `payload.settings`,
+`openChain(payload.runs, [], { character, level }, { edits:
+payloadEdits(payload), marks: (tl) => payload.markers.map((m) => ({ letter:
+m.kind, offset: playAtLogUs(tl, m.us) })), view: { header, onEsc,
+keys (F), stripHoverTime: true, boxButtons: [Fullscreen] } })`. P3:
+`selectSpotlights` over `listRuns` + `events`, load each with
+`chainLogRange(s.runId, s.prefixFromUs, s.toUs)`, drop those without
+`hasVisibleEntry(text, s.fromUs, s.toUs)`, then `openChain(runs, [], info,
+{ edits: { windows, blankLines: 100 }, marks: (tl) => … playAtLogUs(tl,
+s.atUs, i) …, view: { header, keys (←/→ seek to tl.runs[i] start),
+overlay: { el: infoBox, keepVisible: true }, startHidden: true } })`.
+
+**Decisions and deviations.**
+- *Cuts are ranges, not `cutsUs`.* A cut needs its start too: the kept state
+  entries inside it must take no time and the stretch is measured from the
+  last entry before the range. `TimelineEdits.cuts` and `ReplayPayload.cuts`
+  are the excluded ranges (`[from, to|null]`); every range is passed (one at
+  either end plays in 0 anyway: the lead-in rule at the start, entries
+  inside at the end). A cut plays in `min(500 ms, real)`, 0 when the real
+  stretch is over 10 s (like a gap). A range with nothing removed still
+  shortens the stretch over it.
+- *Comm text:* an exclusion removes `Comm.*` GMCP except
+  `Comm.Channel.List`, which is state (the Comm header's channels).
+- *Comments on removed entries* move to the next kept visible entry in the
+  payload (or to the end). The timeline puts a comment before the first
+  entry with `ts ≥ beforeUs`, on that entry's log time, after the gap before
+  it; several on one anchor keep their order. The comment row is stamped
+  with the anchor's time (a cursor there resumes at the anchor, after the
+  hold). The trailing (null) comment belongs to the last run and its hold
+  extends `durationMs`; `logUsAt` stands still in every hold.
+- *Holds in the engine:* `livePos` and the driver's sleep go through
+  `advancePlay` / `wallBetween`, which are exactly the old formulas when
+  there are no holds (the existing tests pass unchanged).
+- *Spotlight runs in any order:* runs of a reel are ordered by the rotation,
+  not by time. `logUsAt` clamps to the next entry's time only within a run
+  (a normal chain never had a cross-run clamp that mattered: run 2's first
+  entry is in its lead-in, so it has the previous entry's `play`), the engine
+  `rebase`s the replay clock when a run starts before it (pending timers keep
+  their distance), and markers map per run (`playAtLogUs(tl, us, run)`).
+  The blank entry is the run's first entry (after the connect, before the
+  state prefix) and the post-roll dwells from `max(last entry, from)` to
+  `to`.
+- *`PlayerTarget.comment` / `blank` are optional* so older targets (tests)
+  still type-check; `PlayerHost` implements both through
+  `OutputPane.pushRows('comment' | 'blank', …)` (`.wc-comment` `#ffd75f`,
+  `.wc-blank`). The pause cursor skips `.wc-blank` rows (↑↓, PgUp/PgDn,
+  Home, clicks).
+- *PlayerView options:* `header` returns parts + hints (the ADR's `{ left,
+  hints: string[] }` became `HeaderHint[]` so each mode keeps its drop order
+  and clickable hints); `overlay` is `{ el, keepVisible? }` (appended to the
+  player element, `data-hidden` toggled with the chrome unless
+  `keepVisible`; P3 styles it); `boxButtons` added for the replay's
+  `Fullscreen` control; `keys` runs before the modifier check; with
+  `startHidden` the chrome stays hidden when play starts until a key or
+  pointer move. `fitHints` now lets a list without an `Infinity` hint drop
+  every hint (the replay's hints hide when narrow). The in-app header's DOM
+  is unchanged (`runHeader`).
+- *Chronicle input* is the runs (`{ meta, events }[]`), grouped by
+  character; chapters are ordered by each character's oldest shown deed.
+  The level of a death comes from the event, else the run's last
+  `run_start` / `level_up`, else the summary. Achievement names lose a
+  trailing `.`/`!`.
+- *Spotlight level:* the level at the event (baseline, level-ups and a
+  death's level so far), else the run summary's.
+- *Titles:* `setTitle` collapses whitespace, max 200 chars; the file name
+  sanitises `\ / : * ? " < > |`, control characters and a leading dot.
+- *Backup:* only docs of sealed runs are written; export lines come after
+  all runs (a stage 6 reader would reject them as unknown, schema stays 1 as
+  decided).
+
+**Open issues.**
+- `npm run bench` was not re-run for P0 (the output pane's hot path only
+  gained an optional op field); the merge task runs it.
+- Comments in a run's lead-in hold at playback 0 before any text: fine for
+  the replay, but P1/P2 may want to anchor such comments visibly.

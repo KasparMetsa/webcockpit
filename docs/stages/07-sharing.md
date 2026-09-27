@@ -60,7 +60,7 @@ owner may want to change after testing are listed in the test guide.
 ## Tasks
 
 - [x] Stage file and ADR 0019.
-- [ ] P0. Foundation: DB v6 `exports` store and library methods, edits
+- [x] P0. Foundation: DB v6 `exports` store and library methods, edits
       model, timeline edits (cuts, comments with holds, spotlight
       windows, blanks), engine holds, `PlayerView` options, text export,
       replay payload, spotlight selection, chronicle, spotlight settings.
