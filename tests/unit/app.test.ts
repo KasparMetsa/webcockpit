@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { App } from '../../src/app/app';
 import { formatStatus } from '../../src/app/status';
 import type { LockManagerLike } from '../../src/capture/recorder';
-import { CaptureStore } from '../../src/capture/store';
+import { RunStore as CaptureStore } from '../../src/runs/store';
 import { DEFAULT_GMCP_MODULES } from '../../src/net/gmcp';
 import { BANNER_NEG, BANNER_TEXT, FakeSocket, IAC, concat, gmcpOut, sb, utf8 } from './net-helpers';
 

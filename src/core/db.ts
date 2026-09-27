@@ -15,6 +15,11 @@
 //   version 4 (stage 5)
 //     timers     keyPath 'character'; one record per character
 //                { character, savedAt, state } (src/timers/archive.ts, ADR 0017)
+//   version 5 (stage 6)
+//     runEvents  keyPath ['runId', 'seq']; { runId, seq, event: RunEvent }
+//                (src/runs/store.ts, ADR 0018). `runs` records gain the
+//                optional fields saved, rating, savedUs, summary (additive,
+//                no data migration: absent = the default)
 //
 // The upgrade handler is a chain of `if (oldVersion < N)` steps, so every
 // older database upgrades in order. Add a step (and bump DB_VERSION) for
@@ -25,7 +30,7 @@
 // owns a connection must be ready for its transactions to fail afterwards.
 
 export const DB_NAME = 'webcockpit';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 /** Object store names, for callers outside this module. */
 export const STORE = {
@@ -35,6 +40,7 @@ export const STORE = {
   profiles: 'profiles',
   comm: 'comm',
   timers: 'timers',
+  runEvents: 'runEvents',
 } as const;
 
 let persistAsked = false;
@@ -76,6 +82,9 @@ export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Pr
       }
       if (ev.oldVersion < 4) {
         db.createObjectStore(STORE.timers, { keyPath: 'character' });
+      }
+      if (ev.oldVersion < 5) {
+        db.createObjectStore(STORE.runEvents, { keyPath: ['runId', 'seq'] });
       }
     };
     r.onsuccess = () => {

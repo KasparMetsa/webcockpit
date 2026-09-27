@@ -23,11 +23,24 @@
 // - VIEW / SIZE: the latest `view.settings` / `view.size` are written when
 //   the run starts, and again `VIEW_DEBOUNCE_MS` after a change (the last
 //   value wins), and at the end of the run if a change is still pending.
+//
+// Run events (ADR 0018, stage 6): with `events` (the App's RunEventDeriver)
+// the events of the recorded run are buffered like the lines and written
+// with each chunk (`RunStore.append`, one transaction with the new
+// summary). `run_start` gets its `previousRunId` when it is written (the
+// character's latest sealed run, after orphan sealing). Events are taken
+// until the run's final write, so a `run_end` from the same `conn.state`
+// is kept whatever the subscription order. A run sealed without a
+// `run_start` is too short and is deleted (meta, chunks, events); an
+// orphan gets an `orphan_close` (src/runs/store.ts `sealOrphan`). Without
+// `events` runs are recorded as in stage 5 (no summary, never deleted).
 
 import type { Bus } from '../core/bus';
 import { type ConnState, nowUs } from '../core/types';
 import { RECORD, formatGmcpRecord, formatInbound, formatOutbound, formatRecord, makeRunId } from './format';
-import { CaptureStore, type RunMeta } from './store';
+import type { RunMeta } from './store';
+import type { RunEvent } from '../runs/events';
+import { type RunEventRecord, RunStore, type RunSummary, summarize } from '../runs/store';
 
 export const FLUSH_MS = 2000;
 /** GMCP lines kept from before the run starts on one connection. */
@@ -49,9 +62,16 @@ export interface LockManagerLike {
   ): Promise<unknown>;
 }
 
+/** Where run events come from (the App's `RunEventDeriver`). */
+export interface RunEventSource {
+  subscribe(fn: (e: RunEvent) => void): () => void;
+}
+
 export interface RecorderOptions {
-  /** Opens the store; default `CaptureStore.open()`. */
-  openStore?: () => Promise<CaptureStore>;
+  /** Opens the store; default `RunStore.open()`. */
+  openStore?: () => Promise<RunStore>;
+  /** Run events to persist with the run (ADR 0018); absent = lines only. */
+  events?: RunEventSource;
   /** Web Locks; default `navigator.locks`. `null` means unavailable. */
   locks?: LockManagerLike | null;
   /** Called with a short status text whenever it changes. */
@@ -79,7 +99,7 @@ export class Recorder {
   private readonly opts: RecorderOptions;
   private readonly locks: LockManagerLike | null;
   private readonly now: () => number;
-  private readonly storeP: Promise<CaptureStore | null>;
+  private readonly storeP: Promise<RunStore | null>;
   private chain: Promise<void> = Promise.resolve();
 
   private state: ConnState = 'idle';
@@ -93,6 +113,19 @@ export class Recorder {
   private seq = 0;
   /** Bumped per start; a stale failed start must not touch a newer one. */
   private session = 0;
+
+  /** The character of the current run (for `previousRunId`). */
+  private runCharacter = '';
+  /** The latest run started in this tab (kept after its seal), and the one before. */
+  private lastRunId: string | null = null;
+  private prevLastRunId: string | null = null;
+
+  /** Run events of the current run not written yet, and their state. */
+  private evBuf: RunEvent[] = [];
+  private evSeq = 0;
+  private evOpen = false;
+  private hasStart = false;
+  private summary: RunSummary | null = null;
 
   private buf: string[] = [];
   private bufFirstUs = 0;
@@ -124,7 +157,7 @@ export class Recorder {
         : ((globalThis.navigator as Navigator | undefined)?.locks ?? null);
     this.win = opts.win !== undefined ? opts.win : (globalThis.window ?? null);
 
-    const open = opts.openStore ?? (() => CaptureStore.open());
+    const open = opts.openStore ?? (() => RunStore.open());
     this.storeP = open().then(
       (s) => s,
       () => null,
@@ -175,6 +208,15 @@ export class Recorder {
       bus.on('text.line', (line) => {
         if (this.active) this.capture(line.ts, formatInbound(line.ts, line.raw));
       }),
+      ...(opts.events
+        ? [
+            opts.events.subscribe((e) => {
+              if (!this.evOpen) return;
+              if (e.type === 'run_start') this.hasStart = true;
+              this.evBuf.push(e);
+            }),
+          ]
+        : []),
       bus.on('cmd.sent', (c) => {
         // echo:false commands were still sent, so they are captured; a
         // replayed log's commands were not sent now.
@@ -191,12 +233,20 @@ export class Recorder {
     return this.current;
   }
 
+  /**
+   * The latest run started in this tab, recording or sealed (null when
+   * none, or when it was deleted as too short). LiveRuns' anchor.
+   */
+  get lastRun(): string | null {
+    return this.lastRunId;
+  }
+
   get status(): string {
     return this.statusText;
   }
 
   /** The store, or null when IndexedDB is unavailable. */
-  getStore(): Promise<CaptureStore | null> {
+  getStore(): Promise<RunStore | null> {
     return this.storeP;
   }
 
@@ -241,6 +291,11 @@ export class Recorder {
     this.triedThisPlaying = true;
     this.active = true;
     this.buf = [];
+    this.evBuf = [];
+    this.evSeq = 0;
+    this.evOpen = this.opts.events !== undefined;
+    this.hasStart = false;
+    this.summary = null;
     // GMCP from before the start (it includes the Char.Name that started
     // the run), then the view, at the start frame's time.
     let ts = 0;
@@ -259,7 +314,7 @@ export class Recorder {
     this.enqueue(() => this.startRun(session, character, runId, startedUs));
     const ms = this.opts.flushMs ?? FLUSH_MS;
     this.timer = setInterval(() => {
-      if (this.buf.length) this.enqueue(() => this.writeChunk());
+      if (this.buf.length || this.evBuf.length) this.enqueue(() => this.writeChunk());
     }, ms);
   }
 
@@ -293,8 +348,12 @@ export class Recorder {
       bytes: 0,
       lines: 0,
     };
+    if (this.opts.events) meta.summary = null;
     await store.putRun(meta);
     this.current = id;
+    this.runCharacter = character;
+    this.prevLastRunId = this.lastRunId;
+    this.lastRunId = id;
     this.seq = 0;
     this.setStatus(STATUS.recording);
   }
@@ -303,6 +362,8 @@ export class Recorder {
   private abandon(): void {
     this.active = false;
     this.buf = [];
+    this.evBuf = [];
+    this.evOpen = false;
     this.clearTimer();
     this.release?.();
     this.release = null;
@@ -315,12 +376,23 @@ export class Recorder {
     this.active = false;
     this.clearTimer();
     const endedUs = this.now();
+    const session = this.session;
+    const hadStart = this.hasStart;
     this.enqueue(async () => {
+      // Events of this `conn.state` (run_end) are in by now. A newer run
+      // (started before this task ran) keeps taking its own.
+      const same = session === this.session;
+      if (same) this.evOpen = false;
       await this.writeChunk();
+      if (same) this.evBuf = [];
       const runId = this.current;
       if (runId) {
         const store = await this.storeP;
-        await store?.sealRun(runId, endedUs);
+        if (this.opts.events && !hadStart) {
+          // Too short: nothing but a login.
+          await store?.deleteRun(runId);
+          if (this.lastRunId === runId) this.lastRunId = this.prevLastRunId;
+        } else await store?.sealRun(runId, endedUs);
       }
       this.current = null;
       this.release?.();
@@ -360,35 +432,52 @@ export class Recorder {
 
   private async writeChunk(): Promise<void> {
     const runId = this.current;
-    if (!runId || this.buf.length === 0) return;
+    if (!runId || (this.buf.length === 0 && this.evBuf.length === 0)) return;
     const store = await this.storeP;
     if (!store) return;
     const lines = this.buf.length;
     const text = this.buf.join('');
     const firstUs = this.bufFirstUs;
     const lastUs = this.bufLastUs;
+    const evs = this.evBuf;
     this.buf = [];
-    const bytes = this.encoder.encode(text).byteLength;
-    await store.appendChunk({ runId, seq: this.seq++, firstUs, lastUs, text }, bytes, lines);
+    this.evBuf = [];
+    const bytes = lines ? this.encoder.encode(text).byteLength : 0;
+    let records: RunEventRecord[] | undefined;
+    if (evs.length) {
+      records = [];
+      for (const e of evs) {
+        if (e.type === 'run_start' && e.previousRunId === undefined) {
+          const prev = await store.latestSealedRun(this.runCharacter, runId);
+          if (prev) e.previousRunId = prev.runId;
+        }
+        this.summary = summarize(this.summary, e);
+        records.push({ runId, seq: this.evSeq++, event: e });
+      }
+    }
+    await store.append(runId, {
+      ...(lines ? { chunk: { runId, seq: this.seq++, firstUs, lastUs, text }, bytes, lines } : {}),
+      ...(records ? { events: records, summary: this.summary } : {}),
+    });
   }
 
   /**
    * Seals unsealed runs whose character lock is free. With `heldFor` set,
    * this tab holds that character's lock, so their runs are sealed directly.
    */
-  private async sealOrphans(store: CaptureStore, heldFor: string | null): Promise<void> {
+  private async sealOrphans(store: RunStore, heldFor: string | null): Promise<void> {
     const runs = await store.listRuns();
     for (const r of runs) {
       if (r.sealed || r.runId === this.current) continue;
       if (heldFor !== null) {
-        if (r.character === heldFor) await sealAtLastChunk(store, r);
+        if (r.character === heldFor) await store.sealOrphan(r, this.now());
         continue;
       }
       if (!this.locks) return;
       const release = await acquire(this.locks, runLockName(r.character));
       if (!release) continue;
       try {
-        await sealAtLastChunk(store, r);
+        await store.sealOrphan(r, this.now());
       } finally {
         release();
       }
@@ -411,16 +500,11 @@ export class Recorder {
   }
 }
 
-async function sealAtLastChunk(store: CaptureStore, r: RunMeta): Promise<void> {
-  const last = await store.lastChunk(r.runId);
-  await store.sealRun(r.runId, last ? last.lastUs : r.startedUs);
-}
-
 /**
  * Tries to take a Web Lock without waiting. Resolves with a release
  * function, or null when another holder has it.
  */
-function acquire(locks: LockManagerLike, name: string): Promise<(() => void) | null> {
+export function acquire(locks: LockManagerLike, name: string): Promise<(() => void) | null> {
   return new Promise((resolve, reject) => {
     locks
       .request(name, { ifAvailable: true }, (lock) => {

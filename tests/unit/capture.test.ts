@@ -13,7 +13,7 @@ import {
 } from '../../src/capture/format';
 import { buildRunBlob } from '../../src/capture/download';
 import { type LockManagerLike, Recorder, STATUS, runLockName } from '../../src/capture/recorder';
-import { CaptureStore } from '../../src/capture/store';
+import { RunStore as CaptureStore } from '../../src/runs/store';
 import { Session } from '../../src/net/session';
 import { OPT_GMCP, WILL } from '../../src/net/telnet';
 import { LineAssembler } from '../../src/text/assembler';

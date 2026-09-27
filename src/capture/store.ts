@@ -11,8 +11,13 @@
 //
 // `bytes` is the UTF-8 size of all chunk texts, `lines` the number of
 // captured lines.
+//
+// Stage 6 (DB version 5, ADR 0018) adds optional fields to `runs` records
+// (absent on older records = the default) and the `runEvents` store; both
+// are handled by src/runs/store.ts (`RunStore extends CaptureStore`).
 
 import { idbDone as done, idbRequest as req, openWebcockpitDb } from '../core/db';
+import type { RunSummary } from '../runs/store';
 
 export { DB_NAME, DB_VERSION, openWebcockpitDb, requestPersistence } from '../core/db';
 
@@ -24,6 +29,17 @@ export interface RunMeta {
   sealed: boolean;
   bytes: number;
   lines: number;
+  /** Saved (kept by retention); absent = false (ADR 0018). */
+  saved?: boolean;
+  /** 0–5; absent = 0. */
+  rating?: number;
+  /** When it was saved (µs), or null / absent. */
+  savedUs?: number | null;
+  /**
+   * Kept current by the recorder from the run's events. `null`: a stage 6
+   * run with no `run_start` yet; absent: a run captured before stage 6.
+   */
+  summary?: RunSummary | null;
 }
 
 export interface RunChunk {
