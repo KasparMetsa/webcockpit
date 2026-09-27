@@ -1,0 +1,132 @@
+#ACTION {ALERT}
+{
+    sc
+}
+
+#ACTION {^%1 waves at you.$}
+{
+    follow %1
+}
+
+#ACTION {^Your cloak slides onto your shoulders.$}
+{
+    #variable {cloak} {grey}
+}
+
+#ACTION {^%1 whispers '%2'$}
+{
+    #showme %0
+}
+
+#ALIAS {4}
+{
+    _send lock $door
+}
+
+#ALIAS {^k%+1..d$}
+{
+    _send cast $mode 'sleep' %1.$foe
+}
+
+#ALIAS {_swap_cloak}
+{
+    #if {"%1" != "$cloak"}
+    {
+        #if {"$cloak" != ""}
+        {
+            _send remove $cloak;
+            #if {"$bag" == "*sack*"}
+            {
+                _send put $cloak sack
+            }
+            #else
+            {
+                _send put $cloak $bag
+            }
+        };
+        _send get %1 $bag;
+        _send wear %1;
+        #variable {cloak} {%1}
+    }
+    #elseif {"%1" == ""}
+    {
+        #showme {<F9AA8B7>## Which cloak?<099>}
+    }
+}
+
+#ALIAS {_status}
+{
+    #showme {<F9AA8B7>## FOE: <FFFFFFF>$foe  <F9AA8B7>(mode: <FFFFFFF>$mode<F9AA8B7>)<099>}
+}
+
+#ALIAS {é}
+{
+    _send north
+}
+
+#ALIAS {ś}
+{
+    _send south
+}
+
+#ALIAS {fb}
+{
+    _send bash $foe
+}
+
+#ALIAS {fe}
+{
+    #variable {foe} {%1};
+    #show {<F23aaee>Foe set to %1<099>}
+}
+
+#HIGHLIGHT {- armour} {Cyan} {5}
+#HIGHLIGHT {- blessing} {Cyan} {5}
+#HIGHLIGHT {- poisoned} {red} {5}
+#HIGHLIGHT {- sanctuary} {Magenta} {5}
+#HIGHLIGHT {- stored spell %1} {magenta} {5}
+#HIGHLIGHT {XX} {green} {5}
+#MACRO {\eOP}
+{
+    _send hit $foe
+}
+
+#MACRO {\eOQ}
+{
+    #if {"$role" == "fighter" || "$role" == "paladin"}
+    {
+        _send bash $foe
+    }
+    #else
+    {
+        _send cast 'chill' $foe
+    }
+}
+
+#MACRO {\e[15~}
+{
+    _send draw $blade
+}
+
+#MACRO {\eOp}
+{
+    _send flee
+}
+
+#MACRO {\eOk}
+{
+    _send open door
+}
+
+#SUBSTITUTE {^%1 is stunned!} {<F23aaee>%0<900>} {5}
+#SUBSTITUTE {^-%1gash%2} {<Fff0000>%0<900>} {5}
+#TICKER {pulse} {#lua {state.world.pulse()}} {0.25}
+#VARIABLE {_line} {<F9AA8B7> A: <FFFFFFF>door<F9AA8B7>  B: <FFFFFFF>gate}
+#VARIABLE {bag} {sack}
+#VARIABLE {blade} {sabre }
+#VARIABLE {cloak} {grey}
+#VARIABLE {door} {}
+#VARIABLE {foe} {*orc*}
+#VARIABLE {mode} {normal}
+#VARIABLE {role} {mage}
+
