@@ -6,7 +6,7 @@ feature parity, minimal latency, TUI look and feel.
 
 ## Project phase
 
-**Current phase: Intent (grilling).** No code yet.
+**Current phase: Spec.** `intent.md` approved 2026-09-27. No code yet.
 
 1. `intent.md` — what and why. Written through a grilling session with the
    owner. Nothing else starts until it is approved.
