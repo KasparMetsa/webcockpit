@@ -219,22 +219,40 @@ describe('panes on the context', () => {
     p.dispose();
   });
 
-  it('Timers (P0 placeholder) lists the enabled groups’ cells from game.timers', () => {
+  it('Timers draws game.timers, follows the options and handles clicks', () => {
     const t = setup();
-    const p = PANE_FACTORIES.timers(t.ctx);
+    const p = PANE_FACTORIES.timers(t.ctx) as TimersPane;
     expect(p).toBeInstanceOf(TimersPane);
-    place(p, 20, 4);
+    place(p, 20, 6);
     const now = Date.now();
-    const cell = (id: string, group: 'spell' | 'blind') =>
+    const cell = (id: string, group: 'spell' | 'blind' | 'charm') =>
       ({ id, name: id, group, startedAt: now, expiresAt: now + 60_000, expected: 60_000, tracked: true }) as const;
     t.game.timers.debugAdd({ ...cell('armour', 'spell') });
     t.game.timers.debugAdd({ ...cell('2.orc', 'blind') });
+    t.game.timers.debugAdd({ ...cell('troll', 'charm') });
+    t.game.timers.debugHerbs([{ key: 'healing', name: 'Healing' }]);
     t.flush();
     const rows = () => [...p.content.querySelectorAll('.wc-prow')].map((r) => r.textContent!.trimEnd());
-    expect(rows()).toEqual(['ARMOUR', '2.ORC']);
-    t.settings.update({ timers: { groups: { blind: { enabled: false } } } });
+    expect(rows()).toEqual(['Spells:            +', 'ARMOUR             ▌', 'Blinds:', '2.ORC              ▌', 'Charmies:', 'Troll           0m ×']);
+    t.settings.update({ timers: { groups: { blind: { enabled: false } }, headers: false } });
     t.flush();
-    expect(rows()).toEqual(['ARMOUR']);
+    expect(rows()).toEqual(['ARMOUR             +', 'Troll           0m ×']);
+    const hit = (sel: string) => p.content.querySelector<HTMLElement>(`.wc-timers-hit${sel}`)!;
+    hit('[data-hit="charm"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    t.flush();
+    expect(rows()).toEqual(['ARMOUR             +']);
+    hit('[data-hit="corner"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    t.flush();
+    expect(p.viewMode).toBe('add');
+    expect(rows()).toEqual(['[+] Healing        ×']);
+    hit('[data-hit="herb"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    t.flush();
+    expect(rows()).toEqual(['[-] Healing        ×']);
+    // A disconnect blanks the pane and returns to the grid.
+    t.bus.emit('conn.state', { state: 'disconnected', prev: 'playing' });
+    t.flush();
+    expect(p.content.textContent).toBe('');
+    expect(p.viewMode).toBe('grid');
     p.dispose();
   });
 
