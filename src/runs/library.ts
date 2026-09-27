@@ -5,11 +5,16 @@
 //   characters()        characters with sealed runs, alphabetical
 //   events(ids)         the runs' events in time order
 //   chainLog(ids)       each run's meta and its capture text
+//   chainLogRange(id, from, to)  a run's capture text around a time range,
+//                       whole chunks only (Spotlights, ADR 0019)
 //   chainOf(id, now)    the session holding a run, the unsealed one included
+//   exportDoc / saveExportDoc  the export editor's record of a session
+//                       (DB v6, keyed by the chain's first run id)
 //   save / remove       per chain (every run); Delete is the only way out
 //   sweep(now)          under the Web Lock `webcockpit-sweep` (one tab):
 //                       seals orphans whose lock is free, then deletes every
-//                       unsaved sealed run that started over 14 days ago
+//                       unsaved sealed run that started over 14 days ago,
+//                       and every export doc whose session run is gone
 //   backup / restore    all sealed runs as one gzip JSON-lines file
 //   estimate()          navigator.storage.estimate()
 //
@@ -20,13 +25,19 @@
 //   {"type":"event","runId":…,"seq":…,"event":{…}}      (that run's events)
 //   {"type":"chunk","runId":…,"seq":…,"firstUs":…,"lastUs":…,"text":…}
 //   … the next run …
+//   {"type":"export","doc":{…ExportDoc}}                (after the runs, ADR 0019)
 //
+// Export lines were added in stage 7 without a schema bump (additive): a
+// stage 6 reader rejects them as an unknown record, a stage 7 reader reads
+// stage 6 files unchanged.
 // Restore reads the file twice: the first pass checks every line (a bad
 // file is rejected before anything is written), the second adds each run
-// whose `runId` is not stored yet, one transaction per run.
+// whose `runId` is not stored yet, one transaction per run, then each export
+// doc for which no doc is stored.
 
 import type { RunChunk, RunMeta } from '../capture/store';
 import { type LockManagerLike, acquire, runLockName } from '../capture/recorder';
+import { type ExportDoc, defaultExportDoc, normalizeExportDoc } from '../share/edits';
 import type { RunEvent } from './events';
 import { type RunEventRecord, RunStore } from './store';
 import { DAY_US, RETENTION_DAYS, type Session, stitchChains, stitchSessions, toSession } from './stitch';
@@ -106,6 +117,38 @@ export class RunLibrary {
   }
 
   /**
+   * A run's meta and the text of its chunks that overlap `[fromUs, toUs]`
+   * (whole chunks, so the text starts at or before `fromUs` and ends at or
+   * after `toUs` when the run has lines there). Reads only those chunks.
+   * Null when the run is not stored.
+   */
+  async chainLogRange(runId: string, fromUs: number, toUs: number): Promise<{ meta: RunMeta; text: string } | null> {
+    const meta = await this.store.getRun(runId);
+    if (!meta) return null;
+    const last = await this.store.lastChunk(runId);
+    if (!last || last.lastUs < fromUs) return { meta, text: '' };
+    // Binary search for the first chunk ending at or after `fromUs` (seqs
+    // are 0…last.seq); a hole in the seqs falls back to reading them all.
+    let lo = 0;
+    let hi = last.seq;
+    let holes = false;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      const c = await this.store.getChunk(runId, mid);
+      if (!c) {
+        holes = true;
+        break;
+      }
+      if (c.lastUs >= fromUs) hi = mid;
+      else lo = mid + 1;
+    }
+    const chunks = holes
+      ? (await this.store.getChunks(runId)).filter((c) => c.lastUs >= fromUs && c.firstUs <= toUs)
+      : await this.store.chunksFrom(runId, lo, (c) => c.firstUs <= toUs);
+    return { meta, text: chunks.map((c) => c.text).join('') };
+  }
+
+  /**
    * The session that holds `runId`, stitched over the character's sealed
    * runs plus that run even when it is not sealed (the live run).
    */
@@ -136,9 +179,23 @@ export class RunLibrary {
     );
   }
 
-  /** Deletes every run of the session (meta, chunks, events). */
+  /** Deletes every run of the session (meta, chunks, events) and its export doc. */
   async remove(session: Session): Promise<void> {
     for (const m of session.runs) await this.store.deleteRun(m.runId);
+    await this.store.deleteExport(session.id);
+  }
+
+  // --------------------------------------------------------------- exports
+
+  /** The export editor's document of a session (`Session.id`); the defaults when none is saved. */
+  async exportDoc(sessionId: string): Promise<ExportDoc> {
+    const raw = await this.store.getExport(sessionId);
+    return (raw && normalizeExportDoc(raw)) ?? defaultExportDoc(sessionId);
+  }
+
+  /** Saves an export doc (every edit). */
+  async saveExportDoc(doc: ExportDoc): Promise<void> {
+    await this.store.putExport(doc);
   }
 
   /**
@@ -185,6 +242,10 @@ export class RunLibrary {
         release();
       }
     }
+    // Export docs of sessions whose first run is gone (deleted above, or a
+    // chain whose first run expired before the rest).
+    const runs = new Set((await this.store.listRuns()).map((r) => r.runId));
+    for (const d of await this.store.listExports()) if (!runs.has(d.sessionId)) await this.store.deleteExport(d.sessionId);
     return deleted;
   }
 
@@ -204,11 +265,16 @@ export class RunLibrary {
   /** Every sealed run as a gzip JSON-lines file (see the file header). */
   async backup(nowUs: number = Date.now() * 1000): Promise<Blob> {
     const parts: string[] = [JSON.stringify({ type: BACKUP_TYPE, schema: BACKUP_SCHEMA, exportedUs: nowUs }) + '\n'];
+    const sealed = new Set<string>();
     for (const meta of await this.store.listRuns()) {
       if (!meta.sealed) continue;
+      sealed.add(meta.runId);
       parts.push(JSON.stringify({ type: 'run', run: meta }) + '\n');
       for (const e of await this.store.getEvents(meta.runId)) parts.push(JSON.stringify({ type: 'event', ...e }) + '\n');
       for (const c of await this.store.getChunks(meta.runId)) parts.push(JSON.stringify({ type: 'chunk', ...c }) + '\n');
+    }
+    for (const doc of await this.store.listExports()) {
+      if (sealed.has(doc.sessionId)) parts.push(JSON.stringify({ type: 'export', doc }) + '\n');
     }
     return gzip(new Blob(parts));
   }
@@ -257,6 +323,7 @@ export class RunLibrary {
       await this.store.putWholeRun(r.meta, r.events, r.chunks);
       added++;
     };
+    const docs: ExportDoc[] = [];
     let first = true;
     for await (const text of readLines(file)) {
       if (!text) continue;
@@ -275,6 +342,9 @@ export class RunLibrary {
         run = { meta, events: [], chunks: [] };
       } else if (o.type === 'event') {
         run!.events.push({ runId: o.runId as string, seq: o.seq as number, event: o.event as RunEvent });
+      } else if (o.type === 'export') {
+        const doc = normalizeExportDoc(o.doc);
+        if (doc) docs.push(doc);
       } else if (o.type === 'chunk') {
         run!.chunks.push({
           runId: o.runId as string,
@@ -286,6 +356,7 @@ export class RunLibrary {
       }
     }
     await flush();
+    for (const doc of docs) if (!(await this.store.getExport(doc.sessionId))) await this.store.putExport(doc);
     return { added, skipped };
   }
 }
@@ -332,6 +403,9 @@ function checkRecord(o: Rec, cur: string | null, n: number): string | null {
       if (o.runId !== cur || cur === null) return bad('chunk outside its run');
       if (!isNum(o.seq) || !isNum(o.firstUs) || !isNum(o.lastUs) || !isStr(o.text)) return bad('bad chunk');
       return cur;
+    case 'export':
+      if (!normalizeExportDoc(o.doc)) return bad('bad export doc');
+      return null;
     default:
       return bad('unknown record');
   }

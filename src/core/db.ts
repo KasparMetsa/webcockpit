@@ -20,6 +20,10 @@
 //                (src/runs/store.ts, ADR 0018). `runs` records gain the
 //                optional fields saved, rating, savedUs, summary (additive,
 //                no data migration: absent = the default)
+//   version 6 (stage 7)
+//     exports    keyPath 'sessionId'; one export editor record per session
+//                (ExportDoc, keyed by the chain's first run id;
+//                src/share/edits.ts, src/runs/store.ts, ADR 0019)
 //
 // The upgrade handler is a chain of `if (oldVersion < N)` steps, so every
 // older database upgrades in order. Add a step (and bump DB_VERSION) for
@@ -30,7 +34,7 @@
 // owns a connection must be ready for its transactions to fail afterwards.
 
 export const DB_NAME = 'webcockpit';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 /** Object store names, for callers outside this module. */
 export const STORE = {
@@ -41,6 +45,7 @@ export const STORE = {
   comm: 'comm',
   timers: 'timers',
   runEvents: 'runEvents',
+  exports: 'exports',
 } as const;
 
 let persistAsked = false;
@@ -85,6 +90,9 @@ export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Pr
       }
       if (ev.oldVersion < 5) {
         db.createObjectStore(STORE.runEvents, { keyPath: ['runId', 'seq'] });
+      }
+      if (ev.oldVersion < 6) {
+        db.createObjectStore(STORE.exports, { keyPath: 'sessionId' });
       }
     };
     r.onsuccess = () => {

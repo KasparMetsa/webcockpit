@@ -16,9 +16,14 @@
 // with a summary gets an `orphan_close` event (its `us` is the seal time)
 // and is sealed at its last chunk's `lastUs`; one with `summary: null` had
 // nothing but a login and is deleted.
+//
+// Stage 7 (DB version 6, ADR 0019) adds the `exports` store: one export
+// editor document per session, keyPath 'sessionId' (the chain's first run
+// id; src/share/edits.ts).
 
 import { idbDone as done, idbRequest as req, openWebcockpitDb } from '../core/db';
 import { CaptureStore, type RunChunk, type RunMeta } from '../capture/store';
+import type { ExportDoc } from '../share/edits';
 import type { RunEvent } from './events';
 import type { RunSummary } from './summary';
 
@@ -159,6 +164,53 @@ export class RunStore extends CaptureStore {
     };
     await done(tx);
     return 'sealed';
+  }
+
+  /** The export doc of a session, if one was saved. */
+  getExport(sessionId: string): Promise<ExportDoc | undefined> {
+    const tx = this.db.transaction('exports', 'readonly');
+    return req(tx.objectStore('exports').get(sessionId) as IDBRequest<ExportDoc | undefined>);
+  }
+
+  async putExport(doc: ExportDoc): Promise<void> {
+    const tx = this.db.transaction('exports', 'readwrite');
+    tx.objectStore('exports').put(doc);
+    await done(tx);
+  }
+
+  async deleteExport(sessionId: string): Promise<void> {
+    const tx = this.db.transaction('exports', 'readwrite');
+    tx.objectStore('exports').delete(sessionId);
+    await done(tx);
+  }
+
+  /** Every export doc (backup, sweep). */
+  listExports(): Promise<ExportDoc[]> {
+    const tx = this.db.transaction('exports', 'readonly');
+    return req(tx.objectStore('exports').getAll() as IDBRequest<ExportDoc[]>);
+  }
+
+  /** One chunk by `seq`, if stored. */
+  getChunk(runId: string, seq: number): Promise<RunChunk | undefined> {
+    const tx = this.db.transaction('runChunks', 'readonly');
+    return req(tx.objectStore('runChunks').get([runId, seq]) as IDBRequest<RunChunk | undefined>);
+  }
+
+  /** A run's chunks from `seq` on, while `keep(chunk)` holds (in seq order). */
+  chunksFrom(runId: string, seq: number, keep: (c: RunChunk) => boolean): Promise<RunChunk[]> {
+    const tx = this.db.transaction('runChunks', 'readonly');
+    const out: RunChunk[] = [];
+    const r = tx.objectStore('runChunks').openCursor(IDBKeyRange.bound([runId, seq], [runId, Infinity]));
+    return new Promise((resolve, reject) => {
+      r.onsuccess = () => {
+        const cur = r.result;
+        const c = cur?.value as RunChunk | undefined;
+        if (!cur || !c || !keep(c)) return resolve(out);
+        out.push(c);
+        cur.continue();
+      };
+      r.onerror = () => reject(r.error);
+    });
   }
 
   /** Adds a whole run (restore): meta, events and chunks in one transaction. */
