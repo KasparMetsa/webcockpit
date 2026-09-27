@@ -141,8 +141,11 @@ export interface BusEvents {
    * A command sent to the game, after alias expansion. Never protocol bytes.
    * An empty Enter gives `text: ''`. When `secret` is true (password), the
    * Sender sets `text` to '' and consumers must not log, echo or store it.
+   * `echo: false` means the command must not be echoed locally in the
+   * output pane (client housekeeping such as `change width`); absent means
+   * echo.
    */
-  'cmd.sent': { text: string; ts: number; secret?: boolean };
+  'cmd.sent': { text: string; ts: number; secret?: boolean; echo?: boolean };
   /** Connection state change. `reason` explains a disconnect. */
   'conn.state': { state: ConnState; prev: ConnState; reason?: string };
   /** Telnet ECHO: true when the server echoes (password mode, mask input). */
