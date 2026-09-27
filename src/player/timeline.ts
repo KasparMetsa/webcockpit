@@ -149,7 +149,17 @@ export function buildTimeline(chain: readonly ChainRun[]): Timeline {
     }
     runs.push({ meta, text, first, end: n });
   }
-  return { runs, n, run, kind, ts, play, start, end, durationMs: n > 0 ? play[n - 1]! : 0 };
+  return {
+    runs,
+    n,
+    run: run.slice(0, n),
+    kind: kind.slice(0, n),
+    ts: ts.slice(0, n),
+    play: play.slice(0, n),
+    start: start.slice(0, n),
+    end: end.slice(0, n),
+    durationMs: n > 0 ? play[n - 1]! : 0,
+  };
 }
 
 /** The body text of entry `i`. */

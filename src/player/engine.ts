@@ -351,7 +351,8 @@ export class PlayerEngine {
       return;
     }
     const nextAt = this.next < tl.n ? tl.play[this.next]! : this.duration;
-    const wait = Math.min(TICK_MS, Math.max(0, (nextAt - p) / this.speedValue));
+    // At least 1 ms: a float-sized wait would wake at the same wall time.
+    const wait = Math.min(TICK_MS, Math.max(1, (nextAt - p) / this.speedValue));
     this.timer = this.wall.after(() => {
       this.timer = null;
       if (t === this.token) this.drive();
