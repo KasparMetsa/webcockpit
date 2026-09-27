@@ -208,6 +208,8 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter'); // Panes
   await expect(startTitle(page)).toHaveText('─── Panes ───');
+  await page.keyboard.press('Enter'); // General
+  await expect(startTitle(page)).toHaveText('─── General ───');
   // Character is on with None: Enter on its checked cell turns it off.
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await settings(page)).panes.character.on).toBe(false);
