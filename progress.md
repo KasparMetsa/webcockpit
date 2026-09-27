@@ -1,12 +1,12 @@
 # Progress
 
-Current stage: **1 — Connect and play** (not started).
+Current stage: **1 — Connect and play** (in progress).
 
 ## Stages
 
 | # | Stage | Status | Stage file |
 |---|---|---|---|
-| 1 | Connect and play | Next | — |
+| 1 | Connect and play | In progress | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | — | — |
 | 3 | Script engine and profile editor | — | — |
 | 4 | GMCP panes | — | — |
