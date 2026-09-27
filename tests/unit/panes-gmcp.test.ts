@@ -244,10 +244,11 @@ describe('panes on the context', () => {
     hit('[data-hit="corner"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
     t.flush();
     expect(p.viewMode).toBe('add');
-    expect(rows()).toEqual(['[+] Healing        ×']);
+    // The herblore tracker's catalogue (six entries) follows the debug herb.
+    expect(rows()[0]).toBe('[+] Healing        ×');
     hit('[data-hit="herb"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
     t.flush();
-    expect(rows()).toEqual(['[-] Healing        ×']);
+    expect(rows()[0]).toBe('[-] Healing        ×');
     // A disconnect blanks the pane and returns to the grid.
     t.bus.emit('conn.state', { state: 'disconnected', prev: 'playing' });
     t.flush();

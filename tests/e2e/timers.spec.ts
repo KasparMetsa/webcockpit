@@ -23,7 +23,7 @@ async function demoDone(page: Page): Promise<void> {
   await expect(page.locator('.wc-pane[data-pane="timers"]')).toHaveAttribute('data-active', '');
 }
 
-/** Puts debug cells in: a full spell, a half-drained buff, a blind, a charm, and a herb catalogue. */
+/** Puts debug cells in: a full spell, a half-drained buff, a blind and a charm. */
 async function populate(page: Page): Promise<void> {
   await page.evaluate(() => {
     const t = window.__wc!.app.game.timers;
@@ -42,10 +42,6 @@ async function populate(page: Page): Promise<void> {
     t.debugAdd(c('b1', 'bless', 'buff', 300_000, 600_000) as never);
     t.debugAdd(c('x1', '2.orc', 'blind', 90_000, 90_000) as never);
     t.debugAdd(c('c1', 'huge stone troll', 'charm', 3_000_000, 3_600_000) as never);
-    t.debugHerbs([
-      { key: 'healing', name: 'Healing' },
-      { key: 'travelling', name: 'Travelling' },
-    ]);
   });
 }
 
@@ -83,10 +79,11 @@ test('the corner + opens the herblore add-view; [+] Healing starts it', async ({
   await expect.poll(() => texts(page)).toHaveLength(8);
   await hit(page, '[data-hit="corner"]').click();
   await expect(content(page)).toHaveAttribute('data-mode', 'add');
-  await expect.poll(() => texts(page)).toEqual([expect.stringMatching(/^\[\+\] Healing\s+×$/), '[+] Travelling']);
-  await hit(page, '[data-key="healing"]').click();
-  await expect.poll(() => texts(page)).toEqual([expect.stringMatching(/^\[-\] Healing\s+×$/), '[+] Travelling']);
-  expect(await page.evaluate(() => window.__wc!.app.game.timers.view().herbs.find((h) => h.key === 'healing')?.active)).toBe(true);
+  const catalogue = ['[+] Travelling', '[+] Clearthought', '[+] Walking', '[+] Haste', '[+] Dark aura'];
+  await expect.poll(() => texts(page)).toEqual([expect.stringMatching(/^\[\+\] Healing\s+×$/), ...catalogue]);
+  await hit(page, '[data-key="Healing"]').click();
+  await expect.poll(() => texts(page)).toEqual([expect.stringMatching(/^\[-\] Healing\s+×$/), ...catalogue]);
+  expect(await page.evaluate(() => window.__wc!.app.game.timers.view().herbs.find((h) => h.key === 'Healing')?.active)).toBe(true);
   // The corner × goes back to the grid.
   await hit(page, '[data-hit="corner"]').click();
   await expect(content(page)).toHaveAttribute('data-mode', 'grid');

@@ -87,6 +87,8 @@ test('Comm formats the demo messages and never archives a replay', async ({ page
     }
     if (!(await more.isVisible())) break;
     await page.mouse.wheel(0, 100);
+    // Let the pane render the step before reading it (two frames).
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   }
   expect(seen).toHaveLength(14);
   expect(seen.slice(0, 7)).toEqual([
