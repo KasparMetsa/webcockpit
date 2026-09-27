@@ -19,7 +19,6 @@ import {
   downloadProfile,
   nameError,
 } from '../../profiles';
-import { useBodyRows } from '../kit/widgets';
 import { useGrid, useServices, useSettings } from '../kit/hooks';
 import { cellLen, centreLeft, scrollToShow, step } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
@@ -29,7 +28,6 @@ import {
   Centered,
   type Column,
   FlashRow,
-  Line,
   type MenuItem,
   MenuRows,
   Page,
@@ -37,6 +35,7 @@ import {
   TextField,
   indent,
   menuKey,
+  useBodyRows,
   useMenuCursor,
 } from '../kit/widgets';
 
