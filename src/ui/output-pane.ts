@@ -401,11 +401,13 @@ export class OutputPane {
     if (atBottom) {
       if (this.scrolled) {
         this.scrolled = false;
+        this.scroller.classList.remove('wc-scrolled');
         this.newWhileScrolled = 0;
         this.tailBar.hidden = true;
       }
     } else if (!this.scrolled) {
       this.scrolled = true;
+      this.scroller.classList.add('wc-scrolled');
       this.newWhileScrolled = 0;
       this.updateTailBar();
       this.tailBar.hidden = false;
@@ -440,6 +442,7 @@ export class OutputPane {
   toTail(): void {
     this.scroller.scrollTop = this.scroller.scrollHeight;
     this.scrolled = false;
+    this.scroller.classList.remove('wc-scrolled');
     this.newWhileScrolled = 0;
     this.tailBar.hidden = true;
   }

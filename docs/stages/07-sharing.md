@@ -86,4 +86,10 @@ owner may want to change after testing are listed in the test guide.
 
 ## Owner feedback
 
-(After testing.)
+### During the build (2026-09-28)
+
+1. *The output scrollbar lights up whenever text arrives* (overlay
+   scrollbars flash on every programmatic scroll; also in the player).
+   Fixed: the scroller's scrollbar is transparent unless the view is
+   scrolled back (`wc-scrolled`); transparent rather than hidden, so a
+   classic scrollbar keeps its width and the text never reflows.

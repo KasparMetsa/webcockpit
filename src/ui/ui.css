@@ -75,6 +75,14 @@ body {
   scroll-behavior: auto;
   /* We compensate top trimming ourselves; the browser must not also. */
   overflow-anchor: none;
+  /* The scrollbar shows only while scrolled back. Transparent, not hidden,
+     so a classic scrollbar keeps its width and the text never reflows;
+     overlay scrollbars no longer flash on every programmatic scroll. */
+  scrollbar-color: transparent transparent;
+}
+
+.wc-scroller.wc-scrolled {
+  scrollbar-color: auto;
 }
 
 .wc-chunk {

@@ -89,12 +89,17 @@ test.describe('fixture replay', () => {
     await page.setViewportSize({ width: 900, height: 360 });
     await replayDone(page);
     const bar = page.locator('.wc-tail-bar');
+    const scroller = page.locator('.wc-scroller').first();
     await expect(bar).toBeHidden();
+    // The scrollbar shows only while scrolled back (owner, 2026-09-28).
+    await expect(scroller).not.toHaveClass(/wc-scrolled/);
     await page.keyboard.press('PageUp');
     await expect(bar).toBeVisible();
+    await expect(scroller).toHaveClass(/wc-scrolled/);
     await expect(bar).toContainText('PgDn');
     for (let i = 0; i < 50 && (await bar.isVisible()); i++) await page.keyboard.press('PageDown');
     await expect(bar).toBeHidden();
+    await expect(scroller).not.toHaveClass(/wc-scrolled/);
     await page.keyboard.press('PageUp');
     await expect(bar).toBeVisible();
     await page.keyboard.press('Escape');
