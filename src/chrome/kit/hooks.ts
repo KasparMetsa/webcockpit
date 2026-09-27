@@ -27,6 +27,12 @@ export interface ChromeServices {
    * reports that the player is not available.
    */
   openPlayer?: (session: Session) => void;
+  /**
+   * Loads the Spotlights reel and plays it in the player (ADR 0019), the
+   * start page hidden as for `openPlayer`. Resolves to the empty state to
+   * show when there is nothing to play, else null once the reel is up.
+   */
+  openSpotlights?: () => Promise<'no_data' | 'filtered' | null>;
 }
 
 export const ServicesCtx = createContext<ChromeServices | null>(null);
