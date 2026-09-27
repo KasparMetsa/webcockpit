@@ -2,8 +2,8 @@
 // opens a session here (Shell.openPlayer). One `PlayerHost` per open:
 //
 //   .wc-player                  fills the page; the recorded theme and the
-//                               fitted cell size are custom properties on it
-//     .wc-player-stage          the recorded grid (SIZE cols × rows), centred
+//                               cell size are custom properties on it
+//     .wc-player-stage          the window left of the strip
 //       .wc-app                 a player App (src/app/app.ts `player: true`)
 //     .wc-player-chrome         src/player/view.ts
 //
@@ -12,10 +12,12 @@
 // settings store (in memory, never saved) holding the viewer's settings;
 // VIEW records replace their parts as they pass (src/player/fit.ts), so
 // after a seek the settings are those of the latest VIEW before it. The
-// stage is SIZE cols × rows at the largest font size that fits the window
-// left of the strip (runs without SIZE fill the window at the settings'
-// size). The App's output and side panes paint through a gate the engine
-// closes while it fast-forwards.
+// stage is the window left of the strip, laid out by the cockpit at the
+// recorded font size (smaller only when the grid would be below the
+// cockpit's minimum): docks keep their recorded cell sizes, the game pane
+// takes the rest and the text reflows, as live. SIZE records are not used
+// (owner decision 2026-09-28: no letterboxing). The App's output and side
+// panes paint through a gate the engine closes while it fast-forwards.
 
 import type { RunLibrary } from '../runs/library';
 import type { RunEvent } from '../runs/events';
@@ -24,7 +26,7 @@ import { SettingsStore, type ViewSnapshot } from '../settings';
 import { applyTheme } from '../theme/apply';
 import { CellMetrics } from '../theme/cells';
 import { PlayerEngine, type PlayerTarget, type Wall } from '../player/engine';
-import { fitFontSize, overlayView, parseView } from '../player/fit';
+import { overlayView, parseView, playerFontSize } from '../player/fit';
 import { STRIP_COLS, markersOf } from '../player/strip';
 import { type ChainRun, buildTimeline, playAtLogUs } from '../player/timeline';
 import { PlayerView } from '../player/view';
@@ -86,7 +88,6 @@ export class PlayerHost {
   private view: PlayerView | null = null;
   private appRef: App | null = null;
   private store: SettingsStore | null = null;
-  private size: { cols: number; rows: number } | null = null;
   private readonly ro: ResizeObserver | null = null;
   private fitKey = '';
   private closed = false;
@@ -184,7 +185,6 @@ export class PlayerHost {
     void store.load();
     store.update(() => JSON.parse(JSON.stringify(this.opts.settings.get())) as never);
     this.store = store;
-    this.size = null;
     const app = new App({
       root: this.stage,
       player: true,
@@ -206,11 +206,8 @@ export class PlayerHost {
         const v = parseView(json);
         if (v) store.update((d) => overlayView(d, v as Partial<ViewSnapshot>));
       },
-      size: (cols, rows) => {
-        if (this.size?.cols === cols && this.size.rows === rows) return;
-        this.size = { cols, rows };
-        this.relayout();
-      },
+      // The recorded size is not used: the player fills the viewer's window.
+      size: () => {},
       paint: (on) => gate.set(on),
       dispose: () => {
         unsub();
@@ -223,18 +220,17 @@ export class PlayerHost {
 
   // --------------------------------------------------------------- layout
 
-  /** Theme and cell size from the player settings, the recorded size and the window. */
+  /** Theme and cell size from the player settings and the window. */
   private relayout(): void {
     const store = this.store;
     if (!store || this.closed) return;
     const s = store.get();
     applyTheme(s, this.el);
     let a = s.appearance;
-    const size = this.size;
     const W = this.el.clientWidth;
     const H = this.el.clientHeight;
     // The strip's columns are kept free, so it never covers a pane.
-    if (size && W > 0 && H > 0) a = { ...a, size: fitFontSize(a, size.cols + STRIP_COLS, size.rows, W, H) };
+    if (W > 0 && H > 0) a = { ...a, size: playerFontSize(a, W, H, STRIP_COLS) };
     const key = JSON.stringify(a);
     if (key !== this.fitKey) {
       this.fitKey = key;
@@ -243,23 +239,13 @@ export class PlayerHost {
     this.placeStage();
   }
 
-  /** Sizes and centres the stage: the recorded grid, or the whole player. */
+  /** Sizes the stage: the whole player less the strip's columns on the right. */
   private placeStage(): void {
     const st = this.stage.style;
-    const size = this.size;
     const c = this.cells.get();
-    if (!size) {
-      st.left = '0';
-      st.top = '0';
-      st.width = '100%';
-      st.height = '100%';
-      return;
-    }
-    const w = size.cols * c.w;
-    const h = size.rows * c.h;
-    st.width = `${w}px`;
-    st.height = `${h}px`;
-    st.left = `${Math.max(0, Math.floor((this.el.clientWidth - STRIP_COLS * c.w - w) / 2))}px`;
-    st.top = `${Math.max(0, Math.floor((this.el.clientHeight - h) / 2))}px`;
+    st.left = '0';
+    st.top = '0';
+    st.height = '100%';
+    st.width = c.w > 0 ? `${Math.max(0, this.el.clientWidth - STRIP_COLS * c.w)}px` : '100%';
   }
 }

@@ -1,22 +1,25 @@
-// Recorded layout (ADR 0018 "Recorded layout"): the player lays the
-// cockpit out at the recorded SIZE (cols × rows) with the largest font size
-// whose cell grid fits the window, and applies the recorded VIEW over the
-// viewer's settings. Pure.
+// Recorded layout (ADR 0018 "Recorded layout", amended 2026-09-28): the
+// player lays the cockpit out on the viewer's window (left of the strip)
+// with the recorded VIEW applied over the viewer's settings — layout, pane
+// settings and appearance, font size included — so docks keep their
+// recorded cell sizes and the game pane flexes to fill the rest, as in the
+// live client. The recorded SIZE is not used for the layout. Pure.
 
+import { MIN_VIEW_COLS, MIN_VIEW_ROWS } from '../layout/allocate';
 import { nominalCell } from '../theme/cells';
-import {
-  type AppearanceSettings,
-  FONT_SIZE_MAX,
-  FONT_SIZE_MIN,
-  type Settings,
-  type ViewSnapshot,
-} from '../settings/types';
+import { type AppearanceSettings, FONT_SIZE_MIN, type Settings, type ViewSnapshot } from '../settings/types';
 
-/** The largest font size (setting units) at which cols × rows cells fit in w × h px. */
-export function fitFontSize(a: Readonly<AppearanceSettings>, cols: number, rows: number, w: number, h: number): number {
-  for (let size = FONT_SIZE_MAX; size > FONT_SIZE_MIN; size--) {
+/**
+ * The player's font size in a `w` × `h` px window with `reserveCols` cells
+ * kept free on the right (the strip): the appearance's own size, or, when
+ * its grid would be below the cockpit's minimum (MIN_VIEW_COLS ×
+ * MIN_VIEW_ROWS), the largest smaller size that meets it (FONT_SIZE_MIN
+ * when none does).
+ */
+export function playerFontSize(a: Readonly<AppearanceSettings>, w: number, h: number, reserveCols: number): number {
+  for (let size = a.size; size > FONT_SIZE_MIN; size--) {
     const c = nominalCell({ ...a, size });
-    if (cols * c.w <= w && rows * c.h <= h) return size;
+    if (Math.floor(w / c.w) - reserveCols >= MIN_VIEW_COLS && Math.floor(h / c.h) >= MIN_VIEW_ROWS) return size;
   }
   return FONT_SIZE_MIN;
 }
