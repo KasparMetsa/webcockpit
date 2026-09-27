@@ -1,0 +1,143 @@
+1790449200000000 GMCP Comm.Channel.List [{"name":"tales","caption":"Narrates","command":"narrate"},{"name":"tells","caption":"Tells","command":"tell"},{"name":"says","caption":"Says","command":"say"},{"name":"yells","caption":"Yells","command":"yell"},{"name":"prayers","caption":"Prayers","command":"pray"},{"name":"emotes","caption":"Emotes","command":"emote"},{"name":"whispers","caption":"Whispers","command":"whisper"},{"name":"questions","caption":"Questions","command":"question"},{"name":"songs","caption":"Songs","command":"sing"},{"name":"socials","caption":"Socials","command":"social"}]
+1790449200200000 GMCP Char.Name {"name":"Rasta","fullname":"Rasta Fari the Wanderer"}
+1790449200200000 > change width all 500
+1790449200200000 > change width table terminal
+1790449200200000 Reconnecting.
+1790449200200000 GMCP Char.StatusVars {"name":"Rasta","fullname":"Rasta Fari the Wanderer","race":"Man","subrace":"Dunadan","subclass":"warrior","level":25,"next-level-xp":20000,"next-level-tp":3300}
+1790449200200000 GMCP Char.Vitals {"hp":172,"hp-string":"Healthy","maxhp":172,"mana":40,"mana-string":"Full","maxmana":40,"mp":131,"mp-string":"Rested","maxmp":131,"xp":5770000,"tp":40100,"carrying":"light","ride":null,"ridden":null,"climb":null,"sneak":null,"hidden":false,"swim":false,"light":"*","fog":null,"weather":" ","alertness":"normal","mood":"brave","spell-effort":"normal","position":"standing","mount-moves":null,"wimpy":30,"opponent":null,"buffer":null,"opponent-hits":null,"buffer-hits":null}
+1790449200200000 GMCP Group.Set [{"id":1,"type":"you","name":"Rasta","label":0,"hp":172,"hp-string":"Healthy","maxhp":172,"mana":40,"mana-string":"Full","maxmana":40,"mp":131,"mp-string":"Rested","maxmp":131},{"id":2,"type":"ally","name":"Gibur","hp":140,"hp-string":"Healthy","maxhp":140,"mana":90,"mana-string":"Full","maxmana":90,"mp":110,"mp-string":"Rested","maxmp":110},{"id":3,"type":"ally","name":"Dori","hp":95,"hp-string":"Fine","maxhp":120,"mana":150,"mana-string":"Full","maxmana":150,"mp":80,"mp-string":"Tired","maxmp":100},{"id":4,"type":"npc","name":"a citizen mercenary","label":"MERC","hp":200,"hp-string":"Healthy","maxhp":200,"mana":0,"mana-string":"Full","maxmana":0,"mp":150,"mp-string":"Rested","maxmp":150},{"id":5,"type":"npc","name":"a large dog","label":0,"hp":60,"hp-string":"Healthy","maxhp":60,"mana":0,"mana-string":"Full","maxmana":0,"mp":90,"mp-string":"Rested","maxmp":90}]
+1790449200200000 [32mThe Last Bridge[0m
+1790449200200000 The ancient stone bridge spans the Hoarwell here. The road continues east and west.
+1790449200200000 Exits: east, west.
+1790449200200000 A citizen mercenary (MERC) stands here, guarding you.
+1790449200200000 A large dog is here, wagging its tail.
+1790449200200000 o HP:Fine>
+1790449202200000 > time
+1790449202200000 8 am on Sterday, the 12th of Astron, year 2973 of the Third Age.
+1790449202200000 o HP:Fine>
+1790449203700000 GMCP Comm.Channel.Text {"channel":"tales","talker":"Gibur","talker-type":"player","text":"Gibur narrates 'orcs gathering at the ford'"}
+1790449203700000 [33mGibur narrates 'orcs gathering at the ford'[0m
+1790449203700000 o HP:Fine>
+1790449205700000 > tell gibur on my way
+1790449205700000 GMCP Comm.Channel.Text {"channel":"tells","talker":"you","destination":"Gibur","text":"on my way"}
+1790449205700000 [32mYou tell Gibur 'on my way'[0m
+1790449205700000 o HP:Fine>
+1790449207200000 GMCP Comm.Channel.Text {"channel":"tells","talker":"Gibur","talker-type":"player","text":"Gibur tells you 'hurry, bring the merc'"}
+1790449207200000 [32mGibur tells you 'hurry, bring the merc'[0m
+1790449207200000 o HP:Fine>
+1790449208200000 GMCP Event.Sun {"what":"rise"}
+1790449208200000 [33mThe sun rises in the east.[0m
+1790449208200000 o HP:Fine>
+1790449209700000 > look at clock
+1790449209700000 The current time is 8:00am.
+1790449209700000 o HP:Fine>
+1790449211200000 > wimpy 50
+1790449211200000 Wimpy set to: 50
+1790449211200000 GMCP Char.Vitals {"wimpy":50}
+1790449211200000 o HP:Fine>
+1790449212200000 > change mood aggressive
+1790449212200000 You will now fight aggressively.
+1790449212200000 GMCP Char.Vitals {"mood":"aggressive"}
+1790449212200000 o HP:Fine>
+1790449214200000 > e
+1790449214200000 GMCP Event.Moved {"dir":"east"}
+1790449214200000 GMCP Group.Remove 5
+1790449214200000 GMCP Char.Vitals {"mp":128,"mp-string":"Rested"}
+1790449214200000 [32mFord of Bruinen[0m
+1790449214200000 The river runs shallow and fast over a bed of round stones.
+1790449214200000 Exits: east, west.
+1790449214200000 [31mAn orc scout is here, fighting nobody.[0m
+1790449214200000 o HP:Fine>
+1790449214600000 GMCP Group.Add {"id":6,"type":"npc","name":"a large dog","label":0,"hp":60,"hp-string":"Healthy","maxhp":60,"mana":0,"mana-string":"Full","maxmana":0,"mp":88,"mp-string":"Rested","maxmp":90}
+1790449214600000 A large dog arrives from the west.
+1790449214600000 o HP:Fine>
+1790449216100000 > label dog DOG
+1790449216100000 You label a large dog as DOG.
+1790449216100000 GMCP Group.Update {"id":6,"label":"DOG"}
+1790449216100000 o HP:Fine>
+1790449217600000 GMCP Comm.Channel.Text {"channel":"says","talker":"Dori","talker-type":"player","text":"Dori says 'I can smell them' in Khuzdul."}
+1790449217600000 [36mDori says 'I can smell them' in Khuzdul.[0m
+1790449217600000 o HP:Fine>
+1790449218600000 > whisper dori stay behind me
+1790449218600000 GMCP Comm.Channel.Text {"channel":"whispers","talker":"you","destination":"Dori","text":"stay behind me"}
+1790449218600000 You whisper to Dori 'stay behind me'
+1790449218600000 o HP:Fine>
+1790449219600000 GMCP Comm.Channel.Text {"channel":"socials","talker":"Dori","talker-type":"player","text":"Dori nods solemnly."}
+1790449219600000 Dori nods solemnly.
+1790449219600000 o HP:Fine>
+1790449221600000 > kill scout
+1790449221600000 You attack an orc scout.
+1790449221600000 GMCP Char.Vitals {"position":"fighting","opponent":"an orc scout","buffer":"Rasta","opponent-hits":"healthy","buffer-hits":"healthy"}
+1790449221600000 [31mYou slash an orc scout hard.[0m
+1790449221600000 o HP:Fine Mana:Full scout:Healthy>
+1790449222600000 GMCP Char.Vitals {"opponent-hits":"fine"}
+1790449222600000 An orc scout slashes you.
+1790449222600000 GMCP Char.Vitals {"hp":158,"hp-string":"Fine","buffer-hits":"fine"}
+1790449222600000 GMCP Group.Update {"id":1,"hp":158,"hp-string":"Fine"}
+1790449222600000 o HP:Fine scout:Fine>
+1790449223600000 GMCP Comm.Channel.Text {"channel":"yells","talker":"*Throzghul*","talker-type":"enemy","text":"\u001b[31m*Throzghul*\u001b[0m yells loudly from the east 'kill them all' in Orkish."}
+1790449223600000 [31m*Throzghul*[0m yells loudly from the east 'kill them all' in Orkish.
+1790449223600000 o HP:Fine scout:Fine>
+1790449224600000 A citizen mercenary (MERC) hits an orc scout.
+1790449224600000 GMCP Char.Vitals {"opponent-hits":"hurt"}
+1790449224600000 GMCP Group.Update {"id":3,"hp-string":"Hurt"}
+1790449224600000 An orc scout pierces Dori hard.
+1790449224600000 o HP:Fine scout:Hurt>
+1790449225400000 GMCP Group.Update {"id":3,"hp":61}
+1790449225400000 GMCP Group.Update {"id":4,"hp":182,"hp-string":"Healthy","mp":140,"mp-string":"Rested"}
+1790449226400000 GMCP Char.Vitals {"opponent-hits":"wounded"}
+1790449226400000 [31mYou cleave an orc scout extremely hard.[0m
+1790449226400000 o HP:Fine scout:Wounded>
+1790449227400000 GMCP Comm.Channel.Text {"channel":"emotes","talker":"Gibur","talker-type":"player","text":"Gibur grins at the scout wickedly."}
+1790449227400000 Gibur grins at the scout wickedly.
+1790449228400000 GMCP Char.Vitals {"opponent-hits":"dying"}
+1790449228400000 [31mYou slash an orc scout extremely hard.[0m
+1790449228400000 o HP:Fine scout:Dying>
+1790449229400000 An orc scout is dead! R.I.P.
+1790449229400000 GMCP Char.Vitals {"position":"standing","opponent":null,"buffer":null,"opponent-hits":null,"buffer-hits":null,"xp":5795500,"tp":40350}
+1790449229400000 [1mYou rise a level![0m
+1790449229400000 GMCP Char.StatusVars {"level":26,"next-level-xp":750000,"next-level-tp":3400}
+1790449229400000 GMCP Event.Achieved {"what":"Defeated an orc scout at the Ford of Bruinen."}
+1790449229400000 Achievement unlocked: Defeated an orc scout at the Ford of Bruinen.
+1790449229400000 o HP:Fine>
+1790449230900000 GMCP Comm.Channel.Text {"channel":"tales","talker":"you","text":"scout down at the ford"}
+1790449230900000 > narrate scout down at the ford
+1790449230900000 [33mYou narrate 'scout down at the ford'[0m
+1790449230900000 o HP:Fine>
+1790449232400000 GMCP Comm.Channel.Text {"channel":"prayers","talker":"Dori","talker-type":"player","text":"Dori prays 'Mahal, mend my wounds'"}
+1790449233400000 GMCP Comm.Channel.Text {"channel":"questions","talker":"Ecthel","talker-type":"player","text":"Ecthel asks 'anyone near Rivendell?'"}
+1790449234400000 GMCP Comm.Channel.Text {"channel":"songs","talker":"Lindir","talker-type":"player","text":"Lindir sings 'A Elbereth Gilthoniel'"}
+1790449235400000 > sneak
+1790449235400000 You will now try to move silently.
+1790449235400000 GMCP Char.Vitals {"sneak":"s","alertness":"careful"}
+1790449235400000 o HP:Fine>
+1790449236900000 > rest
+1790449236900000 You sit down and rest your tired bones.
+1790449236900000 GMCP Char.Vitals {"position":"resting","hp":165,"hp-string":"Fine"}
+1790449236900000 GMCP Group.Update {"id":3,"hp":75,"hp-string":"Fine"}
+1790449236900000 o HP:Fine>
+1790449238900000 Gibur leaves east.
+1790449238900000 GMCP Group.Remove 2
+1790449238900000 o HP:Fine>
+1790449241900000 Gibur arrives from the east.
+1790449241900000 GMCP Group.Add {"id":7,"type":"ally","name":"Gibur","hp":131,"hp-string":"Fine","maxhp":140,"mana":70,"mana-string":"Full","maxmana":90,"mp":95,"mp-string":"Rested","maxmp":110}
+1790449241900000 GMCP Comm.Channel.Text {"channel":"tells","talker":"Gibur","talker-type":"player","text":"Gibur tells you 'more coming, 2 trolls'"}
+1790449241900000 [32mGibur tells you 'more coming, 2 trolls'[0m
+1790449241900000 o HP:Fine>
+1790449243900000 > stand
+1790449243900000 You stand up.
+1790449243900000 GMCP Char.Vitals {"position":"standing","hp":172,"hp-string":"Healthy","climb":"c","ride":null,"swim":false}
+1790449243900000 o HP:Fine>
+1790449246900000 GMCP Char.Vitals {"mp":131,"mp-string":"Rested"}
+1790449246900000 GMCP Group.Update {"id":7,"mp":110,"mp-string":"Rested","mana":90,"mana-string":"Full"}
+1790449246900000 You feel rested.
+1790449246900000 o HP:Fine>
+1790449249900000 The river keeps running over the stones.
+1790449249900000 o HP:Fine>
+1790449253900000 GMCP Comm.Channel.Text {"channel":"says","talker":"you","text":"ready when you are"}
+1790449253900000 > say ready when you are
+1790449253900000 [36mYou say 'ready when you are'[0m
+1790449253900000 o HP:Fine>
+1790449257900000 GMCP Event.Darkness {"what":"end"}
+1790449257900000 A crow caws somewhere to the north.
+1790449257900000 o HP:Fine>

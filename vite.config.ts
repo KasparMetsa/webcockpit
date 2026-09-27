@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { type Plugin, defineConfig } from 'vite';
 
 // Cross-origin isolation (spec §1.5) stays possible from day one.
@@ -17,6 +18,24 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 /** Default location of the owner's Cockpit raw logs (ADR 0007). */
 export const DEFAULT_FIXTURES = '/home/ole/MUME/data/runs';
+/** Fixtures kept in the repository (the GMCP demo, ADR 0016); searched first. */
+export const REPO_FIXTURES = fileURLToPath(new URL('./tests/fixtures', import.meta.url));
+
+/** Fixture roots in lookup order: the repository, then $WEBCOCKPIT_FIXTURES. */
+function fixtureRoots(): string[] {
+  return [REPO_FIXTURES, resolve(process.env.WEBCOCKPIT_FIXTURES ?? DEFAULT_FIXTURES)];
+}
+
+/** Resolves `rel` inside `root` (symlinks included), or null if outside or missing. */
+function fixtureFile(root: string, rel: string): string | null {
+  try {
+    const realRoot = realpathSync(root);
+    const file = realpathSync(resolve(realRoot, rel));
+    return file.startsWith(realRoot + sep) && statSync(file).isFile() ? file : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Every `.log` under `root`, as `/`-separated paths relative to it. */
 function listLogs(root: string): string[] {
@@ -45,11 +64,13 @@ function listLogs(root: string): string[] {
 }
 
 /**
- * Dev-only, read-only access to replay fixtures (ADR 0007):
- *   GET /__fixtures/list        JSON array of relative `.log` paths
- *   GET /__fixtures/<rel path>  the log text
- * Paths are resolved (symlinks included) and must stay inside the root.
- * `apply: 'serve'` keeps this out of `vite build` and `vite preview`.
+ * Dev-only, read-only access to replay fixtures (ADR 0007, ADR 0016):
+ *   GET /__fixtures/list        JSON array of relative `.log` paths (all roots)
+ *   GET /__fixtures/<rel path>  the log text, from the first root that has it
+ * Roots: `tests/fixtures` in the repository, then $WEBCOCKPIT_FIXTURES
+ * (default the owner's Cockpit runs). Paths are resolved (symlinks
+ * included) and must stay inside their root. `apply: 'serve'` keeps this
+ * out of `vite build` and `vite preview`.
  */
 function fixturesPlugin(): Plugin {
   return {
@@ -58,7 +79,7 @@ function fixturesPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use('/__fixtures', (req, res, next) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-        const root = resolve(process.env.WEBCOCKPIT_FIXTURES ?? DEFAULT_FIXTURES);
+        const roots = fixtureRoots();
         const send = (code: number, type: string, body: string | Buffer): void => {
           const r = res as ServerResponse;
           r.statusCode = code;
@@ -75,21 +96,15 @@ function fixturesPlugin(): Plugin {
           return send(400, 'text/plain', 'bad path');
         }
         if (rel === 'list') {
-          return send(200, 'application/json', JSON.stringify(listLogs(root)));
+          const all = [...new Set(roots.flatMap((r) => listLogs(r)))].sort();
+          return send(200, 'application/json', JSON.stringify(all));
         }
         if (!rel.endsWith('.log') || rel.includes('\0')) return send(404, 'text/plain', 'not found');
-        let file: string;
-        let realRoot: string;
-        try {
-          realRoot = realpathSync(root);
-          file = realpathSync(resolve(realRoot, rel));
-        } catch {
-          return send(404, 'text/plain', 'not found');
+        for (const root of roots) {
+          const file = fixtureFile(root, rel);
+          if (file) return send(200, 'text/plain; charset=utf-8', readFileSync(file));
         }
-        if (!file.startsWith(realRoot + sep) || !statSync(file).isFile()) {
-          return send(404, 'text/plain', 'not found');
-        }
-        return send(200, 'text/plain; charset=utf-8', readFileSync(file));
+        return send(404, 'text/plain', 'not found');
       });
     },
   };
