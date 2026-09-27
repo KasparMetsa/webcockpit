@@ -41,6 +41,10 @@ Newest first.
   quadrant (setting removed), a top dock, and floating panes (per pane,
   free position and size). Done in ADR 0014; 348 unit, 66 e2e, bench
   passes. Owner retests the docking.
+- **Owner test 2:** input line always directly under the game pane
+  (side docks full height, bottom dock under the input); a docked pane
+  dragged out floats at 36 × 14. Done (ADR 0014 amendment); 350 unit,
+  70 e2e, bench passes. Owner retests; then close stage 2.
 - **Commits:** c815295…(this commit).
 
 ### 2026-09-27 — Stage 1 build
