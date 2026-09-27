@@ -147,7 +147,7 @@ Mapped to Inv §9.
 - **Session.** One character per tab. Connect, login, disconnect, and
   reconnect from the ESC menu. The menu opens automatically on disconnect
   (ADR 0058 behaviour).
-- **Keep-alive.** GMCP `Core.Ping` goes out every 30 s when idle.
+- **Keep-alive.** GMCP `Core.Ping` goes out every 10 s (ADR 0007, amended).
   - Its round-trip time is shown as the `Link:` readout.
   - A missing pong detects a half-open link.
 - **Tab close.**

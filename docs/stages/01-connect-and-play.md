@@ -144,4 +144,17 @@ login.
 
 ## Owner feedback
 
-(Filled in after the owner tests.)
+### 2026-09-27 — first live session (short)
+
+1. Speed: feels as fast as tt++ in a first, cursory test.
+2. Echo form: looks correct.
+3. XML: confirmed on. In game, `change xml` answered "Your connection's
+   XML mode is on. This setting is controlled by your client or mapper."
+   No tags leak into the output.
+4. Link: the owner did not find the readout. Cause: the ping only went
+   out after 30 s without sending, so it showed `—` during play, and the
+   status line is faint. Fixed: ping every 10 s (ADR 0007 amended).
+5. Idle timeout: not tested yet; a short session worked well.
+6. `#runlog` downloaded a file in Cockpit's format. Main-session review
+   found non-monotonic timestamps around `change width` after
+   `Char.Name`; fixed.

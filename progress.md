@@ -34,6 +34,9 @@ Newest first.
   and answers the six live checks; then fix feedback and start stage 2.
 - **Open issues:** live checks 1–6 (XML was seen before login in a quick
   check); Ctrl+W cannot be intercepted in a normal tab.
+- **Owner live test 1:** speed and echo OK, XML confirmed on, `#runlog`
+  OK. Fixed after: `Core.Ping` every 10 s so `Link:` shows during play;
+  monotonic capture timestamps. Idle timeout still untested.
 - **Commits:** 1336f54…(this commit).
 
 ### 2026-09-27 — Intent and spec
