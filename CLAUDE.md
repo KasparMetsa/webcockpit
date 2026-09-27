@@ -6,7 +6,8 @@ feature parity, minimal latency, TUI look and feel.
 
 ## Project phase
 
-**Current phase: Spec.** `intent.md` approved 2026-09-27. No code yet.
+**Current phase: Build.** `intent.md` and `spec.md` approved 2026-09-27.
+See `progress.md` for the current stage and the last session's handoff.
 
 1. `intent.md` — what and why. Written through a grilling session with the
    owner. Nothing else starts until it is approved.
@@ -18,11 +19,16 @@ feature parity, minimal latency, TUI look and feel.
 
 - `intent.md` — goals, non-goals, users, success criteria. Wins over
   everything else.
-- `spec.md` — architecture and requirements (once it exists).
+- `spec.md` — architecture, requirements and stage plan.
 - `docs/decisions/` — Architecture Decision Records, append-only,
   numbered `NNNN-title.md`.
+- `progress.md` — stage status table and session log. Start here.
+- `docs/stages/NN-name.md` — one file per stage: plan, task checklist,
+  test guide, owner feedback.
 - `notes/grilling.md` — raw Q&A log from the intent sessions. Source
   material, not authoritative.
+- `notes/research/` — research notes. `cockpit-inventory.md` is the
+  normative appendix to `spec.md` ("Inv §n").
 
 ## Reference project (read-only)
 
@@ -49,3 +55,33 @@ learned (`docs/decisions/`), and real session logs as test material.
 - Conversation with the owner: Swedish.
 - Code, comments, commit messages, docs: English.
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`.
+
+## Sessions and traceability
+
+Work happens in separate sessions, normally one stage (or one part of a
+stage) per session. The repository is the only memory between sessions.
+
+At session start:
+
+1. Read `CLAUDE.md`, `progress.md`, and the current stage file.
+2. Read `spec.md` sections and ADRs the stage touches. Read the inventory
+   only for the sections you need (it is long).
+
+During the session:
+
+- Keep the stage file's task checklist current.
+- Record technical decisions as ADRs.
+- Commit in small conventional commits.
+
+At session end (always, even if interrupted work remains):
+
+- Append an entry to the session log in `progress.md`: date, stage, what
+  was done, what is next, open issues, and commits.
+- Keep it to about 5–10 lines. The details live in git, the stage file
+  and the ADRs.
+- Update the stage status table.
+- Commit.
+
+A new stage starts by writing `docs/stages/NN-name.md` from spec §5. The
+file holds the plan, the tasks and the test guide. The owner's feedback
+after testing goes in the same file.

@@ -1,6 +1,6 @@
 # WebCockpit — Spec
 
-> Status: DRAFT, awaiting owner approval.
+> Status: APPROVED by owner 2026-09-27.
 > Derived from `intent.md` (approved 2026-09-27). Where this document and
 > `intent.md` disagree, `intent.md` wins.
 
@@ -358,4 +358,4 @@ what feedback is wanted.
 
 ## 6. Open questions for the owner
 
-1. **Stage order.** Are you happy with the order in §5?
+None. New questions are raised in the stage files (`docs/stages/`).
