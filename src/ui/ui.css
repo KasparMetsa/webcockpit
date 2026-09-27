@@ -81,6 +81,11 @@ body {
   overflow-anchor: none;
 }
 
+.wc-chunk {
+  /* A chunk's rows never affect layout outside it (see output-pane.ts). */
+  contain: content;
+}
+
 .wc-row {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

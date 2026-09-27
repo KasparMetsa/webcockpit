@@ -11,7 +11,7 @@ function watchErrors(page: Page): string[] {
   return errors;
 }
 
-const rows = (page: Page) => page.locator('.wc-rows > .wc-row');
+const rows = (page: Page) => page.locator('.wc-rows .wc-row');
 const status = (page: Page) => page.locator('.wc-status');
 const field = (page: Page) => page.locator('.wc-input-field');
 
@@ -50,7 +50,7 @@ test.describe('fixture replay', () => {
     await replayDone(page);
     expect(await rows(page).count()).toBeGreaterThan(10);
     expect(await page.locator('.wc-rows span[class*="wc-f"]').count()).toBeGreaterThan(0);
-    expect(await page.locator('.wc-rows > .wc-prompt').count()).toBeGreaterThan(0);
+    expect(await page.locator('.wc-rows .wc-prompt').count()).toBeGreaterThan(0);
     // Colour comes from the DOS palette, not inherited default grey.
     const colour = await page
       .locator('.wc-rows span.wc-f2, .wc-rows span.wc-f3, .wc-rows span.wc-f6')

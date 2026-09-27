@@ -26,7 +26,7 @@ function setup(scrollback = 100) {
     while (frames.length) frames.shift()!();
   };
   const rows = () =>
-    Array.from(pane.el.querySelectorAll('.wc-rows > .wc-row')).map((r) => r.textContent);
+    Array.from(pane.el.querySelectorAll('.wc-rows .wc-row')).map((r) => r.textContent);
   const partial = () => pane.el.querySelector('.wc-partial') as HTMLElement;
   return { bus, root, pane, frames, runFrames, rows, partial, focus, clip };
 }
@@ -58,6 +58,28 @@ describe('OutputPane batching', () => {
     expect(t.pane.rows).toBe(10);
     expect(r[0]).toBe('a4');
     expect(r[9]).toBe('b6');
+  });
+
+  it('groups rows into chunks and trims whole chunks from the top', () => {
+    const t = setup(1000); // chunks of 10 rows
+    for (let i = 0; i < 995; i++) t.bus.emit('text.line', line('c' + i));
+    t.runFrames();
+    expect(t.pane.el.querySelectorAll('.wc-rows > .wc-chunk')).toHaveLength(100);
+    expect(t.pane.rows).toBe(995);
+    for (let i = 995; i < 1013; i++) {
+      t.bus.emit('text.line', line('c' + i));
+      t.runFrames();
+    }
+    // 1013 rows would leave 1003 after dropping the first chunk: at least
+    // `scrollback` rows are kept, fewer than scrollback + one chunk.
+    const r = t.rows();
+    expect(r.length).toBe(1003);
+    expect(t.pane.rows).toBe(1003);
+    expect(r[0]).toBe('c10');
+    expect(r.at(-1)).toBe('c1012');
+    for (const c of t.pane.el.querySelectorAll('.wc-chunk')) {
+      expect(c.childElementCount).toBeLessThanOrEqual(10);
+    }
   });
 
   it('drops queued lines that could never be seen', () => {
@@ -282,7 +304,7 @@ describe('OutputPane scrolling and selection', () => {
     const t = setup();
     t.bus.emit('text.line', line('copy me'));
     t.runFrames();
-    const row = t.pane.el.querySelector('.wc-rows > .wc-row')!;
+    const row = t.pane.el.querySelector('.wc-rows .wc-row')!;
     const range = document.createRange();
     range.selectNodeContents(row);
     const sel = document.getSelection()!;

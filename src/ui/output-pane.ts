@@ -3,8 +3,9 @@
 //
 // Batching and overflow policy
 // ----------------------------
-// - Bus events only enqueue. One flush per animation frame builds a single
-//   DocumentFragment and appends it once, so a burst paints atomically.
+// - Bus events only enqueue. One flush per animation frame builds the rows
+//   and appends them with one fragment per touched chunk, so a burst paints
+//   atomically.
 // - Only the last `scrollback` rows can ever be seen, so queued rows beyond
 //   that are dropped before any DOM work (at enqueue when the queue grows
 //   past 2 × scrollback, and again at flush). A 1 MB burst therefore costs
@@ -13,10 +14,18 @@
 //   the next frame. Normal bursts (score, eq, a combat round: tens of lines)
 //   still land in one frame; only huge bursts are spread over several frames,
 //   which keeps every frame well under the 50 ms budget.
-// - Scrollback: when the row count exceeds `scrollback`, rows are removed
-//   from the top (plain removal; node reuse is only worth its complexity if
-//   the stage-1 benchmark shows removal cost). While the user is scrolled up,
-//   the height removed at the top is compensated so the view does not move.
+// - Rows live in chunk elements (`.wc-rows > .wc-chunk > .wc-row`) of up to
+//   CHUNK_ROWS rows. Chunks use `contain: content`, so a change inside one
+//   does not re-lay out the others, and the scroller holds ~100 boxes, not
+//   20 000.
+// - Scrollback: the pane keeps at least `scrollback` rows and fewer than
+//   `scrollback` + one chunk. Old rows go a whole chunk at a time, once the
+//   remaining chunks still hold `scrollback` rows. Removing rows at the top
+//   moves every box below; the stage-1 benchmark measured 3.8 → 21 ms per
+//   50-line flush in Chromium at 20 000 flat rows trimmed per flush, and
+//   ~2.5 → ~5 ms with chunks trimmed row by row. While the user is scrolled
+//   up, the height removed at the top is compensated so the view does not
+//   move.
 //
 // Game text only ever reaches the DOM through textContent / text nodes.
 
@@ -26,6 +35,12 @@ import { colorToCss, effectiveFg } from './palette';
 
 /** At most this many rows are built per animation frame. */
 export const MAX_ROWS_PER_FRAME = 1000;
+
+/**
+ * Rows are grouped into chunk elements of up to this many rows (fewer for a
+ * small scrollback: scrollback / 100, at least 1). See the file header.
+ */
+export const CHUNK_ROWS = 200;
 
 /** Default scrollback depth in rows (spec §1.3). */
 export const DEFAULT_SCROLLBACK = 20000;
@@ -66,6 +81,7 @@ export class OutputPane {
   private readonly measurer: HTMLSpanElement;
 
   private readonly scrollback: number;
+  private readonly chunkRows: number;
   private readonly requestFrame: (cb: () => void) => void;
   private readonly writeClipboard: (text: string) => Promise<void>;
   private readonly onFocusInput: (() => void) | undefined;
@@ -76,7 +92,7 @@ export class OutputPane {
   private frameScheduled = false;
 
   private rowCount = 0;
-  /** The last row element in rowsEl, or null. */
+  /** The last row element (inside the last chunk), or null. */
   private lastRow: HTMLElement | null = null;
 
   private partial: Line | null = null;
@@ -96,6 +112,7 @@ export class OutputPane {
 
   constructor(bus: Bus, root: HTMLElement, opts: OutputPaneOptions = {}) {
     this.scrollback = Math.max(1, opts.scrollback ?? DEFAULT_SCROLLBACK);
+    this.chunkRows = Math.max(1, Math.min(CHUNK_ROWS, Math.floor(this.scrollback / 100)));
     this.requestFrame =
       opts.requestFrame ?? ((cb) => void requestAnimationFrame(() => cb()));
     this.writeClipboard =
@@ -222,8 +239,7 @@ export class OutputPane {
     if (tail - start > this.scrollback) start = tail - this.scrollback;
     const end = Math.min(tail, start + MAX_ROWS_PER_FRAME);
 
-    let frag: DocumentFragment | null = null;
-    let added = 0;
+    const built: HTMLElement[] = [];
     let prev = this.lastRow;
     for (let i = start; i < end; i++) {
       const op = this.queue[i]!;
@@ -240,10 +256,8 @@ export class OutputPane {
         row = renderEcho(doc, isOpenPrompt(prev) ? prev : null, op.text);
       }
       if (row) {
-        if (!frag) frag = doc.createDocumentFragment();
-        frag.appendChild(row);
+        built.push(row);
         prev = row;
-        added++;
       }
     }
     this.head = end;
@@ -255,12 +269,12 @@ export class OutputPane {
     }
 
     const wasScrolled = this.scrolled;
-    if (frag) {
-      const overflow = this.rowCount + added - this.scrollback;
-      if (overflow > 0) this.trimTop(overflow, frag, wasScrolled);
-      this.rowsEl.appendChild(frag);
-      this.rowCount = Math.min(this.rowCount + added, this.scrollback);
-      this.lastRow = this.rowsEl.lastElementChild as HTMLElement | null;
+    const added = built.length;
+    if (added > 0) {
+      this.appendRows(built);
+      this.rowCount += added;
+      this.lastRow = built[added - 1]!;
+      this.trimTop(wasScrolled);
     }
 
     if (this.partialDirty) this.renderPartial();
@@ -275,19 +289,56 @@ export class OutputPane {
     if (this.head < this.queue.length) this.schedule();
   }
 
-  /** Removes `n` rows from the top: first existing rows, then from `frag`. */
-  private trimTop(n: number, frag: DocumentFragment, keepView: boolean): void {
-    const fromDom = Math.min(n, this.rowCount);
+  /**
+   * Appends `rows`: first into the room left in the last chunk,
+   * then into new chunks. Each touched parent gets one fragment append.
+   */
+  private appendRows(rows: HTMLElement[]): void {
+    const doc = this.el.ownerDocument;
+    const size = this.chunkRows;
+    let i = 0;
+    const last = this.rowsEl.lastElementChild as HTMLElement | null;
+    if (last) {
+      const room = size - last.childElementCount;
+      if (room > 0 && i < rows.length) {
+        const n = Math.min(room, rows.length - i);
+        const frag = doc.createDocumentFragment();
+        for (const stop = i + n; i < stop; i++) frag.appendChild(rows[i]!);
+        last.appendChild(frag);
+      }
+    }
+    if (i >= rows.length) return;
+    const chunks = doc.createDocumentFragment();
+    while (i < rows.length) {
+      const chunk = doc.createElement('div');
+      chunk.className = 'wc-chunk';
+      for (const stop = Math.min(rows.length, i + size); i < stop; i++) chunk.appendChild(rows[i]!);
+      chunks.appendChild(chunk);
+    }
+    this.rowsEl.appendChild(chunks);
+  }
+
+  /**
+   * Drops whole chunks from the top while the rest still holds at least
+   * `scrollback` rows. Only whole chunks are removed: removing rows at the
+   * top moves every following box, and doing that once per chunk instead
+   * of once per flush keeps the cost of a full scrollback flat.
+   */
+  private trimTop(keepView: boolean): void {
+    let drop = 0;
+    let chunks = 0;
+    let c = this.rowsEl.firstElementChild;
+    while (c && this.rowCount - drop - c.childElementCount >= this.scrollback) {
+      drop += c.childElementCount;
+      chunks++;
+      c = c.nextElementSibling;
+    }
+    if (chunks === 0) return;
     const s = this.scroller;
     const before = keepView ? s.scrollHeight : 0;
-    if (fromDom === this.rowCount) {
-      this.rowsEl.textContent = '';
-    } else {
-      for (let i = 0; i < fromDom; i++) this.rowsEl.firstElementChild!.remove();
-    }
-    this.rowCount -= fromDom;
-    for (let i = fromDom; i < n; i++) frag.firstChild?.remove();
-    if (keepView && fromDom > 0) {
+    for (let i = 0; i < chunks; i++) this.rowsEl.firstElementChild!.remove();
+    this.rowCount -= drop;
+    if (keepView) {
       const removed = before - s.scrollHeight;
       if (removed > 0) s.scrollTop = Math.max(0, s.scrollTop - removed);
     }

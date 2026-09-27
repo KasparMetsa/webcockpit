@@ -51,7 +51,7 @@ function setup() {
   };
   const outputText = () => {
     runFrames();
-    return Array.from(app.output.el.querySelectorAll('.wc-rows > .wc-row')).map((r) => r.textContent ?? '');
+    return Array.from(app.output.el.querySelectorAll('.wc-rows .wc-row')).map((r) => r.textContent ?? '');
   };
   const sentText = (s: FakeSocket) => new TextDecoder('latin1').decode(Uint8Array.from(s.sentBytes()));
   return { app, root, sockets, runFrames, outputText, sentText };
