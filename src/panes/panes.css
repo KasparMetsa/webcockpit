@@ -1,0 +1,7 @@
+/* Pane content rows (src/panes/grid.ts): one cell high, whole cells wide. */
+.wc-prow {
+  height: var(--cell-h);
+  line-height: var(--cell-h);
+  white-space: pre;
+  overflow: hidden;
+}

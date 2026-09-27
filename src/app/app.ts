@@ -55,6 +55,8 @@ import { Cockpit } from '../layout/cockpit';
 import { SettingsStore, viewSnapshot } from '../settings';
 import { createPaneContext, defaultRequestFrame, lazyDb } from '../panes/context';
 import { OutputPane } from '../ui/output-pane';
+import { ClockStrip } from '../ui/clock-strip';
+import { GameState } from '../gmcp/state';
 import { AppStatus, type AppStatusView, formatStatus } from './status';
 import { VariableWriteBack } from './writeback';
 
@@ -121,6 +123,13 @@ export interface AppOptions {
    * `globalThis.indexedDB`; null = none.
    */
   paneDb?: IDBFactory | null;
+  /**
+   * Where the game clock is kept (`wc.clock`). Default
+   * `globalThis.localStorage`; null = memory only (tests).
+   */
+  clockStorage?: Storage | null;
+  /** Wall clock in ms for the game state and the clock strip (tests). */
+  now?: () => number;
 }
 
 export class App {
@@ -138,6 +147,10 @@ export class App {
   readonly recorder: Recorder;
   /** The tt++ script engine (ADR 0015). */
   readonly script: ScriptEngine;
+  /** Character, group and clock state (src/gmcp/state.ts), shared with the panes. */
+  readonly game: GameState;
+  /** The input line's day/night clock. */
+  readonly clockStrip: ClockStrip;
   private readonly settings: SettingsStore;
   private readonly profiles: ProfileStore | null;
   private readonly writeBack: VariableWriteBack | null;
@@ -173,12 +186,21 @@ export class App {
       this.el.dataset.status = formatStatus(st);
     });
     const cells = opts.cells;
+    const now = opts.now ?? Date.now;
+    this.game = new GameState({
+      now,
+      storage: opts.clockStorage === undefined ? defaultLocalStorage() : opts.clockStorage,
+    });
     this.assembler = new LineAssembler(bus);
     this.session = new Session({
       bus,
       sink: this.assembler,
       ...(opts.socketFactory ? { socketFactory: opts.socketFactory } : {}),
+      onMssp: (vars) => this.game.mssp(vars),
     });
+    // Before the panes and the script engine: models are current when
+    // they react to the same message.
+    this.game.attach(bus);
     this.settings = opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null });
     this.profiles = opts.profiles ?? null;
     // Before the cockpit, so the recorder sees its first `view.size`.
@@ -202,6 +224,8 @@ export class App {
       sender: this.session,
       connState: () => this.session.state,
       openDb: lazyDb(opts.paneDb),
+      now,
+      game: this.game,
     });
     this.cockpit = new Cockpit({
       root: this.el,
@@ -224,6 +248,7 @@ export class App {
       ...(opts.onEscape ? { onEscape: opts.onEscape } : {}),
       ...(cells ? { cellWidth: () => cells.get().w } : {}),
     });
+    this.clockStrip = new ClockStrip(this.input.clockEl, { game: this.game, settings: this.settings, now });
     cells?.subscribe(() => {
       this.output.remeasure();
       this.input.scheduleCaret();
@@ -238,6 +263,7 @@ export class App {
       ...(opts.scheduler ? { scheduler: opts.scheduler } : {}),
     });
     this.script.attach(bus);
+    this.game.installRules(this.script.system);
     this.writeBack = this.profiles
       ? new VariableWriteBack(this.profiles, {
           ...(opts.writeBackDelayMs !== undefined ? { delayMs: opts.writeBackDelayMs } : {}),
@@ -522,5 +548,13 @@ export class App {
 
   private sys(text: string): void {
     this.bus.emit('sys.message', { text });
+  }
+}
+
+function defaultLocalStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
   }
 }

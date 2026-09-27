@@ -14,6 +14,7 @@
 import { Bus } from '../core/bus';
 import { openWebcockpitDb } from '../core/db';
 import type { ConnState, Sender } from '../core/types';
+import { GameState } from '../gmcp/state';
 import { SettingsStore } from '../settings';
 
 /** The cell size source (src/theme/cells.ts `CellMetrics` fits). */
@@ -44,6 +45,11 @@ export interface PaneContext {
   readonly localStorage: Storage | null;
   /** `sessionStorage`, or null when unavailable (UI message ring). */
   readonly sessionStorage: Storage | null;
+  /**
+   * Character, group and clock models fed from the bus (src/gmcp/state.ts,
+   * P1). Shared with the input-line clock strip.
+   */
+  readonly game: GameState;
 }
 
 /** A sender that drops everything (tests, a cockpit without a session). */
@@ -102,20 +108,25 @@ function storage(name: 'localStorage' | 'sessionStorage'): Storage | null {
 /**
  * A complete context from a partial one. Defaults: a new Bus, an in-memory
  * settings store, a fixed 8×16 cell, `defaultRequestFrame`, `NULL_SENDER`,
- * state `idle`, no database, `Date.now`, and the global storages.
+ * state `idle`, no database, `Date.now`, the global storages, and a
+ * GameState that is not attached to the bus (clock in memory only; call
+ * `ctx.game.attach(ctx.bus)` or feed it with `onGmcp` in a test).
  */
 export function createPaneContext(p: Partial<PaneContext> & { doc: Document }): PaneContext {
+  const bus = p.bus ?? new Bus();
+  const now = p.now ?? Date.now;
   return {
     doc: p.doc,
-    bus: p.bus ?? new Bus(),
+    bus,
     settings: p.settings ?? new SettingsStore({ factory: null, storage: null, win: null }),
     cells: p.cells ?? { get: () => ({ w: 8, h: 16 }), subscribe: () => () => {} },
     requestFrame: p.requestFrame ?? defaultRequestFrame,
     sender: p.sender ?? NULL_SENDER,
     connState: p.connState ?? (() => 'idle'),
     openDb: p.openDb ?? lazyDb(null),
-    now: p.now ?? Date.now,
+    now,
     localStorage: p.localStorage === undefined ? storage('localStorage') : p.localStorage,
     sessionStorage: p.sessionStorage === undefined ? storage('sessionStorage') : p.sessionStorage,
+    game: p.game ?? new GameState({ now }),
   };
 }
