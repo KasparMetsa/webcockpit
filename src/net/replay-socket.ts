@@ -8,8 +8,11 @@
 // Inbound lines become UTF-8 bytes + CR LF. Outbound lines are skipped by
 // `logToFrames` unless `sends` is set; ReplaySocket sets it and hands each
 // recorded command (`''` = empty Enter) to `onSent` at its time, between
-// the inbound frames around it, and Session emits it as `cmd.sent` with
+// the inbound bytes around it, and Session emits it as `cmd.sent` with
 // `replay: true` (trackers see it; nothing re-sends, echoes or captures it).
+// At speed 0 the commands ride inside the 16 KB frames (byte offsets), so a
+// burst keeps its frame count; splitting a frame at every command made the
+// burst ~25 % slower (ADR 0017 "Burst fix").
 // `ESC GMCP <pkg> [json]` records become `IAC SB GMCP <pkg> [json] IAC SE`
 // at their timestamps; the first one is preceded by `IAC WILL GMCP` so the
 // telnet layer accepts them (a recorded Char.Name then takes the session to
@@ -46,8 +49,10 @@ export interface LogFrameOptions {
    */
   groupUs?: number;
   /**
-   * Yield the recorded outbound commands as frames of their own
-   * (`sent`, empty `bytes`). Default false: they are skipped.
+   * Yield the recorded outbound commands. At `speed > 0` each is a frame
+   * of its own at its time (`sent`, empty `bytes`); at speed 0 they ride
+   * in the byte frame around them (`sends`, with byte offsets), so a
+   * burst keeps its 16 KB frames. Default false: they are skipped.
    */
   sends?: boolean;
 }
@@ -56,8 +61,20 @@ export interface ReplayFrame {
   /** Delivery time in ms after the replay starts. */
   atMs: number;
   bytes: Uint8Array;
-  /** A recorded outbound command (`sends`); `bytes` is then empty. */
+  /** A recorded outbound command (`sends`, speed > 0); `bytes` is then empty. */
   sent?: string;
+  /**
+   * Recorded outbound commands inside this frame (`sends`, speed 0): each
+   * comes before `bytes[at]` (`at === bytes.length`: after all of them).
+   */
+  sends?: ReplaySend[];
+}
+
+export interface ReplaySend {
+  /** Byte offset in the frame the command comes before. */
+  at: number;
+  /** The command (`''` = empty Enter). */
+  text: string;
 }
 
 const NO_BYTES = new Uint8Array(0);
@@ -90,6 +107,17 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
 
   let buf = new Uint8Array(chunk * 2);
   let len = 0;
+  // Speed 0: the commands inside the frame being built.
+  let inFrame: ReplaySend[] | null = null;
+  const frame = (): ReplayFrame => {
+    const f: ReplayFrame = { atMs: frameAt, bytes: buf.slice(0, len) };
+    if (inFrame) {
+      f.sends = inFrame;
+      inFrame = null;
+    }
+    len = 0;
+    return f;
+  };
   let clock = 0;
   let frameAt = 0;
   let lastTs = -1;
@@ -120,15 +148,17 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
     // inbound prompt.
     if (logText.charCodeAt(bodyStart) === 62 && logText.charCodeAt(bodyStart + 1) === 32 && bodyStart + 1 < end) {
       if (!sends) continue;
+      if (speed <= 0) {
+        // No clock at speed 0: the command rides in the current frame.
+        (inFrame ??= []).push({ at: len, text: logText.slice(bodyStart + 2, end) });
+        continue;
+      }
       // Its own frame, after what came before it. The clock does not move:
       // the next inbound line's gap is measured as without sends.
       const ts = Number(logText.slice(start, start + TS_DIGITS));
       const deltaUs = lastTs >= 0 ? Math.max(0, ts - lastTs) : 0;
       const at = clock + (speed > 0 ? Math.min(deltaUs / 1000, maxGapMs) / speed : 0);
-      if (len > 0) {
-        yield { atMs: frameAt, bytes: buf.slice(0, len) };
-        len = 0;
-      }
+      if (len > 0) yield frame();
       yield { atMs: at, bytes: NO_BYTES, sent: logText.slice(bodyStart + 2, end) };
       continue;
     }
@@ -149,10 +179,7 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
     let gapMs = 0;
     const deltaUs = lastTs >= 0 ? Math.max(0, ts - lastTs) : 0;
     if (speed > 0) gapMs = Math.min(deltaUs / 1000, maxGapMs) / speed;
-    if (len > 0 && (len >= chunk || (speed > 0 && deltaUs >= groupUs))) {
-      yield { atMs: frameAt, bytes: buf.slice(0, len) };
-      len = 0;
-    }
+    if (len > 0 && (len >= chunk || (speed > 0 && deltaUs >= groupUs))) yield frame();
     clock += gapMs;
     if (len === 0) frameAt = clock;
     lastTs = ts;
@@ -188,7 +215,7 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
       buf[len++] = 10;
     }
   }
-  if (len > 0) yield { atMs: frameAt, bytes: buf.slice(0, len) };
+  if (len > 0 || inFrame) yield frame();
 }
 
 /** Telnet bytes announcing GMCP and sending `Char.Name`, so replay reaches `playing`. */
@@ -285,6 +312,21 @@ export class ReplaySocket implements Socketish, IsReplay {
     this.onData?.(bytes);
   }
 
+  /** A speed-0 frame: its bytes in pieces, each command between them. */
+  private deliverWithSends(bytes: Uint8Array, sends: readonly ReplaySend[]): void {
+    let pos = 0;
+    for (const s of sends) {
+      if (s.at > pos) {
+        this.deliver(bytes.subarray(pos, s.at));
+        pos = s.at;
+      }
+      if (!this.running) return;
+      this.onSent?.(s.text);
+      if (!this.running) return;
+    }
+    if (pos < bytes.length) this.deliver(bytes.subarray(pos));
+  }
+
   private finish(reason: string): void {
     this.running = false;
     if (this.timer !== null) clearTimeout(this.timer);
@@ -326,7 +368,8 @@ export class ReplaySocket implements Socketish, IsReplay {
           return;
         }
       }
-      if (f.sent !== undefined) this.onSent?.(f.sent);
+      if (f.sends) this.deliverWithSends(f.bytes, f.sends);
+      else if (f.sent !== undefined) this.onSent?.(f.sent);
       else this.deliver(f.bytes);
       if (!this.running) return;
       if (performance.now() - sliceStart >= SLICE_MS) {

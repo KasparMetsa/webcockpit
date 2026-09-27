@@ -89,18 +89,41 @@ describe('logToFrames', () => {
 });
 
 describe('logToFrames with sends', () => {
-  it('yields recorded commands as their own frames, bytes unchanged, times monotone', () => {
-    for (const speed of [0, 1]) {
-      const frames = [...logToFrames(LOG, { speed, sends: true })];
-      expect(frames.filter((f) => f.sent !== undefined).map((f) => f.sent)).toEqual(['who', 'arm', '']);
-      expect(frames.filter((f) => f.sent !== undefined).every((f) => f.bytes.length === 0)).toBe(true);
-      expect(decode(frames)).toBe(decode([...logToFrames(LOG, { speed })]));
-      for (let i = 1; i < frames.length; i++) expect(frames[i]!.atMs).toBeGreaterThanOrEqual(frames[i - 1]!.atMs);
-    }
+  it('yields recorded commands as their own frames at speed > 0, bytes unchanged, times monotone', () => {
+    const frames = [...logToFrames(LOG, { speed: 1, sends: true })];
+    expect(frames.filter((f) => f.sent !== undefined).map((f) => f.sent)).toEqual(['who', 'arm', '']);
+    expect(frames.filter((f) => f.sent !== undefined).every((f) => f.bytes.length === 0)).toBe(true);
+    expect(frames.some((f) => f.sends)).toBe(false);
+    expect(decode(frames)).toBe(decode([...logToFrames(LOG, { speed: 1 })]));
+    for (let i = 1; i < frames.length; i++) expect(frames[i]!.atMs).toBeGreaterThanOrEqual(frames[i - 1]!.atMs);
     expect([...logToFrames(LOG, { speed: 1 })].at(-1)!.atMs).toBe(
       [...logToFrames(LOG, { speed: 1, sends: true })].filter((f) => f.sent === undefined).at(-1)!.atMs,
     );
-    expect([...logToFrames(LOG, { speed: 0 })].some((f) => f.sent !== undefined)).toBe(false);
+    expect([...logToFrames(LOG, { speed: 0 })].some((f) => f.sent !== undefined || f.sends)).toBe(false);
+  });
+
+  it('carries recorded commands inside the byte frames at speed 0, at their offsets', () => {
+    const frames = [...logToFrames(LOG, { speed: 0, sends: true })];
+    expect(frames.some((f) => f.sent !== undefined)).toBe(false);
+    expect(frames.map((f) => f.bytes.length)).toEqual([...logToFrames(LOG, { speed: 0 })].map((f) => f.bytes.length));
+    expect(decode(frames)).toBe(decode([...logToFrames(LOG, { speed: 0 })]));
+    // Each command sits where it was in the log: what comes before it ends there.
+    const raw: number[] = [];
+    const before: string[] = [];
+    const plain = (b: number[]): string => new TextDecoder().decode(new Uint8Array(b)).replace(/[\uFFFD\r\n]/g, '');
+    for (const f of frames) {
+      let pos = 0;
+      for (const snd of f.sends ?? []) {
+        raw.push(...f.bytes.subarray(pos, snd.at));
+        pos = snd.at;
+        before.push(`${snd.text}|${plain(raw)}`);
+      }
+      raw.push(...f.bytes.subarray(pos));
+    }
+    expect(before.map((b) => b.split('|')[0])).toEqual(['who', 'arm', '']);
+    expect(before[0]).toBe('who|');
+    expect(before[1]).toMatch(/^arm\|.*oO>$/);
+    expect(before[2]).toBe(`|${plain(raw)}`);
   });
 });
 
