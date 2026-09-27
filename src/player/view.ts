@@ -19,11 +19,22 @@
 // Those keys pause first when playing. `1`–`6` set the speed, ESC goes
 // back. While the player is open it owns the keyboard: a window capture
 // listener stops every key from reaching the (hidden) input panes.
+//
+// Modes (stage 7, ADR 0019 "PlayerView options"). The view is configured,
+// so the HTML replay and the Spotlights reel add their modes in their own
+// files: the header's parts and hints come from `header` (`runHeader` is
+// the in-app player's), `keys` sees every key first, `overlay` is an extra
+// layer (the spotlight info box) hidden with the chrome or always shown,
+// `startHidden` starts with the chrome hidden until the user moves or
+// presses something, `stripHoverTime` shows `MM:SS` beside the pointer over
+// the strip, `boxButtons` adds a row of buttons to the control box, and
+// `onEsc` is ESC.
 
 import './player.css';
 import type { OutputPane } from '../ui/output-pane';
 import type { PlayerEngine } from './engine';
 import {
+  type HeaderHint,
   HINTS,
   HINT_SEP,
   STRIP_COLS,
@@ -54,6 +65,7 @@ const BOX_RIGHT = 8;
 const BOX_BOTTOM = 1;
 const BOX_INNER = 28;
 
+/** What the in-app log player's header shows (`runHeader`). */
 export interface PlayerHeader {
   character: string;
   level?: number | undefined;
@@ -64,20 +76,61 @@ export interface PlayerHeader {
   startUs: number;
 }
 
+/** One piece of the header's left part; pieces are joined by a dim ` · `. */
+export interface HeaderPart {
+  text: string;
+  /** Class of its span; none = plain text in the header colour. */
+  cls?: string;
+}
+
+/** The header of one moment: left parts and the key hints (fitted to the width). */
+export interface PlayerHeaderModel {
+  left: HeaderPart[];
+  hints: ReadonlyArray<HeaderHint>;
+}
+
+/** The in-app log player's header: `<char> (L<lvl>) · Run X of Y · date`, HINTS with `ESC Back` clickable. */
+export function runHeader(h: PlayerHeader, onEsc: () => void): PlayerHeaderModel {
+  return {
+    left: [
+      { text: h.character + (h.level !== undefined ? ` (L${h.level})` : ''), cls: 'wc-player-name' },
+      { text: `Run ${h.run + 1} of ${h.runs}` },
+      { text: fmtDateTime(h.startUs) },
+    ],
+    hints: HINTS.map((x) => (x.text === 'ESC Back' ? { ...x, cls: 'wc-player-back', onClick: onEsc } : x)),
+  };
+}
+
+/** A button in the control box's extra row. */
+export interface BoxButton {
+  label: () => string;
+  onClick: () => void;
+}
+
 export interface PlayerViewOptions {
   /** The player element (fills the window; the chrome is laid over it). */
   root: HTMLElement;
   engine: PlayerEngine;
-  /** Header parts for run `run`. */
-  header: (run: number) => PlayerHeader;
+  /** The header at run `run` (called on every render; cheap). */
+  header: (run: number) => PlayerHeaderModel;
   /** Markers as playback offsets (ms). */
   marks: ReadonlyArray<{ letter: MarkLetter; offset: number }>;
   /** The current player App's output pane (it changes on a rebuild). */
   output: () => OutputPane | null;
   /** The cell size in px. */
   cells: () => { w: number; h: number };
-  /** ESC: back to History. */
-  onBack: () => void;
+  /** ESC (in the log player: back to History). */
+  onEsc: () => void;
+  /** Extra keys, before the player's own; true = handled (the view then prevents the default). */
+  keys?: (e: KeyboardEvent) => boolean;
+  /** An extra layer over the player, hidden with the chrome unless `keepVisible`. */
+  overlay?: { el: HTMLElement; keepVisible?: boolean };
+  /** Start with the chrome hidden; the first key or pointer move shows it. */
+  startHidden?: boolean;
+  /** `MM:SS` beside the pointer while it hovers over the strip. */
+  stripHoverTime?: boolean;
+  /** Buttons of an extra control box row (above the clock). */
+  boxButtons?: BoxButton[];
   /** Auto-hide delay (tests). */
   hideMs?: number;
 }
@@ -98,6 +151,7 @@ export class PlayerView {
   private readonly boxPlay: HTMLSpanElement;
   private readonly boxSpeed: HTMLSpanElement;
   private readonly boxClock: HTMLDivElement;
+  private readonly boxExtra: HTMLDivElement | null = null;
   private readonly hintEl: HTMLDivElement;
   private readonly unsubs: Array<() => void> = [];
   private readonly ro: ResizeObserver | null = null;
@@ -115,6 +169,8 @@ export class PlayerView {
   private cursorMoved = false;
   private wasPlaying: boolean;
   private wasSeeking = false;
+  /** startHidden: play starting does not show the chrome until the user acts. */
+  private quiet: boolean;
   private disposed = false;
 
   constructor(opts: PlayerViewOptions) {
@@ -146,11 +202,16 @@ export class PlayerView {
     top.textContent = '┌' + '─'.repeat(BOX_INNER) + '┐';
     const bottom = div('wc-player-box-frame');
     bottom.textContent = '└' + '─'.repeat(BOX_INNER) + '┘';
-    this.boxEl.append(top, row1, this.boxClock, bottom);
+    if (opts.boxButtons?.length) {
+      this.boxExtra = div('wc-player-box-row');
+      this.boxEl.append(top, row1, this.boxExtra, this.boxClock, bottom);
+    } else this.boxEl.append(top, row1, this.boxClock, bottom);
     this.hintEl = div('wc-player-hint');
     this.hintEl.hidden = true;
     this.el.append(this.headerEl, this.marksEl, this.stripEl, this.boxEl, this.hintEl);
     opts.root.appendChild(this.el);
+    if (opts.overlay) opts.root.appendChild(opts.overlay.el);
+    this.quiet = opts.startHidden ?? false;
 
     this.wasPlaying = opts.engine.playing;
     this.unsubs.push(opts.engine.subscribe((c) => this.onEngine(c)));
@@ -163,13 +224,20 @@ export class PlayerView {
     this.stripEl.addEventListener('pointermove', this.onStripMove);
     this.stripEl.addEventListener('pointerup', this.onStripUp);
     this.stripEl.addEventListener('pointercancel', this.onStripCancel);
+    this.stripEl.addEventListener('pointerleave', this.onStripLeave);
     this.marksEl.addEventListener('click', this.onMarkClick);
     if (typeof ResizeObserver !== 'undefined') {
       this.ro = new ResizeObserver(() => this.schedule());
       this.ro.observe(opts.root);
     }
-    this.touch();
+    if (this.quiet) this.setShown(false);
+    else this.touch();
     this.render();
+  }
+
+  /** Redraws on the next frame (a header that changed outside the engine's events). */
+  refresh(): void {
+    this.schedule();
   }
 
   private button(act: Act, text: string): HTMLSpanElement {
@@ -218,7 +286,7 @@ export class PlayerView {
       if (playing) {
         this.clearCursor();
         this.o.output()?.toTail();
-        this.touch();
+        if (!this.quiet) this.touch();
       } else {
         this.show();
       }
@@ -282,38 +350,40 @@ export class PlayerView {
 
     // Header.
     const hd = this.o.header(eng.run);
-    const nameText = hd.character + (hd.level !== undefined ? ` (L${hd.level})` : '');
-    const runText = `Run ${hd.run + 1} of ${hd.runs}`;
-    const dateText = fmtDateTime(hd.startUs);
-    const leftLen = nameText.length + runText.length + dateText.length + 6;
-    const full = hintsWidth(HINTS.map((x) => x.text));
+    const leftLen = hd.left.reduce((n, p) => n + p.text.length, 0) + 3 * Math.max(0, hd.left.length - 1);
+    const full = hintsWidth(hd.hints.map((x) => x.text));
     const hc = Math.max(1, Math.min(Math.max(HEADER_COLS, leftLen + HEADER_GAP + full), cols - STRIP_COLS));
-    const hints = fitHints(hc - leftLen - HEADER_GAP);
+    const hints = fitHints(hc - leftLen - HEADER_GAP, hd.hints);
     const headSig = `${JSON.stringify(hd)}|${hc}|${w}|${W}|${hints.join()}`;
     if (headSig !== this.headSig) {
       this.headSig = headSig;
       this.headerEl.style.width = `${hc * w}px`;
       this.headerEl.style.left = `${Math.max(0, Math.floor((W - STRIP_COLS * w - hc * w) / 2))}px`;
       this.headLeft.textContent = '';
-      const name = this.doc.createElement('span');
-      name.className = 'wc-player-name';
-      name.textContent = nameText;
-      const sep = (): HTMLSpanElement => {
-        const s = this.doc.createElement('span');
-        s.className = 'wc-player-sep';
-        s.textContent = ' · ';
-        return s;
-      };
-      this.headLeft.append(name, sep(), runText, sep(), dateText);
+      hd.left.forEach((p, i) => {
+        if (i > 0) {
+          const s = this.doc.createElement('span');
+          s.className = 'wc-player-sep';
+          s.textContent = ' · ';
+          this.headLeft.append(s);
+        }
+        if (!p.cls) return void this.headLeft.append(p.text);
+        const span = this.doc.createElement('span');
+        span.className = p.cls;
+        span.textContent = p.text;
+        this.headLeft.append(span);
+      });
       this.headHints.textContent = '';
       hints.forEach((t, i) => {
         if (i > 0) this.headHints.append(HINT_SEP);
-        if (t !== 'ESC Back') return void this.headHints.append(t);
-        const back = this.doc.createElement('span');
-        back.className = 'wc-player-back';
-        back.textContent = t;
-        back.addEventListener('click', () => this.o.onBack());
-        this.headHints.append(back);
+        const h = hd.hints.find((x) => x.text === t);
+        if (!h?.onClick && !h?.cls) return void this.headHints.append(t);
+        const span = this.doc.createElement('span');
+        span.className = h.cls ?? 'wc-player-click';
+        span.textContent = t;
+        const click = h.onClick;
+        if (click) span.addEventListener('click', () => click());
+        this.headHints.append(span);
       });
     }
 
@@ -344,9 +414,30 @@ export class PlayerView {
     // Control box.
     const playLabel = (eng.playing ? '▌▌ Pause' : '► Play').padEnd(8);
     const clock = `${fmtClock(pos)} / ${fmtClock(dur)}`;
-    const boxSig = `${playLabel}|${eng.speed}|${clock}`;
+    const extra = this.o.boxButtons?.map((b) => b.label()) ?? [];
+    const boxSig = `${playLabel}|${eng.speed}|${clock}|${extra.join('|')}`;
     if (boxSig !== this.boxSig) {
       this.boxSig = boxSig;
+      if (this.boxExtra) {
+        const text = extra.join('  ');
+        const pad = Math.max(0, BOX_INNER - text.length);
+        this.boxExtra.textContent = '';
+        this.boxExtra.append('│' + ' '.repeat(pad >> 1));
+        extra.forEach((label, i) => {
+          if (i > 0) this.boxExtra!.append('  ');
+          const b = this.doc.createElement('span');
+          b.className = 'wc-player-btn';
+          b.textContent = label;
+          b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.touch();
+            this.o.boxButtons![i]!.onClick();
+            this.schedule();
+          });
+          this.boxExtra!.append(b);
+        });
+        this.boxExtra.append(' '.repeat(pad - (pad >> 1)) + '│');
+      }
       this.boxPlay.textContent = playLabel;
       this.boxSpeed.textContent = fmtSpeed(eng.speed).padEnd(5);
       const pad = BOX_INNER - clock.length;
@@ -369,7 +460,10 @@ export class PlayerView {
 
   // ------------------------------------------------------------ show/hide
 
-  private readonly onActivity = (): void => this.touch();
+  private readonly onActivity = (): void => {
+    this.quiet = false;
+    this.touch();
+  };
 
   /** Shows the chrome and re-arms the auto-hide (in play). */
   touch(): void {
@@ -391,6 +485,8 @@ export class PlayerView {
     if (on === this.shown) return;
     this.shown = on;
     this.el.toggleAttribute('data-hidden', !on);
+    const ov = this.o.overlay;
+    if (ov && !ov.keepVisible) ov.el.toggleAttribute('data-hidden', !on);
   }
 
   // ----------------------------------------------------------------- keys
@@ -399,13 +495,18 @@ export class PlayerView {
     if (e.isComposing) return;
     // The player owns the keyboard (see the file header).
     e.stopPropagation();
+    this.quiet = false;
     this.touch();
+    if (this.o.keys?.(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     const eng = this.o.engine;
     let handled = true;
     switch (e.key) {
       case 'Escape':
-        this.o.onBack();
+        this.o.onEsc();
         break;
       case ' ':
         this.toggle();
@@ -479,11 +580,14 @@ export class PlayerView {
     const from = this.cursor && this.cursor.isConnected ? this.cursor : this.lastRow();
     if (!from) return;
     let row: HTMLElement = from;
-    if (n === -Infinity) row = (this.rowsEl()?.firstElementChild?.firstElementChild as HTMLElement | null) ?? row;
-    else if (n === Infinity) row = this.lastRow() ?? row;
+    if (n === -Infinity) {
+      row = (this.rowsEl()?.firstElementChild?.firstElementChild as HTMLElement | null) ?? row;
+      // Blank rows (a spotlight's transition) are skipped.
+      if (isBlank(row)) row = step(row, 1) ?? row;
+    } else if (n === Infinity) row = this.lastRow() ?? row;
     else {
       for (let i = 0; i < Math.abs(n); i++) {
-        const r: HTMLElement | null = n < 0 ? prevRow(row) : nextRow(row);
+        const r = step(row, n < 0 ? -1 : 1);
         if (!r) break;
         row = r;
       }
@@ -504,7 +608,7 @@ export class PlayerView {
     const t = e.target as Element | null;
     const rows = this.rowsEl();
     const row = t?.closest?.('.wc-row') as HTMLElement | null;
-    if (row && rows?.contains(row)) this.setCursor(row, true);
+    if (row && rows?.contains(row) && !isBlank(row)) this.setCursor(row, true);
   };
 
   // ---------------------------------------------------------------- strip
@@ -524,10 +628,18 @@ export class PlayerView {
   };
 
   private readonly onStripMove = (e: PointerEvent): void => {
-    if (!this.drag || e.pointerId !== this.drag.id) return;
+    if (!this.drag) {
+      if (this.o.stripHoverTime) this.showHint(e.clientY, this.offsetAt(e.clientY));
+      return;
+    }
+    if (e.pointerId !== this.drag.id) return;
     this.drag.offset = this.offsetAt(e.clientY);
     this.showHint(e.clientY);
     this.schedule();
+  };
+
+  private readonly onStripLeave = (): void => {
+    if (!this.drag) this.hintEl.hidden = true;
   };
 
   private readonly onStripUp = (e: PointerEvent): void => {
@@ -547,10 +659,10 @@ export class PlayerView {
     this.schedule();
   };
 
-  private showHint(clientY: number): void {
+  private showHint(clientY: number, offset = this.drag?.offset ?? 0): void {
     const root = this.o.root.getBoundingClientRect();
     const { h } = this.o.cells();
-    this.hintEl.textContent = ` ${fmtClock(this.drag?.offset ?? 0)} `;
+    this.hintEl.textContent = ` ${fmtClock(offset)} `;
     this.hintEl.style.top = `${Math.max(0, Math.floor((clientY - root.top) / h)) * h}px`;
     this.hintEl.hidden = false;
   }
@@ -578,7 +690,20 @@ export class PlayerView {
     if (this.raf !== null) this.win.cancelAnimationFrame(this.raf);
     if (this.hideTimer !== null) clearTimeout(this.hideTimer);
     this.el.remove();
+    this.o.overlay?.el.remove();
   }
+}
+
+function isBlank(row: HTMLElement): boolean {
+  return row.classList.contains('wc-blank');
+}
+
+/** The next non-blank row in direction `dir` (±1), or null. */
+function step(row: HTMLElement, dir: number): HTMLElement | null {
+  let r: HTMLElement | null = row;
+  do r = dir < 0 ? prevRow(r) : nextRow(r);
+  while (r && isBlank(r));
+  return r;
 }
 
 /** The row before `row` in the output (across chunks), or null. */

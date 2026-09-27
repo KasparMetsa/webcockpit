@@ -83,7 +83,8 @@
   color: var(--c-off);
 }
 
-.wc-player-back {
+.wc-player-back,
+.wc-player-click {
   pointer-events: auto;
   cursor: pointer;
 }

@@ -110,11 +110,22 @@ export function markRows(
     .map(([row, v]) => ({ row, offset: v.offset, text: MARK_ORDER.filter((l) => v.letters.has(l)).join('') + '►' }));
 }
 
+/** One key hint on the header's right (stage 7: any player mode brings its own list). */
+export interface HeaderHint {
+  text: string;
+  /** Order of giving way when narrow (1 first); Infinity = always shown. */
+  drop: number;
+  /** Clickable (e.g. `ESC Back`). */
+  onClick?: () => void;
+  /** Class of its span (a clickable hint without one gets `wc-player-click`). */
+  cls?: string;
+}
+
 /**
  * Key hints on the header's right, in display order; `drop` is the order
  * they give way in when the header is narrow (1 first). `ESC Back` stays.
  */
-export const HINTS: ReadonlyArray<{ text: string; drop: number }> = [
+export const HINTS: ReadonlyArray<HeaderHint> = [
   { text: 'Space Play/Pause', drop: 3 },
   { text: '1–6 Speed', drop: 2 },
   { text: '↑↓ Cursor', drop: 1 },
@@ -127,12 +138,17 @@ export function hintsWidth(tokens: readonly string[]): number {
   return tokens.reduce((n, t) => n + t.length, 0) + HINT_SEP.length * Math.max(0, tokens.length - 1);
 }
 
-/** The hints that fit in `cols` cells, dropping the lowest priority first; `ESC Back` always. */
-export function fitHints(cols: number): string[] {
-  const keep = [...HINTS];
-  while (keep.length > 1 && hintsWidth(keep.map((h) => h.text)) > cols) {
+/**
+ * The hints that fit in `cols` cells, dropping the lowest priority first;
+ * the last one left always stays unless its `drop` is finite (`ESC Back`
+ * in the log player).
+ */
+export function fitHints(cols: number, hints: ReadonlyArray<HeaderHint> = HINTS): string[] {
+  const keep = [...hints];
+  while (keep.length > 0 && hintsWidth(keep.map((h) => h.text)) > cols) {
     let low = 0;
     for (let i = 1; i < keep.length; i++) if (keep[i]!.drop < keep[low]!.drop) low = i;
+    if (keep.length === 1 && keep[low]!.drop === Infinity) break;
     keep.splice(low, 1);
   }
   return keep.map((h) => h.text);

@@ -18,6 +18,12 @@
 // takes the rest and the text reflows, as live. SIZE records are not used
 // (owner decision 2026-09-28: no letterboxing). The App's output and side
 // panes paint through a gate the engine closes while it fast-forwards.
+//
+// Stage 7 (ADR 0019): `openChain` takes options, so the HTML replay and
+// the Spotlights reel use the same host: timeline edits (comments, cuts,
+// spotlight windows), their own markers and the view's mode options
+// (header, keys, overlay …). The target shows comments as wrapped `## `
+// rows and blanks as `.wc-blank` rows in the output pane.
 
 import type { RunLibrary } from '../runs/library';
 import type { RunEvent } from '../runs/events';
@@ -27,9 +33,10 @@ import { applyTheme } from '../theme/apply';
 import { CellMetrics } from '../theme/cells';
 import { PlayerEngine, type PlayerTarget, type Wall } from '../player/engine';
 import { overlayView, parseView, playerFontSize } from '../player/fit';
-import { STRIP_COLS, markersOf } from '../player/strip';
-import { type ChainRun, buildTimeline, playAtLogUs } from '../player/timeline';
-import { PlayerView } from '../player/view';
+import { type MarkLetter, STRIP_COLS, markersOf } from '../player/strip';
+import { type ChainRun, type Timeline, type TimelineEdits, buildTimeline, playAtLogUs } from '../player/timeline';
+import { PlayerView, type PlayerViewOptions, runHeader } from '../player/view';
+import { commentLines } from '../share/edits';
 import type { ReplayClock } from '../player/clock';
 import { App } from './app';
 
@@ -50,6 +57,17 @@ export interface PlayerHostOptions {
 export interface PlayerInfo {
   character: string;
   level?: number | undefined;
+}
+
+/** Mode options of `openChain` (stage 7; none = the in-app log player). */
+export interface PlayerOpenOptions {
+  edits?: TimelineEdits;
+  /** Markers as playback offsets; default: the events' markers (`markersOf`) on `playAtLogUs`. */
+  marks?: (tl: Timeline) => Array<{ letter: MarkLetter; offset: number }>;
+  /** View mode options; `header` and `onEsc` replace the log player's. */
+  view?: Partial<Pick<PlayerViewOptions, 'header' | 'keys' | 'overlay' | 'startHidden' | 'stripHoverTime' | 'boxButtons' | 'onEsc'>>;
+  /** Start playing at once (default true). */
+  autoplay?: boolean;
 }
 
 /** Paint gate: frame callbacks wait while it is closed. */
@@ -127,36 +145,51 @@ export class PlayerHost {
     this.openChain(chain, events, { character: session.character, level: session.level });
   }
 
-  /** Starts playing `chain` (oldest run first) with the chain's events for the markers. */
-  openChain(chain: readonly ChainRun[], events: readonly RunEvent[], info: PlayerInfo): void {
-    const tl = buildTimeline(chain);
+  /** The player view (stage 7 modes: refresh, cursor). */
+  get playerView(): PlayerView | null {
+    return this.view;
+  }
+
+  /**
+   * Starts playing `chain` (oldest run first) with the chain's events for
+   * the markers. `opts` configures another mode (HTML replay, Spotlights).
+   */
+  openChain(chain: readonly ChainRun[], events: readonly RunEvent[], info: PlayerInfo, opts: PlayerOpenOptions = {}): void {
+    const tl = buildTimeline(chain, opts.edits);
     const engine = new PlayerEngine({
       timeline: tl,
       build: (clock) => this.build(clock),
       ...(this.opts.wall ? { wall: this.opts.wall } : {}),
     });
     this.engineRef = engine;
-    const marks = markersOf(events).map((m) => ({ letter: m.letter, offset: playAtLogUs(tl, m.us) }));
+    const marks = opts.marks
+      ? opts.marks(tl)
+      : markersOf(events).map((m) => ({ letter: m.letter, offset: playAtLogUs(tl, m.us) }));
+    const onEsc = (): void => this.close();
     this.view = new PlayerView({
       root: this.el,
       engine,
       marks,
       header: (run) => {
         const r = tl.runs[run]?.meta;
-        return {
-          character: info.character,
-          level: r?.summary?.level ?? info.level,
-          run,
-          runs: tl.runs.length,
-          startUs: r ? (r.summary?.startUs ?? r.startedUs) : 0,
-        };
+        return runHeader(
+          {
+            character: info.character,
+            level: r?.summary?.level ?? info.level,
+            run,
+            runs: tl.runs.length,
+            startUs: r ? (r.summary?.startUs ?? r.startedUs) : 0,
+          },
+          onEsc,
+        );
       },
       output: () => this.appRef?.output ?? null,
       cells: () => this.cells.get(),
-      onBack: () => this.close(),
+      onEsc,
       ...(this.opts.hideMs !== undefined ? { hideMs: this.opts.hideMs } : {}),
+      ...opts.view,
     });
-    engine.play();
+    if (opts.autoplay !== false) engine.play();
   }
 
   /** Closes the player and tells the shell. */
@@ -209,6 +242,8 @@ export class PlayerHost {
       // The recorded size is not used: the player fills the viewer's window.
       size: () => {},
       paint: (on) => gate.set(on),
+      comment: (text) => app.output.pushRows('comment', commentLines(text), clock.nowUs()),
+      blank: (lines) => app.output.pushRows('blank', new Array<string>(Math.max(0, lines)).fill('')),
       dispose: () => {
         unsub();
         gate.dispose();

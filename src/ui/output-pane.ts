@@ -54,11 +54,17 @@ const OP_SYS = 1;
 const OP_ECHO = 2;
 /** Echo typed at a partial prompt: attaches to the line that completed it. */
 const OP_ECHO_ATTACH = 3;
+/** A player comment row (stage 7): `text` shown in the comment colour. */
+const OP_COMMENT = 4;
+/** A player blank row (stage 7 spotlight transition). */
+const OP_BLANK = 5;
 
 interface Op {
   kind: number;
   line: Line | null;
   text: string;
+  /** Row stamp for OP_COMMENT (µs), else 0. */
+  ts?: number;
 }
 
 export interface OutputPaneOptions {
@@ -231,6 +237,21 @@ export class OutputPane {
     this.push(OP_ECHO, null, c.text);
   }
 
+  /**
+   * Player rows that are not game text (ADR 0019): comment lines
+   * (`.wc-comment`, stamped with `ts` when rows are stamped) or blank rows
+   * (`.wc-blank`, which the player's cursor skips). They queue with the
+   * game lines, so they land in order.
+   */
+  pushRows(kind: 'comment' | 'blank', texts: readonly string[], ts = 0): void {
+    const k = kind === 'comment' ? OP_COMMENT : OP_BLANK;
+    for (const text of texts) {
+      if (k === OP_COMMENT) this.queue.push({ kind: k, line: null, text, ts });
+      else this.push(k, null, '');
+    }
+    this.schedule();
+  }
+
   private push(kind: number, line: Line | null, text: string): void {
     this.queue.push({ kind, line, text });
     const pending = this.queue.length - this.head;
@@ -280,6 +301,14 @@ export class OutputPane {
         row = doc.createElement('div');
         row.className = 'wc-row wc-sys';
         row.textContent = '[SYSTEM] ' + op.text;
+      } else if (op.kind === OP_COMMENT) {
+        row = doc.createElement('div');
+        row.className = 'wc-row wc-comment';
+        row.textContent = op.text;
+        if (this.stampRows && op.ts) row.dataset.ts = String(op.ts);
+      } else if (op.kind === OP_BLANK) {
+        row = doc.createElement('div');
+        row.className = 'wc-row wc-blank';
       } else if (op.kind === OP_ECHO_ATTACH) {
         row = renderEcho(doc, prev && !prev.classList.contains('wc-echoed') ? prev : null, op.text);
       } else {

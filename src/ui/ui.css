@@ -96,6 +96,11 @@ body {
   min-height: var(--cell-h);
 }
 
+/* Export comments in the log player and the HTML replay (ADR 0019). */
+.wc-comment {
+  color: #ffd75f;
+}
+
 .wc-sys {
   color: var(--c-yellow);
 }
