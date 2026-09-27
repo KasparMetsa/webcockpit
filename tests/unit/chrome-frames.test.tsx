@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { IDBFactory } from 'fake-indexeddb';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AppStatusState, AppStatusView } from '../../src/app/status';
@@ -8,6 +9,7 @@ import { colorChoices, gridToggle, parseHex } from '../../src/chrome/frames/opti
 import { TIMERS_GRID_W, colorToggle, stepCols, timersHeader } from '../../src/chrome/frames/options-timers';
 import { type ChromeServices, mountEscMenu, mountStartPage } from '../../src/chrome';
 import { ProfileStore } from '../../src/profiles';
+import { RunLibrary } from '../../src/runs/library';
 import { SettingsStore } from '../../src/settings';
 import { CellMetrics } from '../../src/theme/cells';
 import { TERMINAL_FG_PRESETS } from '../../src/theme/presets';
@@ -104,7 +106,7 @@ function services(): ChromeServices {
   const cells = new CellMetrics({ measure: () => ({ w: 10, h: 20, px: 15, ls: 0 }), loadFont: async () => {} });
   void cells.update(settings.get().appearance);
   const profiles = new ProfileStore({ factory: null });
-  return { settings, cells, profiles, version: '9.9.9' };
+  return { settings, cells, profiles, version: '9.9.9', runs: () => RunLibrary.open(new IDBFactory()) };
 }
 
 const key = (k: string, init: KeyboardEventInit = {}) =>
@@ -142,13 +144,16 @@ describe('start page', () => {
     expect(selected(host)).toBe('<< Profile >>');
     expect(docKeys).not.toHaveBeenCalled();
 
-    // Dimmed rows flash instead of opening.
+    // Dimmed rows (Spotlights) flash instead of opening.
     await key('ArrowDown');
     await key('ArrowDown');
+    await key('ArrowDown');
+    expect(selected(host)).toBe('<< Spotlights >>');
     await key('Enter');
     expect(host.querySelector('.wc-flash')?.textContent).toMatch(/later stage/);
 
     // Options opens and ESC comes back with the cursor kept.
+    await key('ArrowUp');
     await key('ArrowUp');
     await key('Enter');
     expect(title(host)).toBe('─── Options ───');

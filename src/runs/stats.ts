@@ -10,8 +10,8 @@
 //   the last level an event carried.
 // - Duration = last event − first event, or `nowUs` − first event live.
 // - Sparklines: kill + pkill XP and `tp_gained` TP as gains per hour
-//   (`rateSeries` buckets them for a width the renderer picks); losses
-//   are not in them.
+//   over a trailing window of at least 10 min (`rateSeries`, sampled at
+//   a width the renderer picks); losses are not in them.
 
 import { MAX_LEVEL, levelFromXp, xpForLevel } from '../gmcp/levels';
 import type { RunEvent } from './events';
@@ -228,22 +228,39 @@ export function xpRuler(startXp: number, nowXp: number): XpRuler {
   };
 }
 
+/** Shortest window a sparkline rate is taken over (10 min). */
+export const RATE_WINDOW_US = 600e6;
+
 /**
- * Gains per hour in `buckets` equal slices of [startUs, endUs]: each gain
- * is added to its slice and the slice total scaled to one hour.
+ * Gains per hour at the end of each of `buckets` equal slices of
+ * [startUs, endUs]. Each value is the gains in a trailing window of one
+ * slice or `RATE_WINDOW_US`, whichever is longer, scaled to one hour; the
+ * part of a window before `startUs` counts as no gain. The floor keeps a
+ * big kill early in a run, or in a thin slice, from showing as millions
+ * per hour, and smooths single kills into a readable curve.
  */
 export function rateSeries(gains: readonly Gain[], startUs: number, endUs: number, buckets: number): number[] {
   const n = Math.max(1, Math.floor(buckets));
+  const span = Math.max(0, endUs - startUs);
+  const slice = span / n;
+  const window = Math.max(slice, RATE_WINDOW_US);
+  const perHour = 3600e6 / window;
   const out = new Array<number>(n).fill(0);
-  const span = endUs - startUs;
-  if (span <= 0) {
-    for (const g of gains) out[n - 1]! += g.delta;
-    return out;
+  if (slice === 0) {
+    // No span: every sample sees every gain.
+    const sum = gains.reduce((a, g) => a + g.delta, 0);
+    return out.map(() => sum * perHour);
   }
   for (const g of gains) {
-    const i = Math.min(n - 1, Math.max(0, Math.floor(((g.us - startUs) / span) * n)));
-    out[i]! += g.delta;
+    // Slices whose window (end − window, end] holds the gain; a gain at
+    // `startUs` counts as just after it.
+    const t = Math.max(g.us - startUs, Number.MIN_VALUE);
+    const first = Math.max(0, Math.ceil(t / slice) - 1);
+    for (let i = first; i < n; i++) {
+      const end = (i + 1) * slice;
+      if (end - window >= t) break;
+      if (t <= end) out[i]! += g.delta;
+    }
   }
-  const perHour = 3600e6 / (span / n);
   return out.map((v) => v * perHour);
 }

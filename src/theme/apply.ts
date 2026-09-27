@@ -6,6 +6,7 @@
 //   --c-<role>                              UI roles (presets.ts UI_COLORS)
 //   --c-line-hl                             editor current-line band
 //   --banner-* --star-* --ui-*              banner and UI-message colours
+//   --st-*                                  Statistics / History data colours
 //   --pane-bg-<tint> --pane-border-<tint>   every tint for swatches
 //   data-cursor="block|beam|underline", data-cursor-blink="on|off",
 //   data-light (present when the terminal bg is light)
@@ -34,7 +35,7 @@ import {
   paneShades,
 } from './color';
 import { FONTS } from './fonts';
-import { BANNER_COLORS, UI_COLORS, UI_MESSAGE_COLORS } from './presets';
+import { BANNER_COLORS, STATS_COLORS, UI_COLORS, UI_MESSAGE_COLORS } from './presets';
 
 /** CSS name of a shade role: `paneBg` → `--pane-shade-pane-bg`. */
 export function shadeVar(role: ShadeRole): string {
@@ -55,6 +56,7 @@ export function rootTokens(s: Readonly<Settings>): Record<string, string> {
   for (const [k, v] of Object.entries(UI_COLORS)) t[`--c-${k}`] = v;
   for (const [k, v] of Object.entries(BANNER_COLORS)) t[`--${k}`] = v;
   for (const [k, v] of Object.entries(UI_MESSAGE_COLORS)) t[`--ui-${k}`] = v;
+  for (const [k, v] of Object.entries(STATS_COLORS)) t[`--st-${k}`] = v;
   for (const c of PANE_COLORS) {
     const name = c === 'black' ? 'none' : c;
     t[`--pane-bg-${name}`] = paneEffectiveBg(c, a.bg);

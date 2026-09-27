@@ -30,7 +30,8 @@
 // Log player (ADR 0018): `openPlayer(session)` (History's RUN LOG, via
 // ChromeServices) loads the chain, hides the start page without touching
 // its frame stack and shows the player (src/app/player-host.ts, a chunk of
-// its own); its ESC closes it and reveals the start page as it was. Only
+// its own); its ESC closes it and shows the start page as it was
+// (`show({ keep: true })`). Only
 // from the start page, never over the cockpit.
 
 import type { BenchProbe } from './bench-hook';
@@ -219,7 +220,7 @@ export class Shell {
   private closePlayer(): void {
     this.player = null;
     this.startHost.style.display = '';
-    this.start?.reveal();
+    this.start?.show({ keep: true });
   }
 
   // ------------------------------------------------------------------ views
@@ -286,6 +287,7 @@ export class Shell {
       profiles: this.profiles,
       version: CLIENT_VERSION,
       onProfileSaved: (name) => this.appRef?.ui('system', `Profile {${uiValue(name)}} saved.`),
+      runs: () => this.runLibrary(),
       openPlayer: (session) => void this.openPlayer(session),
     };
   }
@@ -319,6 +321,7 @@ export class Shell {
       exit: () => void this.exitSession(),
       liveApply: (text) => app.applyProfile(text),
       flushWriteBack: () => app.flushWriteBack(),
+      runs: app.runs,
     });
     return this.menu;
   }

@@ -85,6 +85,8 @@ export type FooterToken = string | { text: string; onClick: () => void };
 
 export interface PageProps {
   title?: string;
+  /** The title's colour class (default C_SECTION; modals use `wc-c-header`). */
+  titleClass?: string;
   /** After the title on the same row (About: the version, Inv §3.11). */
   titleRight?: string;
   /** Rows above the title block (ESC menu: the status header). */
@@ -111,7 +113,7 @@ export function Page(p: PageProps): VNode {
         <>
           <Blank n={p.header ? Math.max(0, gap - 1) : gap} />
           <div class="wc-line wc-title-row">
-            <span style={indent(centreLeft(cols, cellLen(title)))} class="wc-c-section">
+            <span style={indent(centreLeft(cols, cellLen(title)))} class={p.titleClass ?? 'wc-c-section'}>
               {title}
             </span>
             {p.titleRight && <span class="wc-c-body">{' ' + p.titleRight}</span>}
@@ -327,6 +329,8 @@ export interface ButtonProps {
   /** The button's zone has focus (gold fill) or not (grey fill). */
   focused: boolean;
   disabled?: boolean;
+  /** Selectable but dimmed ("coming in a later stage"). */
+  dim?: boolean;
   onClick: () => void;
 }
 
@@ -338,7 +342,7 @@ export function Button(p: ButtonProps): VNode {
   const state = p.disabled ? 'is-disabled' : p.selected ? (p.focused ? 'is-sel-focus' : 'is-sel') : '';
   return (
     <span
-      class={'wc-btn ' + state}
+      class={'wc-btn ' + state + (p.dim && !p.disabled ? ' is-dim' : '')}
       data-btn={p.label}
       aria-disabled={p.disabled ? 'true' : undefined}
       onMouseDown={(e) => e.preventDefault()}
@@ -350,6 +354,47 @@ export function Button(p: ButtonProps): VNode {
       {text}
     </span>
   );
+}
+
+// ----------------------------------------------------------------- stars
+
+/** Cells a star row takes (`★ ★ ★ ☆ ☆`). */
+export const STARS_W = 9;
+
+/**
+ * A 0–5 star picker row (Inv §4.6, §7.4): the first `value` stars gold,
+ * the rest grey. Clicking star N sets N.
+ */
+export function Stars(p: { value: number; at: number; onSet: (n: number) => void }): VNode {
+  return (
+    <div class="wc-line wc-stars" style={indent(p.at)}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <>
+          {n > 1 && ' '}
+          <span
+            class={'wc-star-btn ' + (n <= p.value ? 'wc-st-star' : 'wc-c-hint')}
+            data-star={n}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              p.onSet(n);
+            }}
+          >
+            {n <= p.value ? '★' : '☆'}
+          </span>
+        </>
+      ))}
+    </div>
+  );
+}
+
+/** A rating key: `0`–`5` → that value, ← / → → ±1 (clamped), else null. */
+export function ratingKey(e: { key: string; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean }, cur: number): number | null {
+  if (e.ctrlKey || e.altKey || e.metaKey) return null;
+  if (/^[0-5]$/.test(e.key)) return Number(e.key);
+  if (e.key === 'ArrowLeft') return Math.max(0, cur - 1);
+  if (e.key === 'ArrowRight') return Math.min(5, cur + 1);
+  return null;
 }
 
 // ---------------------------------------------------------- check cells

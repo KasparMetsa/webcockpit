@@ -4,6 +4,7 @@ import { createContext } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import type { AppStatusState, AppStatusView } from '../../app/status';
 import type { ProfileStore } from '../../profiles';
+import type { RunLibrary } from '../../runs/library';
 import type { Session } from '../../runs/stitch';
 import type { Settings, SettingsStore } from '../../settings';
 import type { CellMetrics, CellSize } from '../../theme/cells';
@@ -17,7 +18,14 @@ export interface ChromeServices {
   version: string;
   /** The profile editor saved `name` (the UI pane line, ADR 0016). */
   onProfileSaved?: (name: string) => void;
-  /** Opens the log player on a History session (ADR 0018; src/app/player-host.ts). */
+  /** The run library (History, backups; ADR 0018), opened on first use. */
+  runs: () => Promise<RunLibrary>;
+  /**
+   * Opens the log player on `session` (History → RUN LOG, ADR 0018). The
+   * shell hides the start page (its frame stack intact) and shows it again
+   * with `show({ keep: true })` when the player closes. Absent: History
+   * reports that the player is not available.
+   */
   openPlayer?: (session: Session) => void;
 }
 
