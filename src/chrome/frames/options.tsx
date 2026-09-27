@@ -4,7 +4,8 @@
 // there is no Apply and Back never discards.
 //
 //   Options hub:  Panes · Appearance · Back
-//   Panes:        pane × colour grid with a Border column, reset layout
+//   Panes:        pane × colour grid with a Border column, Communication
+//                 (comm-options.tsx), reset layout
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
 //                 live preview box
 
@@ -31,6 +32,7 @@ import {
   presetName,
 } from '../../theme/presets';
 import { useGrid, useServices, useSettings } from '../kit/hooks';
+import { CommOptionsFrame } from './comm-options';
 import { centreLeft, cycle, stepValue } from '../kit/nav';
 import { useKeys, useNav } from '../kit/stack';
 import {
@@ -94,8 +96,6 @@ export function PanesFrame(): VNode {
   const s = useSettings();
   const nav = useNav();
   const { cols } = useGrid();
-  // Rows 0–4: panes; 5: reset layout; 6: Back.
-  const ROWS = PANE_IDS.length + 2;
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
 
@@ -109,10 +109,13 @@ export function PanesFrame(): VNode {
     nav.flash('Layout reset.');
   };
   const tail: MenuItem[] = [
+    { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
     { key: 'reset', label: 'Reset layout', activate: resetLayout },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];
   const tailIdx = row - PANE_IDS.length;
+  // Rows: the panes, then the tail (Communication, Reset layout, Back).
+  const ROWS = PANE_IDS.length + tail.length;
 
   useKeys((_e, nk) => {
     switch (nk) {
