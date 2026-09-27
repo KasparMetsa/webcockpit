@@ -8,6 +8,10 @@
 //   version 2 (stage 2)
 //     settings   out-of-line keys; one record under key 'main' (src/settings)
 //     profiles   keyPath 'name'; { name, text, created, modified } (ADR 0010)
+//   version 3 (stage 4)
+//     comm       keyPath 'seq' (autoIncrement); one record per Comm message
+//                indexes 'character_ts' ['character', 'ts'], 'ts'
+//                (src/gmcp/comm-archive.ts, ADR 0016)
 //
 // The upgrade handler is a chain of `if (oldVersion < N)` steps, so every
 // older database upgrades in order. Add a step (and bump DB_VERSION) for
@@ -18,7 +22,7 @@
 // owns a connection must be ready for its transactions to fail afterwards.
 
 export const DB_NAME = 'webcockpit';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /** Object store names, for callers outside this module. */
 export const STORE = {
@@ -26,6 +30,7 @@ export const STORE = {
   runChunks: 'runChunks',
   settings: 'settings',
   profiles: 'profiles',
+  comm: 'comm',
 } as const;
 
 let persistAsked = false;
@@ -59,6 +64,11 @@ export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Pr
       if (ev.oldVersion < 2) {
         db.createObjectStore(STORE.settings);
         db.createObjectStore(STORE.profiles, { keyPath: 'name' });
+      }
+      if (ev.oldVersion < 3) {
+        const comm = db.createObjectStore(STORE.comm, { keyPath: 'seq', autoIncrement: true });
+        comm.createIndex('character_ts', ['character', 'ts']);
+        comm.createIndex('ts', 'ts');
       }
     };
     r.onsuccess = () => {
