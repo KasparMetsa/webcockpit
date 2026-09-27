@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **3 — Script engine and profile editor** (not started).
+Current stage: **3 — Script engine and profile editor** (in progress).
 
 ## Stages
 
@@ -8,7 +8,7 @@ Current stage: **3 — Script engine and profile editor** (not started).
 |---|---|---|---|
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
-| 3 | Script engine and profile editor | Next | — |
+| 3 | Script engine and profile editor | In progress | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | — | — |
 | 5 | Timers and trackers | — | — |
 | 6 | Runs | — | — |
