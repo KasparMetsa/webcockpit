@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **7 — Sharing** (not started).
+Current stage: **7 — Sharing** (in progress).
 
 ## Stages
 
@@ -12,7 +12,7 @@ Current stage: **7 — Sharing** (not started).
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
-| 7 | Sharing | Next | — |
+| 7 | Sharing | In progress | `docs/stages/07-sharing.md` |
 | 8 | Hardening → v1 | — | — |
 | 9 | Map (after v1) | — | — |
 
