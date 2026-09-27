@@ -78,7 +78,7 @@ this stage builds the system store they will use), `#list`,
       `src/script/keys.ts`). Round-trip corpus tests.
 - [ ] P2. Script engine, display pipeline, app wiring, macros, runtime
       variable write-back, benchmark (`src/script/engine/`).
-- [ ] P3. Profile editor (lite + editor views), entry points, live apply
+- [x] P3. Profile editor (lite + editor views), entry points, live apply
       flow (`src/editor/`).
 - [ ] Merge P2 + P3; wire the editor's live host to the engine.
 - [ ] Benchmarks pass (§1.3), cold start < 1 s, editor chunk lazy.

@@ -22,3 +22,10 @@ Sources, versions and the conversion are recorded in
   Miller. Used for the start page, ESC menu and Options chrome
   (`src/chrome/`), loaded as a separate chunk. Licence text:
   `node_modules/preact/LICENSE` (MIT, GPL-compatible).
+- **CodeMirror 6** — `@codemirror/state` 6.7.6, `@codemirror/view` 6.43.13,
+  `@codemirror/commands` 6.11.1 and their dependencies `@codemirror/language`
+  6.12.4, `@lezer/common` 1.5.3, `@lezer/highlight` 1.2.4, `@lezer/lr` 1.4.10,
+  `style-mod` 4.1.4, `w3c-keyname` 2.2.8, `crelt` 1.0.7 — MIT License,
+  Copyright (C) 2018-2021 by Marijn Haverbeke and others. Used for the
+  profile editor's text view (`src/editor/`), loaded as a separate chunk.
+  Licence texts: `node_modules/<package>/LICENSE` (MIT, GPL-compatible).
