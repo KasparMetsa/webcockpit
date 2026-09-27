@@ -6,50 +6,16 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Bus } from '../../src/core/bus';
-import type { Line } from '../../src/core/types';
 import { AFFECTS } from '../../src/timers/data/affects';
-import { LineAssembler } from '../../src/text/assembler';
 import { listFixtures } from '../e2e/fixtures';
-import { bench } from './timers-helpers';
+import { replayLog } from './timers-helpers';
 
 const logs = listFixtures().filter((f) => f.size >= 100_000);
-
-function replay(path: string) {
-  const b = bench();
-  const bus = new Bus();
-  const lines: Line[] = [];
-  bus.on('text.line', (l) => lines.push(l));
-  const asm = new LineAssembler(bus);
-  let first = true;
-  let count = 0;
-  for (const raw of readFileSync(path, 'utf8').split('\n')) {
-    const sp = raw.indexOf(' ');
-    if (sp < 0) continue;
-    const ts = Math.floor(Number(raw.slice(0, sp)) / 1000);
-    const rest = raw.slice(sp + 1);
-    if (!Number.isFinite(ts) || /^\x1b[A-Z]+ /.test(rest)) continue; // records (GMCP, VIEW, SIZE)
-    if (first) {
-      b.setNow(ts);
-      first = false;
-    } else if (ts > b.now()) b.advance((ts - b.now()) / 1000);
-    if (rest.startsWith('> ') || rest === '>') {
-      b.send(rest.slice(2));
-      continue;
-    }
-    asm.text(rest + '\r\n', ts * 1000);
-    for (const l of lines.splice(0)) {
-      b.engine.processLine(l);
-      count++;
-    }
-  }
-  return { b, count };
-}
 
 describe.skipIf(logs.length === 0)('replaying real Cockpit logs', () => {
   for (const f of logs) {
     it(`${f.rel}: no errors, plausible timers`, () => {
-      const { b, count } = replay(f.path);
+      const { b, count } = replayLog(readFileSync(f.path, 'utf8'));
       expect(count).toBeGreaterThan(1000);
       expect(b.errors).toEqual([]);
       const msgs = b.msgs;
@@ -77,4 +43,42 @@ describe.skipIf(logs.length === 0)('replaying real Cockpit logs', () => {
       );
     }, 120_000);
   }
+});
+
+describe('the timers demo fixture', () => {
+  it('exercises every group and ends in a plausible state', () => {
+    const text = readFileSync(new URL('../fixtures/timers-demo.log', import.meta.url), 'utf8');
+    const { b } = replayLog(text);
+    expect(b.errors).toEqual([]);
+    expect(b.msgs).toEqual([
+      '◆ SPELL: armour up.',
+      '◆ BUFF: second wind up.',
+      '◆ SPELL: shield up.',
+      '◆ BUFF: anger up.',
+      '◆ SPELL: bless up.',
+      '◆ SPELL: sanctuary up.',
+      '◆ DEBUFF: tiredness up.',
+      '◆ DEBUFF: hunger up.',
+      '◆ STORE: fireball stored.',
+      '◆ STORE: earthquake stored.',
+      '◆ STORE: earthquake stored.',
+      '◆ BLIND: 2.orc up.',
+      '◆ CHARM: huge stone troll up.',
+      '◆ CHARM: enslaved shadow up.',
+      '◆ STORE: fireball recalled.',
+      '◆ BUFF: anger down.',
+      '◆ SPELL: shield refreshed.',
+      '◆ DEBUFF: hunger down.',
+      '◆ BUFF: second wind down.',
+      '◆ DEBUFF: winded up.',
+    ]);
+    const by = (g: Parameters<typeof b.names>[0]) => b.names(g).sort();
+    expect(by('spell')).toEqual(['armour', 'bless', 'detect magic', 'sanctuary', 'shield']);
+    expect(b.cell('detect magic')!.tracked).toBe(false);
+    expect(by('buff')).toEqual([]);
+    expect(by('debuff')).toEqual(['tiredness', 'winded']);
+    expect(by('stored')).toEqual(['earthquake', 'earthquake']);
+    expect(by('blind')).toEqual(['2.orc']);
+    expect(by('charm')).toEqual(['enslaved shadow', 'huge stone troll']);
+  });
 });
