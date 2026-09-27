@@ -56,22 +56,27 @@ export function useStatus(view: AppStatusView): Readonly<AppStatusState> {
   return s;
 }
 
-/** The pixel size of an element, tracked with a ResizeObserver. */
+/**
+ * The pixel size of an element, tracked with a ResizeObserver and re-read
+ * after every render (so a surface that was just shown has its size before
+ * the next event, not one observer callback later). A hidden element
+ * (0 × 0) keeps its last size.
+ */
 export function useElementSize(ref: { current: HTMLElement | null }): { w: number; h: number } {
   const [size, set] = useState({ w: 0, h: 0 });
-  useLayoutEffect(() => {
+  const read = (): void => {
     const el = ref.current;
     if (!el) return;
-    const read = (): void => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      // Hidden (display: none): keep the last size, so showing again paints at once.
-      if (w === 0 && h === 0) return;
-      set((cur) => (cur.w === w && cur.h === h ? cur : { w, h }));
-    };
-    read();
-    const RO = el.ownerDocument.defaultView?.ResizeObserver;
-    if (!RO) return;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (w === 0 && h === 0) return;
+    set((cur) => (cur.w === w && cur.h === h ? cur : { w, h }));
+  };
+  useLayoutEffect(read);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const RO = el?.ownerDocument.defaultView?.ResizeObserver;
+    if (!el || !RO) return;
     const ro = new RO(read);
     ro.observe(el);
     return () => ro.disconnect();

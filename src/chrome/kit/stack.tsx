@@ -136,8 +136,9 @@ export function FrameStack(props: FrameStackProps): VNode {
     if (flashTimer.current) clearTimeout(flashTimer.current);
   }, []);
 
-  // Keys: capture phase on the window, ahead of the game input's document listener.
-  useEffect(() => {
+  // Keys: capture phase on the window, ahead of the game input's document
+  // listener. A layout effect, so keys work from the first painted frame.
+  useLayoutEffect(() => {
     if (!props.active) return;
     const win = hostRef.current?.ownerDocument.defaultView;
     if (!win) return;

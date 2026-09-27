@@ -20,7 +20,7 @@
 //   it (hover-clear invariant). Mouse click = select + activate.
 
 import type { ComponentChildren, JSX, VNode } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { type NavKey, cellLen, centreLeft, footerText, scrollbar, step, truncate } from './nav';
 import { useGrid } from './hooks';
 import { useFlash } from './stack';
@@ -503,7 +503,8 @@ export interface TextFieldProps {
 /** A one-line text input `> text_` on the grid; focused when mounted. */
 export function TextField(p: TextFieldProps): VNode {
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
+  // A layout effect: typing right after the frame opens lands in the field.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.focus({ preventScroll: true });
