@@ -148,8 +148,18 @@ export interface ReplayOptions extends LogFrameOptions {
   charName?: string;
 }
 
-/** Bytes delivered per task at most when running behind real time. */
-const MAX_BYTES_PER_TASK = 64 * 1024;
+/**
+ * Longest a delivery run may take before yielding to rendering, in ms.
+ * At speed 0 (or when behind real time) frames would otherwise arrive as an
+ * unbroken chain of tasks and the browser decides when to render. After a
+ * slice the replay waits for the next animation frame, so every frame
+ * renders what was delivered. In the 4.7 MB burst benchmark this cut
+ * Firefox's longest frame from ~35 ms to ~20 ms (Chromium: ~19 ms either
+ * way) for ~10 % less throughput.
+ */
+const SLICE_MS = 8;
+/** Fallback when no animation frame comes (hidden tab, no DOM). */
+const YIELD_FALLBACK_MS = 50;
 
 export class ReplaySocket implements Socketish {
   onOpen: (() => void) | null = null;
@@ -167,6 +177,7 @@ export class ReplaySocket implements Socketish {
   private pending: ReplayFrame | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private channel: MessageChannel | null = null;
+  private raf: number | null = null;
   private delivered = 0;
 
   constructor(logText: string, opts: ReplayOptions = {}) {
@@ -211,6 +222,8 @@ export class ReplaySocket implements Socketish {
     this.running = false;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
+    if (this.raf !== null) cancelAnimationFrame(this.raf);
+    this.raf = null;
     if (this.channel) {
       this.channel.port1.onmessage = null;
       this.channel.port1.close();
@@ -226,7 +239,7 @@ export class ReplaySocket implements Socketish {
     this.timer = null;
     if (!this.running || !this.frames) return;
     const speed = this.opts.speed ?? 1;
-    let budget = MAX_BYTES_PER_TASK;
+    const sliceStart = performance.now();
     for (;;) {
       let f = this.pending;
       this.pending = null;
@@ -248,13 +261,33 @@ export class ReplaySocket implements Socketish {
       }
       this.deliver(f.bytes);
       if (!this.running) return;
-      budget -= f.bytes.length;
-      if (budget <= 0 || speed === 0) {
-        this.schedule(this.step, 0);
+      if (performance.now() - sliceStart >= SLICE_MS) {
+        this.yieldToFrame();
         return;
       }
     }
   };
+
+  /** Continues after the next animation frame has rendered. */
+  private yieldToFrame(): void {
+    if (typeof requestAnimationFrame !== 'function') {
+      this.schedule(this.step, 0);
+      return;
+    }
+    let done = false;
+    const go = (): void => {
+      if (done || !this.running) return;
+      done = true;
+      if (this.raf !== null) cancelAnimationFrame(this.raf);
+      this.raf = null;
+      if (this.timer !== null) clearTimeout(this.timer);
+      this.timer = null;
+      // A task posted from the frame callback runs after that frame renders.
+      this.schedule(this.step, 0);
+    };
+    this.raf = requestAnimationFrame(go);
+    this.timer = setTimeout(go, YIELD_FALLBACK_MS);
+  }
 
   /** Runs `fn` in a later task: MessageChannel for 0 ms (no 4 ms clamp). */
   private schedule(fn: () => void, ms: number): void {
