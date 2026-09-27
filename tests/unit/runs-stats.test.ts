@@ -139,7 +139,7 @@ describe('buildStats', () => {
     expect(r.delta).toBeLessThan(0);
   });
 
-  it('rates gains per hour in buckets', () => {
+  it('rates gains per hour over a trailing window of one slice', () => {
     const gains = [
       { us: 0, delta: 100 },
       { us: 0.9 * H, delta: 50 },
@@ -147,6 +147,18 @@ describe('buildStats', () => {
     ];
     expect(rateSeries(gains, 0, 2 * H, 2)).toEqual([150, 10]);
     expect(rateSeries(gains, 0, 2 * H, 4)).toEqual([200, 100, 0, 20]);
-    expect(rateSeries([{ us: 5, delta: 7 }], 5, 5, 3)).toEqual([0, 0, 7]);
+    expect(rateSeries([{ us: 5, delta: 7 }], 5, 5, 3)).toEqual([42, 42, 42]);
+  });
+
+  it('never rates over less than 10 minutes', () => {
+    // A 90k kill 10 s into a 20-minute run: 90k over 10 min = 540k/h, not
+    // hundreds of millions, and it fades once it leaves the window.
+    const s = 1e6;
+    const r = rateSeries([{ us: 10 * s, delta: 90_000 }], 0, 1200 * s, 20);
+    expect(Math.max(...r)).toBe(540_000);
+    expect(r[0]).toBe(540_000);
+    expect(r[9]).toBe(540_000);
+    expect(r[10]).toBe(0);
+    expect(r[19]).toBe(0);
   });
 });

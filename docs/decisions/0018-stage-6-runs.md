@@ -483,3 +483,13 @@ Unit test in `capture.test.ts`.
 - Sparkline rates early in a run are extreme (a 90k kill in a 10 s run
   is 945M XP/h): per-bucket rates as Inv §7.3 defines them. Owner may
   want a minimum span.
+
+### Main session — sparkline rates (2026-09-27)
+
+Owner request after P1: the sparklines showed extreme rates early in a
+run (a 90k kill 10 s in drew ~945M XP/h). `rateSeries` now samples, at
+the end of each slice, the gains in a trailing window of one slice or
+10 min (`RATE_WINDOW_US`), whichever is longer; time before the run
+start counts as no gain. A kill early in a run now reads as at most
+6× its XP per hour and fades after 10 min. This departs from Inv §7.3's
+per-slice rate on purpose.
