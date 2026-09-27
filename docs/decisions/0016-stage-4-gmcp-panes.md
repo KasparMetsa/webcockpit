@@ -191,3 +191,99 @@ line and `The current time is 8:00am.`, `Wimpy set to: 50`,
 `tests/fixtures` before `$WEBCOCKPIT_FIXTURES`: open
 `/?fixture=gmcp-demo.log` (add `&speed=0` for instant, `&speed=2` for
 double speed).
+
+### P2 — Comm and UI panes (2026-09-27)
+
+**Modules.** `src/gmcp/comm.ts` (pure): channel list and header order,
+`headerLayout` (ADR 0098 regimes), `formatComm` → coloured segments
+(ADR 0013 rules), `parseAnsi` (SGR → `StyleRun`s), filters and solo
+(`toggleChannel`, `soloChannel`), `commTime`. `src/panes/comm.ts`
+(`CommPane`), `src/panes/ui.ts` (`UiPane`), `src/panes/anchored-list.ts`
+(the shared bottom-anchored list, scrolled by item), `src/panes/panes.css`,
+`src/app/ui-messages.ts` (emitters), `src/chrome/frames/comm-options.tsx`.
+
+**`PANE_FACTORIES` moved to `src/panes/factories.ts`.** The subclasses
+import `pane.ts`, so the table there made an import cycle (`CommPane`
+extended `undefined`). The cockpit imports it from `factories.ts`; P1's
+Character and Group entries go there at the merge.
+
+**Scroll by item with CSS wrapping.** The list builds only the items that
+can show (`rows + 1`, each at least one row), bottom-anchored in an
+absolutely positioned stack, and measures what the browser laid out once
+per render: the item heights decide whether one more step up is allowed
+(the oldest item may not leave blank space above it) and step the offset
+back when a render finds blank space (filter flip, timestamps appearing).
+One wheel notch = one step; small deltas (trackpads) accumulate to 40 px.
+The indicator is its own row below the list; mouse down returns to live.
+The same list serves the UI pane (Inv §2.4: by line, wrap-aware, oldest
+pinned).
+
+**Comm history.** In-memory ring of 1000, not cleared on disconnect. A
+live `Char.Name` replaces it with the archive's last 1000 (7 days); a
+different character never sees the previous one's history; messages that
+arrive during the load are kept and written after it. A replay (its
+`conn.state` has `replay`) starts from an empty history at its
+`Char.Name` and never reads or writes the archive. The archive is opened
+and pruned when the pane is built; without IndexedDB the pane works in
+memory. Timestamps are the receive time (a replay shows replay time).
+Before any `Comm.Channel.List` the header shows the ten fixed channels.
+
+**Header clicks.** `mousedown` (left toggle, right solo), `contextmenu`
+suppressed. Filters are written with a function update (the whole sparse
+map). The pane remembers the map it wrote; a settings change with other
+filters cancels solo (Inv §2.7.6). Header cells are raised above the
+title-row grip (`z-index`), so with the border off the header is
+clickable and the pane is dragged by the gaps only.
+
+**Deviations from the inventory.**
+- Header widths: natural when the labels fit the budget. Cockpit's rule
+  (even share ≥ longest label) truncated `Whispers`/`Questions` at 80
+  columns where the full names fit; the regimes are otherwise as ADR 0098.
+- Talker cleanup: `" the …"` is dropped only after a one-word name
+  (`Thrakghash of the Mordor Flame` stays whole instead of becoming
+  `Thrakghash of`), and an enemy's stars survive (`*Throzghul the Orc*` →
+  `*Throzghul*`, Cockpit gave `*Throzghul`). Action channels: a text that
+  starts with `*Name…* ` is split there when the talker field differs
+  (MUME sends `*Throzghul the Zaugurz Orc*` with text `*Throzghul the
+  Orc* says …`), so the name is not doubled.
+- The indicator says `1 newer message` in the singular.
+- The talker's ANSI colour (enemy red) is not kept: the talker comes from
+  the field in quoted channels and is re-coloured in action channels, as
+  in Cockpit; ANSI in the message body is kept.
+
+**UI pane.** Never blanked. Ring of 1000 in `sessionStorage`
+(`wc.ui.messages`, JSON array of `UiMessage`), written 250 ms after a
+change and on `pagehide`; invalid entries are dropped on load. Prefix and
+tag colours from Inv §2.4; unknown `◆` tags use AFFECT. Light pane:
+`lightShift` on prefix and value colours, `darkInk` of the pane background
+for the base text.
+
+**Emitters** (`uiMsg(kind, 'template with {values}.')`):
+- `attachUiMessages(bus)` (App): `Connecting to MUME...` /
+  `Reconnecting to MUME...` (after `#reconnect`) / `Replay started.`;
+  `<Name> logged in.`; leaving `playing`: `<Name> logged out.`; then
+  `Connection to MUME closed.`, `Replay finished.` / `Replay stopped.`, or
+  `✖ ERROR: Could not connect to MUME.` when the socket never opened;
+  `▶ ACHIEVEMENT: Unlocked.` on `Event.Achieved` (replays too: the UI pane
+  is rebuilt from recorded GMCP).
+- App: `Profile <p> loaded.` (session start) / `⚠ … loaded with N
+  warnings.` / `✖ … not loaded.` / `… could not be read.` / `⚠ … not
+  found.`; `Profile <p> applied.` (ESC-menu Apply) / `⚠ … applied with N
+  warnings.` / `✖ … not applied.`; capture: `⚠ Run capture is off: no
+  IndexedDB. / no Web Locks. / another tab records this character.`,
+  `✖ Run capture failed.`; `⚠ Profile variables were not saved.`
+  (write-back failure).
+- Editor saves (`ChromeServices.onProfileSaved` → `EditOptions.onSaved`,
+  ESC menu and start page): `Profile <p> saved.` (only once the cockpit
+  exists; the start page before the first Enter MUME has no UI pane).
+  The variable write-back does not announce its saves.
+- The game output keeps all its `[SYSTEM]` lines: the UI pane can be off,
+  and the lines carry detail (reasons, warnings) the short UI sentences
+  leave out.
+
+**Options.** Panes gains a `Communication` row above `Reset layout`
+(one tail item; the frame's row count follows the tail). The sub-page is
+`CommOptionsFrame`: ten `[X]███ Label` rows (swatch in the channel colour,
+grey when off), `[X] Show channel header`, Back; ↑↓ Home End Enter, click,
+hover moves the cursor. Changes apply live from both the start page and
+the ESC menu.

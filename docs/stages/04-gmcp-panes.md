@@ -86,8 +86,9 @@ Carried: the owner wants per-character state to survive sessions
       `/?fixture=gmcp-demo.log`.
 - [ ] P1. Character pane, Group pane (+ options), clock model and
       input strip.
-- [ ] P2. Comm pane (+ options, archive), UI messages pane and its
-      emitters.
+- [x] P2. Comm pane (+ options, archive), UI messages pane and its
+      emitters. Notes in ADR 0016 (`PANE_FACTORIES` moved to
+      `src/panes/factories.ts`).
 - [ ] Merge P1 + P2; bench still passes (§1.3).
 - [ ] Main-session verification in a browser.
 - [ ] Test guide ready.
