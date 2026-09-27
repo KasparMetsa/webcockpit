@@ -52,7 +52,7 @@ None yet. Carried: per-character timers state survives sessions
 ## Tasks
 
 - [x] Stage file and ADR 0017.
-- [ ] P0. Foundation: timers settings key + migration + view snapshot,
+- [x] P0. Foundation: timers settings key + migration + view snapshot,
       IndexedDB v4 `timers` store and archive, `GameState.timers` hub
       skeleton with its public API and persistence lifecycle, input tap
       (live and replayed sends, empty Enter), entry maths, pane factory

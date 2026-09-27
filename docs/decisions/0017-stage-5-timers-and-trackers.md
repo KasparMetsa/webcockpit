@@ -142,3 +142,112 @@ writes them in our own TypeScript format. No Cockpit code.
 ## Package notes
 
 (Builders append here.)
+
+### P0 — foundation (2026-09-27)
+
+**Files.** `src/timers/entry.ts` (model, pure), `src/timers/tracker.ts`
+(the seam, `ManualTracker`, `stateMessage`), `src/timers/trackers.ts`
+(`createTrackers(host)`, returns `[]`: **P1 fills it**),
+`src/timers/hub.ts` (`TimersHub`), `src/timers/archive.ts`,
+`src/panes/timers.ts` (placeholder `TimersPane`: **P2 replaces it**; the
+factory entry in `src/panes/factories.ts` is already `new TimersPane(ctx)`).
+
+**Entry model** (`entry.ts`). `TimerGroup`, `TIMER_GROUPS` (pane order),
+`TIMER_GROUP_LABELS` (`Spells` … `Charmies`), `TimerCell`, `TimersView`
+exactly as above, plus `emptyView()`, `isTimed(c)` (tracked and
+`expiresAt` set), `remainingMs(c, now)` (null when not timed),
+`barPct(c, now)` (clamped; indefinite tracked = 1; untracked = 0 — the
+pane paints untracked stored spells grey-full itself), `barFill(pct, w)` =
+`floor(pct*w + 0.5)` clamped 0–w, `countdownText(secs)` (truncates, `Ns`
+≤ 90, else `floor((s+30)/60)m`, `0s` floor), `cellCountdown(c, now)`
+(null for charms, indefinite, untracked), `charmMinutes(c, now)` (0–99,
+null for permanent), `sortCells(group, cells)` (in place; Inv §2.6.1).
+
+**Tracker seam** (`tracker.ts`). The hub builds its trackers once with
+`createTrackers(host)`:
+
+```ts
+interface TrackerHost {
+  now(): number;                       // the hub's injected wall clock, ms
+  changed(): void;                     // after EVERY mutation: notify + save
+  announce(tag: StateTag, name: string, verb: string, detail?: string): void;  // ◆ line
+  message(m: UiMessage): void;         // any UI line (⚠ WARN: STORE: …)
+}
+interface Tracker {
+  readonly key: string;                // key in the saved state; unique
+  cells(now): TimerCell[];             // any order; the hub groups and sorts
+  tick?(now): void;                    // every 1 s from the hub's one timer
+  serialize(now): unknown;             // fresh JSON-safe data; undefined = nothing
+  restore(saved: unknown, now): void;  // merge under live entries, drop expired, silent
+  reset(): void;                       // forget all (connecting, replay Char.Name), silent
+  installRules?(system: SystemRules): void;
+  onSent?(text: string, now): void;    // '' = empty Enter
+  herbs?(now): {key,name,active}[];  addHerb?(key, now);  removeHerb?(key, now);
+  dropCharm?(id: string, now): void;
+}
+```
+
+`StateTag` = SPELL/BUFF/DEBUFF/STORE/BLIND/CHARM/HERB; `GROUP_TAG[group]`
+maps a group to its tag. `stateMessage(tag, name, verb, detail?)` gives
+`◆ TAG: name verb.` / `… verb (detail).` with the name as the yellow
+value. All tag colours already exist in `UI_TAG_COLORS` (src/panes/ui.ts).
+Durations, prune cadence (Cockpit's 10 s / 2 s) and the cast queue live
+inside the trackers; the hub only ticks at 1 Hz. The shared cast queue
+can be an object `createTrackers` passes to several trackers.
+
+**Hub** (`hub.ts`). Public API as decided (`view(now?)`, `addHerb`,
+`removeHerb`, `dropCharm`, `installRules`, `subscribe`) plus
+`attach(bus)`, `dispose()`, `flushSave()`, `snapshot()`, `idle()` (archive
+work done, tests), `characterName`, `persistent`. Options: `now`,
+`scheduler` (the engine's `Scheduler`: `set`/`clear`; `FakeScheduler` in
+tests), `openDb`, `win`, `trackers` (factory override), `saveDelayMs`
+(250), `tickMs` (1000). Lifecycle: `connecting` → pending save flushed,
+every tracker `reset()`; live `Char.Name` → load that character's record
+and `restore` each tracker (lines that came meanwhile stay; the merged
+state is saved afterwards); a second `Char.Name` of the same character on
+one connection is ignored; replay `Char.Name` → reset, never read or
+written. A disconnect changes nothing. Record: `{ character, savedAt,
+state: { v: 1, trackers: { [key]: serialize() } } }`. Known edge: a new
+`connecting` while the record is still loading (a few ms) drops the lines
+of that moment.
+
+**GameState.** `game.timers: TimersHub`, attached in `game.attach(bus)`;
+part `'timers'` on every hub change. `GameStateOptions.timers` passes hub
+options (`openDb`, `scheduler`, `win`, `trackers`; `now` is shared).
+App shares one `lazyDb` opener between the hub and the pane context,
+passes `win` and its `scheduler` option, and calls
+`game.timers.installRules(script.system)` right after
+`game.installRules`.
+
+**Settings.** `timers` as decided, in `viewSnapshot`. `TimerColor` =
+`blue|green|red|magenta|cyan|violet|orange`; `TIMER_COLOR_ORDER`,
+`TIMER_COLOR_HEX` (`#66b2ff #00d900 #d90000 #ff66ff #00cccc #b388ff
+#ff9933`), `TIMER_COLOR_LABELS`, `TIMER_COLS_MIN` 1, `timerColsMax(g)` (6,
+charm 2), `defaultTimersSettings()`, `migrateTimers(raw)` (per-key
+fallback, cols clamped). Patch with `settings.update({ timers: { groups:
+{ spell: { cols: 3 } } } })`.
+
+**Storage.** DB version 4, store `timers` (keyPath `character`).
+`TimersArchive.open(openDb)`, `load(character) → { character, savedAt,
+state } | null`, `save(character, state)`.
+
+**Input tap.** Verified: an empty Enter goes engine `input('')` →
+`sendCommand('')` → `cmd.sent { text: '' }` (App test). Replays did not
+re-emit recorded commands; now `logToFrames(text, { sends: true })` yields
+each `> cmd` as its own frame (`sent`, empty bytes, the clock not moved)
+and `ReplaySocket.onSent` → Session emits `cmd.sent { text, ts: nowUs(),
+replay: true }` between the inbound lines around it. The output pane does
+not echo `replay` commands (a log cannot tell typed commands from
+`change width`; replays look as before); the recorder does not capture
+them; nothing re-sends them. The hub takes only live sends on a live
+connection and only `replay` sends during a replay (typed commands during
+a replay are ignored); `secret` never. The bench path (`logToFrames`
+without `sends`) is unchanged.
+
+**Test hooks.** `new GameState({ timers: { trackers: (h) => [new
+ManualTracker('m', h, { persist: true })] } })` puts hand-made cells in
+(`put(cell)`, `remove(id)`, `clear()`, `setHerbs(list)`; `dropCharm`
+and herb add/remove work). Without injecting: `game.timers.debugAdd(cell)`,
+`debugHerbs(list)`, `debugClear()` — an internal, never-saved tracker,
+cleared by `connecting`; in the browser `__wc.app.game.timers.debugAdd({
+id, name, group, startedAt, expiresAt, expected, tracked })`.
