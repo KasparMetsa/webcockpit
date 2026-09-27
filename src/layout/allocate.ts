@@ -1,0 +1,339 @@
+// Layout allocation (ADR 0010 "Docking", ADR 0012, Inv §2.1 "Heights").
+//
+// A pure function from the layout model, the pane toggles and the viewport
+// (in cells) to rectangles in cells. No DOM: src/layout/cockpit.ts turns
+// the result into pixels once per frame.
+//
+// Screen (C × R cells):
+//
+//   +------+--+----------------------+--+---------+
+//   | left |  |        game          |  |  right  |
+//   | dock |g |                      |g |  dock   |
+//   |      |a +----------------------+a |         |
+//   |      |p |      (gap row)       |p |         |
+//   |      |  |   bottom dock        |  |         |
+//   +------+--+----------------------+--+---------+
+//   | input line (full width, 1 row, clock strip at its right end) |
+//   +--------------------------------------------------------------+
+//
+// - Side docks run the full height above the input; the bottom dock sits
+//   under the game pane only, between the side docks (ADR 0012).
+// - One gap cell separates the game column from each shown side dock, and
+//   one gap row separates the game pane from the bottom dock. Panes inside
+//   a dock touch (their frames separate them, as in Cockpit).
+// - Along a dock, panes get their `desired` content size if everything
+//   fits, the leftover going to the highest-priority pane; otherwise
+//   Character is reserved first and the rest scale between minimum and
+//   desired; if even the minimums do not fit, panes are dropped in order
+//   (`allocateAxis`). A framed pane adds two cells on each axis.
+// - Narrow collapse: a side dock is hidden when the game pane would get
+//   fewer than GAME_MIN_COLS columns. The model is untouched, so the dock
+//   comes back as soon as the window is wide enough again.
+// - Below MIN_VIEW_COLS × MIN_VIEW_ROWS the result is `tooSmall`.
+
+import { type DockId, type LayoutModel, PANE_IDS, type PaneId } from './types';
+
+/** Smallest game pane (Inv §2.1 MAIN_MIN; ADR 0010). */
+export const GAME_MIN_COLS = 30;
+export const GAME_MIN_ROWS = 5;
+/** Below this the "Window too small" screen replaces the view (Inv §2.1). */
+export const MIN_VIEW_COLS = 60;
+export const MIN_VIEW_ROWS = 18;
+/** Cells a frame adds on each axis (top+bottom rows or left+right columns). */
+export const FRAME_CELLS = 2;
+/** Gap between the game column and a side dock, or the game pane and the bottom dock. */
+export const DOCK_GAP = 1;
+/** Narrowest side dock and lowest bottom dock (cells, frame included). */
+export const SIDE_DOCK_MIN = 10;
+export const BOTTOM_DOCK_MIN = 3;
+/** Rows of the input line. */
+export const INPUT_ROWS = 1;
+
+/** Minimum content rows in a side dock (Inv §2.1 "Heights"). */
+export const MIN_ROWS: Readonly<Record<PaneId, number>> = {
+  character: 3,
+  timers: 1,
+  group: 1,
+  comm: 1,
+  ui: 1,
+};
+/** Minimum content columns in the bottom dock (ADR 0012). */
+export const MIN_COLS = 8;
+/** Desired content columns of a pane that enters the bottom dock (ADR 0012). */
+export const DEFAULT_BOTTOM_DESIRED = 30;
+
+/** Who gets the leftover cells first (Inv §2.1). */
+export const LEFTOVER_PRIORITY: readonly PaneId[] = ['ui', 'character', 'comm', 'timers', 'group'];
+/** Who is dropped first when even the minimums do not fit (Inv §2.1). */
+export const DROP_ORDER: readonly PaneId[] = ['group', 'timers', 'comm', 'character', 'ui'];
+
+/** True for the docks that stack panes vertically. */
+export const isSideDock = (d: DockId): boolean => d !== 'bottom';
+
+/** Minimum content size of `id` along the axis of `dock`. */
+export function minContent(id: PaneId, dock: DockId): number {
+  return isSideDock(dock) ? MIN_ROWS[id] : MIN_COLS;
+}
+
+// ------------------------------------------------------------------ axis
+
+export interface AxisItem {
+  id: PaneId;
+  /** Wanted content cells. */
+  desired: number;
+  /** Minimum content cells. */
+  min: number;
+  /** Cells the frame adds (0 or FRAME_CELLS). */
+  frame: number;
+}
+
+export interface AxisResult {
+  /** Content cells per surviving pane, in input order. */
+  sizes: { id: PaneId; size: number }[];
+  /** Panes that did not fit even at their minimum (DROP_ORDER). */
+  dropped: PaneId[];
+  /**
+   * `fit`: every pane got at least its desired size. `scaled`: some got
+   * less. `empty`: no pane survived.
+   */
+  mode: 'fit' | 'scaled' | 'empty';
+}
+
+const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
+
+/**
+ * Splits `length` cells among `items` (Inv §2.1 "Heights"). The sizes plus
+ * frames fill `length` exactly unless nothing survives.
+ */
+export function allocateAxis(items: readonly AxisItem[], length: number): AxisResult {
+  const norm = items.map((it) => ({ ...it, desired: Math.max(it.min, Math.round(it.desired)) }));
+  let live = norm;
+  const dropped: PaneId[] = [];
+  while (live.length > 0 && sum(live.map((i) => i.min + i.frame)) > length) {
+    const victim = DROP_ORDER.find((id) => live.some((i) => i.id === id))!;
+    dropped.push(victim);
+    live = live.filter((i) => i.id !== victim);
+  }
+  if (live.length === 0) return { sizes: [], dropped, mode: 'empty' };
+
+  const size = new Map<PaneId, number>();
+  const frames = sum(live.map((i) => i.frame));
+  const wanted = sum(live.map((i) => i.desired)) + frames;
+  const byPriority = LEFTOVER_PRIORITY.filter((id) => live.some((i) => i.id === id));
+
+  if (wanted <= length) {
+    for (const i of live) size.set(i.id, i.desired);
+    const top = byPriority[0]!;
+    size.set(top, size.get(top)! + (length - wanted));
+    return { sizes: live.map((i) => ({ id: i.id, size: size.get(i.id)! })), dropped, mode: 'fit' };
+  }
+
+  // Character reserved first (ADR 0137 in Cockpit), if that leaves the
+  // others their minimums; the rest scale between minimum and desired.
+  const ch = live.find((i) => i.id === 'character');
+  let scaled = live;
+  let avail = length - frames;
+  if (ch && live.length > 1) {
+    const othersMin = sum(live.filter((i) => i !== ch).map((i) => i.min));
+    if (ch.desired + othersMin <= avail) {
+      size.set(ch.id, ch.desired);
+      scaled = live.filter((i) => i !== ch);
+      avail -= ch.desired;
+    }
+  }
+  const mins = sum(scaled.map((i) => i.min));
+  const span = sum(scaled.map((i) => i.desired - i.min));
+  const extra = avail - mins; // 0 ≤ extra < span here
+  let given = 0;
+  for (const i of scaled) {
+    const e = span > 0 ? Math.floor(((i.desired - i.min) * extra) / span) : 0;
+    size.set(i.id, i.min + e);
+    given += e;
+  }
+  // Rounding remainder: one cell each, by priority, never past desired.
+  let rest = extra - given;
+  while (rest > 0) {
+    let moved = false;
+    for (const id of byPriority) {
+      const it = scaled.find((i) => i.id === id);
+      if (!it || rest === 0) continue;
+      if (size.get(id)! < it.desired) {
+        size.set(id, size.get(id)! + 1);
+        rest--;
+        moved = true;
+      }
+    }
+    if (!moved) {
+      const top = byPriority[0]!;
+      size.set(top, size.get(top)! + rest);
+      rest = 0;
+    }
+  }
+  return { sizes: live.map((i) => ({ id: i.id, size: size.get(i.id)! })), dropped, mode: 'scaled' };
+}
+
+// ---------------------------------------------------------------- screen
+
+/** A rectangle in cells. */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface PaneToggle {
+  on: boolean;
+  border: boolean;
+}
+
+export interface AllocateInput {
+  layout: LayoutModel;
+  panes: Readonly<Record<PaneId, PaneToggle>>;
+  /** Viewport in whole cells. */
+  cols: number;
+  rows: number;
+}
+
+export interface PaneBox {
+  id: PaneId;
+  dock: DockId;
+  /** Index of the pane in the dock's model list. */
+  index: number;
+  /** Outer rectangle (frame included). */
+  rect: Rect;
+  /** Content rectangle (the rect minus the frame). */
+  content: Rect;
+  framed: boolean;
+}
+
+export interface DockBox {
+  id: DockId;
+  rect: Rect;
+  /** Shown panes in order. */
+  panes: PaneId[];
+  /** `fit` or `scaled` (see AxisResult). */
+  mode: 'fit' | 'scaled';
+}
+
+export interface LayoutResult {
+  cols: number;
+  rows: number;
+  /** The viewport is below MIN_VIEW_COLS × MIN_VIEW_ROWS; nothing else is laid out. */
+  tooSmall: boolean;
+  game: Rect;
+  input: Rect;
+  /** Shown docks only. */
+  docks: Partial<Record<DockId, DockBox>>;
+  /** Docks with panes switched on that are hidden for lack of space. */
+  collapsed: DockId[];
+  /** Shown panes, dock by dock (left, right, bottom), in stack order. */
+  panes: PaneBox[];
+  /** Panes switched on but not shown: dropped by allocation or in a collapsed dock. */
+  hidden: PaneId[];
+}
+
+const EMPTY: Rect = { x: 0, y: 0, w: 0, h: 0 };
+
+function axisItems(input: AllocateInput, dock: DockId): AxisItem[] {
+  return input.layout.docks[dock].panes
+    .filter((p) => input.panes[p.id]?.on)
+    .map((p) => ({
+      id: p.id,
+      desired: p.desired,
+      min: minContent(p.id, dock),
+      frame: input.panes[p.id].border ? FRAME_CELLS : 0,
+    }));
+}
+
+/** Lays out the whole screen (see the file header). */
+export function allocate(input: AllocateInput): LayoutResult {
+  const cols = Math.max(0, Math.floor(input.cols));
+  const rows = Math.max(0, Math.floor(input.rows));
+  const res: LayoutResult = {
+    cols,
+    rows,
+    tooSmall: false,
+    game: EMPTY,
+    input: { x: 0, y: Math.max(0, rows - INPUT_ROWS), w: cols, h: Math.min(rows, INPUT_ROWS) },
+    docks: {},
+    collapsed: [],
+    panes: [],
+    hidden: [],
+  };
+  if (cols < MIN_VIEW_COLS || rows < MIN_VIEW_ROWS) {
+    res.tooSmall = true;
+    res.game = { x: 0, y: 0, w: cols, h: Math.max(0, rows - INPUT_ROWS) };
+    res.hidden = PANE_IDS.filter((id) => input.panes[id]?.on);
+    return res;
+  }
+
+  const H = rows - INPUT_ROWS;
+  const items: Record<DockId, AxisItem[]> = {
+    left: axisItems(input, 'left'),
+    right: axisItems(input, 'right'),
+    bottom: axisItems(input, 'bottom'),
+  };
+  const sideW = (d: DockId): number => Math.max(SIDE_DOCK_MIN, input.layout.docks[d].size);
+  const need = (d: DockId, on: boolean): number => (on && items[d].length > 0 ? sideW(d) + DOCK_GAP : 0);
+
+  // Narrow collapse: keep both, else the right, else the left, else none.
+  let showL = items.left.length > 0;
+  let showR = items.right.length > 0;
+  const fits = (l: boolean, r: boolean): boolean => cols - need('left', l) - need('right', r) >= GAME_MIN_COLS;
+  if (!fits(showL, showR)) {
+    if (showR && fits(false, true)) showL = false;
+    else if (showL && fits(true, false)) showR = false;
+    else showL = showR = false;
+  }
+  for (const [d, shown] of [['left', showL], ['right', showR]] as const) {
+    if (!shown && items[d].length > 0) {
+      res.collapsed.push(d);
+      res.hidden.push(...items[d].map((i) => i.id));
+    }
+  }
+
+  const leftW = showL ? sideW('left') : 0;
+  const rightW = showR ? sideW('right') : 0;
+  const gx = showL ? leftW + DOCK_GAP : 0;
+  const gw = cols - gx - (showR ? rightW + DOCK_GAP : 0);
+
+  // Bottom dock: shrinks to keep GAME_MIN_ROWS, hidden below BOTTOM_DOCK_MIN.
+  let bottomH = 0;
+  if (items.bottom.length > 0) {
+    bottomH = Math.min(input.layout.docks.bottom.size, H - DOCK_GAP - GAME_MIN_ROWS);
+    if (bottomH < BOTTOM_DOCK_MIN) {
+      bottomH = 0;
+      res.collapsed.push('bottom');
+      res.hidden.push(...items.bottom.map((i) => i.id));
+    }
+  }
+  res.game = { x: gx, y: 0, w: gw, h: bottomH > 0 ? H - bottomH - DOCK_GAP : H };
+
+  const place = (dock: DockId, rect: Rect): void => {
+    const side = isSideDock(dock);
+    const ax = allocateAxis(items[dock], side ? rect.h : rect.w);
+    res.hidden.push(...ax.dropped);
+    if (ax.mode === 'empty') return;
+    res.docks[dock] = { id: dock, rect, panes: ax.sizes.map((s) => s.id), mode: ax.mode };
+    const model = input.layout.docks[dock].panes;
+    let at = side ? rect.y : rect.x;
+    for (const { id, size } of ax.sizes) {
+      const framed = input.panes[id].border;
+      const f = framed ? FRAME_CELLS : 0;
+      const len = size + f;
+      const r: Rect = side
+        ? { x: rect.x, y: at, w: rect.w, h: len }
+        : { x: at, y: rect.y, w: len, h: rect.h };
+      const c: Rect = framed
+        ? { x: r.x + 1, y: r.y + 1, w: Math.max(0, r.w - 2), h: Math.max(0, r.h - 2) }
+        : { ...r };
+      res.panes.push({ id, dock, index: model.findIndex((p) => p.id === id), rect: r, content: c, framed });
+      at += len;
+    }
+  };
+  if (showL) place('left', { x: 0, y: 0, w: leftW, h: H });
+  if (showR) place('right', { x: cols - rightW, y: 0, w: rightW, h: H });
+  if (bottomH > 0) place('bottom', { x: gx, y: H - bottomH, w: gw, h: bottomH });
+  return res;
+}
