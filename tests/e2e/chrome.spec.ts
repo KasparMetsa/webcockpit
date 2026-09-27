@@ -374,7 +374,7 @@ test('too small a window shows a notice instead of the menu', async ({ page }) =
   await page.setViewportSize({ width: 400, height: 200 });
   await mockMume(page);
   await page.goto('/');
-  await expect(page.locator('.wc-start .wc-too-small')).toContainText('Window too small');
+  await expect(page.locator('.wc-start .wc-start-too-small')).toContainText('Window too small');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
   await expect(page.locator('.wc-app')).toHaveCount(0);

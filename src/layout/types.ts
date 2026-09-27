@@ -1,6 +1,6 @@
 // Layout data types (ADR 0010 "Docking"). Types and the default model
-// only: allocation, docking and validation of moves live in
-// src/layout/model.ts (stage 2, package B). The settings store persists a
+// only: allocation lives in src/layout/allocate.ts, model operations in
+// src/layout/model.ts (ADR 0012). The settings store persists a
 // `LayoutModel` as plain data and repairs a damaged one on load
 // (src/settings/migrate.ts).
 

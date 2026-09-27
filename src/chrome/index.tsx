@@ -78,7 +78,7 @@ export function TooSmall(p: { cols: number; rows: number }): VNode {
   ];
   const top = Math.max(0, Math.floor((p.rows - lines.length) / 2));
   return (
-    <div class="wc-too-small">
+    <div class="wc-start-too-small">
       {Array.from({ length: top }, () => (
         <div class="wc-line" />
       ))}

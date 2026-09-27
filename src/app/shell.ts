@@ -154,11 +154,12 @@ export class Shell {
 
   private ensureApp(): App {
     if (this.appRef) return this.appRef;
-    const { root, cells, offline, probe } = this.opts;
+    const { root, cells, offline, probe, settings } = this.opts;
     const app = new App({
       root,
       offline,
       cells,
+      settings,
       onEscape: () => void this.openMenu(),
       ...(probe ? { requestFrame: probe.requestFrame } : {}),
     });
