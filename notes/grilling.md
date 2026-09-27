@@ -73,7 +73,7 @@ Notes from round 1:
 
 ## Round 2
 
-Questions asked (awaiting answers):
+Questions asked:
 
 1. User scripting model: tt++-like command language (+ menus as editor),
    JavaScript, or menus only?
@@ -88,3 +88,45 @@ Questions asked (awaiting answers):
 8. Success criterion for v1: owner replaces Cockpit for daily play?
    Public release to other players?
 9. Open source and hosting (e.g. GitHub Pages under own account)?
+
+### Answers (2026-09-27)
+
+1. C: menus only.
+2. No import from tt++ / Cockpit profiles needed.
+3. Leans towards contacting MUME if blocked. An existing browser client
+   (MMapper in the browser) already works against MUME, so the origin
+   question is expected to be a non-issue.
+4. Entirely the player's responsibility.
+5. One character per tab. Multi-login is cheating in MUME; the player's
+   responsibility.
+6. Running in a normal browser tab is the priority. Capturing as many
+   key combinations as possible is a bonus.
+7. Logs are for saving sessions to share or review later. Mirror
+   Cockpit's logging functionality fully (raw capture, runs, log
+   player, export editor, …).
+8. v1 is done when the owner judges the web version as good as Cockpit
+   after live PvP use over several sessions.
+9. Private until mature.
+
+Notes from round 2:
+
+- "Menus only" (Q2.1) vs "scripts" as a tt++ feature (Q1.4) needs
+  clarifying: how much logic can a menu-built rule express?
+- Cockpit logging is large: raw .log, per-run JSONL events, statistics,
+  history, log player, export editor with HTML replay, spotlights.
+  Needs ordering across stages.
+- Cockpit relies on a local MMapper proxy for mapping. A browser tab
+  cannot reach a local MMapper, so until the built-in map exists,
+  players have no map. Affects stage order.
+
+## Round 3
+
+Questions asked (awaiting answers):
+
+1. How much logic can menu-built rules express? Is it acceptable that
+   things like autostab cannot be built by users?
+2. Logging: which parts first, which parts late?
+3. Map: no map until the built-in one exists. Acceptable, or should the
+   map move earlier?
+4. Other Cockpit features (readability modules, ESC popup, launcher,
+   profile picker, statistics, spotlights): all in scope?
