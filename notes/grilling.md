@@ -121,7 +121,7 @@ Notes from round 2:
 
 ## Round 3
 
-Questions asked (awaiting answers):
+Questions asked:
 
 1. How much logic can menu-built rules express? Is it acceptable that
    things like autostab cannot be built by users?
@@ -130,3 +130,17 @@ Questions asked (awaiting answers):
    map move earlier?
 4. Other Cockpit features (readability modules, ESC popup, launcher,
    profile picker, statistics, spotlights): all in scope?
+
+### Answers (2026-09-27)
+
+1. Mirror Cockpit's profile editor: a lite view (forms for aliases,
+   hotkeys/macros, actions, …) and an editor view where all settings are
+   edited freely as text in tt++ syntax. Supersedes "menus only" from
+   round 2.
+2. All logging parts are wanted. Building them over several stages is
+   fine.
+3. Build the full client without a map first. The map is a step after a
+   fully working version.
+4. Readability modules: out. Key manager: out (a standalone Cockpit
+   script). Everything else in: mirror Cockpit's launcher/start page,
+   menus, design and TUI feel nearly identically.
