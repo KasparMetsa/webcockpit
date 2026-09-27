@@ -20,22 +20,9 @@
 import { idbDone as done, idbRequest as req, openWebcockpitDb } from '../core/db';
 import { CaptureStore, type RunChunk, type RunMeta } from '../capture/store';
 import type { RunEvent } from './events';
+import type { RunSummary } from './summary';
 
-/** Per-run summary for History (ADR 0018). */
-export interface RunSummary {
-  /** `run_start.us`. */
-  startUs: number;
-  /** The latest event's `us` (an orphan: at least its last chunk's time). */
-  lastEventUs: number;
-  /** Latest known level, XP and TP (baseline plus the events' deltas). */
-  level?: number;
-  xp?: number;
-  tp?: number;
-  kills: number;
-  pkills: number;
-  deaths: number;
-  previousRunId?: string;
-}
+export { type RunSummary, summarize, summarizeAll } from './summary';
 
 export interface RunEventRecord {
   runId: string;
@@ -52,56 +39,6 @@ export interface RunAppend {
   events?: RunEventRecord[];
   /** The run's summary after `events` (undefined: unchanged). */
   summary?: RunSummary | null;
-}
-
-/**
- * The summary after `e` (a new object; `s` is not changed). Events before
- * `run_start` leave it null; `orphan_close` does not move `lastEventUs`.
- */
-export function summarize(s: RunSummary | null | undefined, e: RunEvent): RunSummary | null {
-  if (e.type === 'run_start') {
-    const out: RunSummary = { startUs: e.us, lastEventUs: e.us, kills: 0, pkills: 0, deaths: 0 };
-    if (e.level !== undefined) out.level = e.level;
-    if (e.xp !== undefined) out.xp = e.xp;
-    if (e.tp !== undefined) out.tp = e.tp;
-    if (e.previousRunId !== undefined) out.previousRunId = e.previousRunId;
-    return out;
-  }
-  if (!s) return null;
-  const out: RunSummary = { ...s };
-  if (e.type !== 'orphan_close' && e.us > out.lastEventUs) out.lastEventUs = e.us;
-  switch (e.type) {
-    case 'kill':
-      out.kills++;
-      if (out.xp !== undefined) out.xp += e.xpDelta;
-      break;
-    case 'pkill':
-      out.pkills++;
-      if (out.xp !== undefined) out.xp += e.xpDelta;
-      break;
-    case 'xp_loss':
-      if (out.xp !== undefined) out.xp += e.xpDelta;
-      break;
-    case 'tp_gained':
-    case 'tp_loss':
-      if (out.tp !== undefined) out.tp += e.tpDelta;
-      break;
-    case 'level_up':
-      out.level = e.level;
-      break;
-    case 'char_death':
-      out.deaths++;
-      if (e.level !== undefined) out.level = e.level;
-      break;
-  }
-  return out;
-}
-
-/** The summary of a whole event list (restore, tests). */
-export function summarizeAll(events: readonly RunEvent[]): RunSummary | null {
-  let s: RunSummary | null = null;
-  for (const e of events) s = summarize(s, e);
-  return s;
 }
 
 const runRange = (runId: string): IDBKeyRange => IDBKeyRange.bound([runId, 0], [runId, Infinity]);
