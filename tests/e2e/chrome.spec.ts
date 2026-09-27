@@ -91,13 +91,16 @@ test('stars twinkle only while the start page shows', async ({ page }) => {
   expect(looks).toBeGreaterThan(3);
 });
 
-test('keyboard navigation, dimmed rows, About and ESC', async ({ page }) => {
+test('keyboard navigation, Credits, About and ESC', async ({ page }) => {
   await openStart(page);
   await page.keyboard.press('ArrowUp');
   await expect(startSel(page)).toHaveText('<< About >>');
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
-  await expect(startFlash(page)).toHaveText('Coming in a later stage.');
+  // No runs stored: the Credits empty state; any key returns.
+  await expect(startTitle(page)).toHaveText('─── Credits ───');
+  await page.keyboard.press('Enter');
+  await expect(startSel(page)).toHaveText('<< Credits >>');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Space');
   await expect(startTitle(page)).toHaveText('─── About ───');
