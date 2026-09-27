@@ -7,7 +7,7 @@
 //   STATS     Rasta   2026-09-26  21:00  1h10m  Saved     ★★★★
 //   RATE      Gittan  2026-09-25  20:15  35m    12 days
 //   SAVE …
-//   EXPORT (dim) · DELETE · BACKUP · RESTORE · BACK
+//   EXPORT · DELETE · BACKUP · RESTORE · BACK
 //                    flash row (Saved., Restored 4 runs …)
 //                    Storage: 1.2 MB of 2.0 GB
 //
@@ -16,7 +16,8 @@
 // whole pills with ‹ › when it overflows), ↓ / Enter enter the table at
 // row 0. Table ↑ on row 0 goes back to the filter, ← to the buttons;
 // Enter / Space / click on a row with a log opens the log player
-// (`ChromeServices.openPlayer`). Buttons: ↑ from the first enabled one goes
+// (`ChromeServices.openPlayer`); EXPORT opens the export editor
+// (export-editor.tsx, stage 7). Buttons: ↑ from the first enabled one goes
 // to the filter, ↓ wraps, → to the table. The wheel scrolls the table.
 //
 // The frame keeps its state (filter, sort, cursor, scroll) while a
@@ -30,6 +31,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { nowUs } from '../../core/types';
 import { BadBackupError, backupFileName } from '../../runs/library';
 import type { Session } from '../../runs/stitch';
+import { downloadBlob } from '../kit/download';
 import { useGrid, useServices } from '../kit/hooks';
 import { centreLeft, scrollToShow, step } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
@@ -69,8 +71,8 @@ import {
   stars,
   storageText,
 } from './history-model';
+import { ExportEditorFrame } from './export-editor';
 import { SessionStatsFrame } from './statistics';
-import { LATER } from './start-main';
 
 const BUTTONS = ['RUN LOG', 'STATS', 'RATE', 'SAVE', 'EXPORT', 'DELETE', 'BACKUP', 'RESTORE', 'BACK'] as const;
 type ButtonId = (typeof BUTTONS)[number];
@@ -82,19 +84,6 @@ export const NO_PLAYER = 'Log player not available.';
 type Zone = 'filter' | 'table' | 'buttons';
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-/** Starts a download of `blob` as `name`. */
-function download(blob: Blob, name: string, doc: Document = document): void {
-  const url = URL.createObjectURL(blob);
-  const a = doc.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.hidden = true;
-  (doc.body ?? doc.documentElement).appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
 
 export function HistoryFrame(): VNode {
   const { runs, openPlayer } = useServices();
@@ -226,7 +215,7 @@ export function HistoryFrame(): VNode {
       try {
         const blob = await (await runs()).backup();
         const name = backupFileName(new Date());
-        download(blob, name);
+        downloadBlob(blob, name);
         nav.flash(`Saved ${name}.`);
       } catch (e) {
         nav.flash(`Backup failed: ${errText(e)}`, 'fail');
@@ -264,7 +253,7 @@ export function HistoryFrame(): VNode {
         void save();
         return;
       case 'EXPORT':
-        return nav.flash(LATER, 'fail');
+        return cur && nav.push(<ExportEditorFrame session={cur} />);
       case 'DELETE':
         return cur && nav.push(<DeleteFrame session={cur} done={reload} />);
       case 'BACKUP':
@@ -440,7 +429,6 @@ export function HistoryFrame(): VNode {
                 selected={i === btnIdx}
                 focused={zone === 'buttons'}
                 disabled={disabled(b)}
-                dim={b === 'EXPORT'}
                 onClick={() => {
                   setBtn(i);
                   setZone('buttons');

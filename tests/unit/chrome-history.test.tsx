@@ -238,7 +238,6 @@ describe('History frame', () => {
     await key('End');
     expect(curRow(host)).toContain('Saved');
     expect(btn(host, 'SAVE').getAttribute('aria-disabled')).toBe('true');
-    expect(btn(host, 'EXPORT').className).toContain('is-dim');
     expect(btn(host, 'EXPORT').getAttribute('aria-disabled')).toBeNull();
   });
 
@@ -343,14 +342,16 @@ describe('History frame', () => {
     expect(title(host)).toBeUndefined();
   });
 
-  it('flashes when the player is not available and on EXPORT', async () => {
+  it('flashes when the player is not available; EXPORT opens the export editor', async () => {
     const lib = await library();
     const { host } = await openHistory(lib);
     await key('ArrowDown');
     await act(() => btn(host, 'RUN LOG').click());
     expect(flash(host)).toBe(NO_PLAYER);
     await act(() => btn(host, 'EXPORT').click());
-    expect(flash(host)).toBe('Coming in a later stage.');
+    expect(title(host)).toBe('─── Export Editor ───');
+    await key('Escape');
+    expect(title(host)).toBe('─── History ───');
   });
 
   it('shows the empty state with only BACK and RESTORE enabled', async () => {
