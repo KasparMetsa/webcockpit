@@ -67,6 +67,7 @@ function listLogs(root: string): string[] {
  * Dev-only, read-only access to replay fixtures (ADR 0007, ADR 0016):
  *   GET /__fixtures/list        JSON array of relative `.log` paths (all roots)
  *   GET /__fixtures/<rel path>  the log text, from the first root that has it
+ *                               (also `.jsonl.gz` run backups, as bytes)
  * Roots: `tests/fixtures` in the repository, then $WEBCOCKPIT_FIXTURES
  * (default the owner's Cockpit runs). Paths are resolved (symlinks
  * included) and must stay inside their root. `apply: 'serve'` keeps this
@@ -99,10 +100,11 @@ function fixturesPlugin(): Plugin {
           const all = [...new Set(roots.flatMap((r) => listLogs(r)))].sort();
           return send(200, 'application/json', JSON.stringify(all));
         }
-        if (!rel.endsWith('.log') || rel.includes('\0')) return send(404, 'text/plain', 'not found');
+        const gz = rel.endsWith('.jsonl.gz');
+        if (!(rel.endsWith('.log') || gz) || rel.includes('\0')) return send(404, 'text/plain', 'not found');
         for (const root of roots) {
           const file = fixtureFile(root, rel);
-          if (file) return send(200, 'text/plain; charset=utf-8', readFileSync(file));
+          if (file) return send(200, gz ? 'application/gzip' : 'text/plain; charset=utf-8', readFileSync(file));
         }
         return send(404, 'text/plain', 'not found');
       });

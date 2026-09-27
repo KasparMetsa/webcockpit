@@ -22,6 +22,10 @@
 // #disconnect, Exit session, a replay starting), unless the menu is
 // already open, and never before the first connection reached login.
 // Reconnect is pre-selected then.
+//
+// Runs (ADR 0018): the shell owns one RunLibrary (`runLibrary()`, opened on
+// first use) and runs the retention sweep once, when the start page first
+// shows (Web Lock `webcockpit-sweep`, so one tab sweeps; errors are silent).
 
 import type { BenchProbe } from './bench-hook';
 import type { ChromeServices, EscMenuHandle, StartPageHandle } from '../chrome';
@@ -33,6 +37,8 @@ import { DEFAULT_PROFILE, ProfileStore } from '../profiles';
 import type { SettingsStore } from '../settings';
 import type { CellMetrics } from '../theme/cells';
 import { App, REASON_REPLAY_START } from './app';
+import { nowUs } from '../core/types';
+import { RunLibrary } from '../runs/library';
 import { uiValue } from './ui-messages';
 
 type ChromeModule = typeof import('../chrome');
@@ -72,6 +78,8 @@ export class Shell {
   private prevConn: ConnState = 'idle';
   /** The current connection is a replay. */
   private connIsReplay = false;
+  private libraryP: Promise<RunLibrary> | null = null;
+  private swept = false;
 
   constructor(opts: ShellOptions) {
     this.opts = opts;
@@ -83,6 +91,13 @@ export class Shell {
     this.menuHost = doc.createElement('div');
     this.menuHost.className = 'wc-menu-host';
     opts.root.append(this.startHost, this.menuHost);
+  }
+
+  /** The run library (History, backups, the sweep); opened on first use. */
+  runLibrary(): Promise<RunLibrary> {
+    this.libraryP ??= RunLibrary.open();
+    this.libraryP.catch(() => (this.libraryP = null));
+    return this.libraryP;
   }
 
   /** The cockpit, once built. */
@@ -152,6 +167,12 @@ export class Shell {
     if (this.appRef) this.appRef.el.style.display = 'none';
     this.startHost.style.display = '';
     this.start?.show();
+    if (!this.swept) {
+      this.swept = true;
+      this.runLibrary()
+        .then((lib) => lib.sweep(nowUs()))
+        .catch(() => {});
+    }
   }
 
   private showCockpit(app: App): void {

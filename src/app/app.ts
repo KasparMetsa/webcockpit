@@ -31,6 +31,12 @@
 // Cockpit log without GMCP stays in `login`. `status.replay` is true
 // meanwhile.
 //
+// Runs (ADR 0018): `runEvents` (src/runs/events.ts) derives the run events
+// from the bus and the death lines (a system rule) in every connection,
+// replays included, and emits the `◆ KILL/PKILL/DEATH` UI lines; the
+// recorder persists them for recorded runs. `app.runs` (LiveRuns) is the
+// live run for the ESC menu.
+//
 // Side panes get a `PaneContext` (src/panes/context.ts) built here: the bus,
 // the settings, the cells, a frame scheduler, the session as sender and a
 // lazy IndexedDB opener. App also announces the screen settings as
@@ -60,6 +66,8 @@ import { GameState } from '../gmcp/state';
 import { AppStatus, type AppStatusView, formatStatus } from './status';
 import { VariableWriteBack } from './writeback';
 import { attachUiMessages, uiMsg, uiValue } from './ui-messages';
+import { RunEventDeriver } from '../runs/events';
+import { LiveRuns } from '../runs/live';
 
 /** UI pane warnings for capture states that mean runs are not recorded. */
 const CAPTURE_WARNINGS: Readonly<Record<string, string>> = {
@@ -159,6 +167,10 @@ export class App {
   readonly game: GameState;
   /** The input line's day/night clock. */
   readonly clockStrip: ClockStrip;
+  /** Run events of the current connection (src/runs/events.ts). */
+  readonly runEvents: RunEventDeriver;
+  /** The live run for Statistics and Exit with rating (src/runs/live.ts). */
+  readonly runs: LiveRuns;
   private readonly settings: SettingsStore;
   private readonly profiles: ProfileStore | null;
   private readonly writeBack: VariableWriteBack | null;
@@ -218,9 +230,13 @@ export class App {
     this.game.attach(bus);
     this.settings = opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null });
     this.profiles = opts.profiles ?? null;
+    // Before the recorder: a run's `run_end` is derived from the same
+    // `conn.state` that seals it (the recorder copes with either order).
+    this.runEvents = new RunEventDeriver({ now, ...(opts.scheduler ? { scheduler: opts.scheduler } : {}) }).attach(bus);
     // Before the cockpit, so the recorder sees its first `view.size`.
     const recOpts = opts.recorder ?? {};
     this.recorder = new Recorder(bus, {
+      events: this.runEvents,
       ...recOpts,
       onStatus: (s) => {
         this.statusImpl.set({ capture: s });
@@ -283,6 +299,8 @@ export class App {
     this.script.attach(bus);
     this.game.installRules(this.script.system);
     this.game.timers.installRules(this.script.system);
+    this.runEvents.installRules(this.script.system);
+    this.runs = new LiveRuns({ deriver: this.runEvents, recorder: this.recorder });
     this.writeBack = this.profiles
       ? new VariableWriteBack(this.profiles, {
           ...(opts.writeBackDelayMs !== undefined ? { delayMs: opts.writeBackDelayMs } : {}),

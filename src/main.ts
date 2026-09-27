@@ -62,6 +62,7 @@ if (import.meta.env.DEV) {
     settings,
     cells,
     shell,
+    runs: () => shell.runLibrary(),
   };
 }
 await shell.boot();
@@ -93,6 +94,13 @@ async function loadFixture(app: App, rel: string, speed: number): Promise<void> 
 declare global {
   interface Window {
     /** Dev server only: handles for the browser tests and the console. */
-    __wc?: { readonly app: App; settings: SettingsStore; cells: CellMetrics; shell: Shell };
+    __wc?: {
+      readonly app: App;
+      settings: SettingsStore;
+      cells: CellMetrics;
+      shell: Shell;
+      /** The run library (e2e: `restore` a backup such as the runs demo). */
+      runs: () => Promise<import('./runs/library').RunLibrary>;
+    };
   }
 }
