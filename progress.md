@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **5 — Timers and trackers** (in progress).
+Current stage: **6 — Runs** (not started).
 
 ## Stages
 
@@ -10,8 +10,8 @@ Current stage: **5 — Timers and trackers** (in progress).
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
-| 5 | Timers and trackers | Owner testing | `docs/stages/05-timers-and-trackers.md` |
-| 6 | Runs | — | — |
+| 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
+| 6 | Runs | Next | — |
 | 7 | Sharing | — | — |
 | 8 | Hardening → v1 | — | — |
 | 9 | Map (after v1) | — | — |
@@ -35,6 +35,10 @@ Newest first.
 - **Open issues:** a reconnect during the few-ms state load can drop
   that moment's lines; replays do not echo sent commands (stage 6);
   replay burst still ~15 % slower than stage 4 (real tracker work).
+- **Owner test 1:** approved ("seems to work well"). Stage 5 closed.
+  Next session: write `docs/stages/06-…md` from spec §5; the log player
+  should echo replayed commands and drive trackers with the injected
+  clock (ADR 0017).
 - **Commits:** da5b76d…(this commit).
 
 ### 2026-09-27 — Stage 4 build

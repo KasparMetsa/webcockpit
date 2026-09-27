@@ -1,6 +1,6 @@
 # Stage 5 — Timers and trackers
 
-> Status: In progress.
+> Status: Done 2026-09-27.
 > Source: spec §5 row 5, §2.4 (Timers row), §1.4. Inv §2.6 (all of it),
 > §8.3 (affect, reconcile, cast, store, blind and charm rows), §2.4 (the
 > `◆ TAG:` lines). ADR 0017.
@@ -68,7 +68,7 @@ None yet. Carried: per-character timers state survives sessions
       screenshot: spells, untracked detect magic, debuffs, stored,
       blind, charms, `◆` lines in the UI pane).
 - [x] Test guide ready.
-- [ ] Owner test.
+- [x] Owner test (approved 2026-09-27: "seems to work well").
 
 ## Live checks for the owner
 
