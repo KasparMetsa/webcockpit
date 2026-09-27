@@ -28,6 +28,9 @@
 //   move.
 //
 // Game text only ever reaches the DOM through textContent / text nodes.
+//
+// The pane shows the script engine's display copies (`text.display`,
+// `text.displayPartial`; ADR 0015), not the raw `text.line` stream.
 
 import type { Bus } from '../core/bus';
 import type { BusEvents, Line, StyleRun } from '../core/types';
@@ -150,8 +153,8 @@ export class OutputPane {
     root.appendChild(this.el);
 
     this.unsubs.push(
-      bus.on('text.line', (line) => this.onLine(line)),
-      bus.on('text.partial', (line) => this.onPartial(line)),
+      bus.on('text.display', (d) => this.onDisplay(d)),
+      bus.on('text.displayPartial', (d) => this.onPartial(d.line)),
       bus.on('sys.message', (m) => this.push(OP_SYS, null, m.text)),
       bus.on('cmd.sent', (c) => this.onCmdSent(c)),
     );
@@ -166,6 +169,13 @@ export class OutputPane {
   }
 
   // ------------------------------------------------------------------ input
+
+  private onDisplay(d: BusEvents['text.display']): void {
+    // A #showme line is not part of the game stream: it never completes
+    // the partial, it just goes above it.
+    if (d.local) this.push(OP_LINE, d.line, '');
+    else this.onLine(d.line);
+  }
 
   private onLine(line: Line): void {
     // A completed line supersedes the partial (it contains its text).

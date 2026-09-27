@@ -2,8 +2,16 @@
 // the built-in commands.
 //
 //   socket → Session (telnet, GMCP, keep-alive) → LineAssembler → bus
-//   bus → OutputPane, AppStatus, Recorder
-//   InputPane → built-in commands | Session.sendCommand
+//   bus → AppStatus, Recorder, ScriptEngine → text.display → OutputPane
+//   InputPane → ScriptEngine (aliases, # commands, client commands)
+//             → Session.sendCommand
+//   InputPane keydown → macro → ScriptEngine (synchronously, no await)
+//
+// Script engine (ADR 0015): the selected profile is loaded at start-up (so
+// an offline replay runs it too) and again whenever a live session starts.
+// `applyProfile(text)` swaps it atomically (the ESC-menu editor). Variables
+// set at run time are written back to the profile (src/app/writeback.ts).
+// Password mode bypasses the engine (InputPane sends secrets directly).
 //
 // The screen is the Cockpit view (src/layout/cockpit.ts): the output pane
 // sits in its game slot, the input pane in its input slot, and the side
@@ -26,6 +34,8 @@
 
 import { downloadRun } from '../capture/download';
 import { Recorder, type RecorderOptions } from '../capture/recorder';
+import type { ProfileStore } from '../profiles';
+import { type LoadResult, type Scheduler, ScriptEngine } from '../script/engine';
 import { Bus } from '../core/bus';
 import type { BusEvents, Socketish } from '../core/types';
 import { ReplaySocket } from '../net/replay-socket';
@@ -37,6 +47,7 @@ import { Cockpit } from '../layout/cockpit';
 import { SettingsStore } from '../settings';
 import { OutputPane } from '../ui/output-pane';
 import { AppStatus, type AppStatusView, formatStatus } from './status';
+import { VariableWriteBack } from './writeback';
 
 /** Reason used when a live or replay connection is closed to start a replay. */
 export const REASON_REPLAY_START = 'replay started';
@@ -54,6 +65,10 @@ export const HELP_LINES: readonly string[] = [
   '  #replay [speed]   replay a Cockpit .log file (1 = real time, 0 = max speed)',
   '  #help             this list',
   'While disconnected, Enter reconnects.',
+  'tt++ commands work too: #alias #action #highlight #substitute #gag #macro',
+  '  #variable #ticker #delay (and #un...), #if #elseif #else #showme #nop',
+  '  #math #format #class #event. Separate commands with ;',
+  '  _send <text> sends text as is. The profile is edited from the ESC menu.',
 ];
 
 export interface AppOptions {
@@ -80,6 +95,16 @@ export interface AppOptions {
   settings?: SettingsStore;
   /** ESC in the input when the output is not scrolled: open the ESC menu (src/app/shell.ts). */
   onEscape?: () => void;
+  /**
+   * The profile store. The selected profile (`settings.profile`) is loaded
+   * into the script engine at start-up and when a live session starts, and
+   * runtime variables are written back to it. Default: none (no profile).
+   */
+  profiles?: ProfileStore;
+  /** Timer clock for #ticker / #delay (tests). */
+  scheduler?: Scheduler;
+  /** Write-back debounce in ms (tests). */
+  writeBackDelayMs?: number;
 }
 
 export class App {
@@ -95,6 +120,17 @@ export class App {
   readonly output: OutputPane;
   readonly input: InputPane;
   readonly recorder: Recorder;
+  /** The tt++ script engine (ADR 0015). */
+  readonly script: ScriptEngine;
+  private readonly settings: SettingsStore;
+  private readonly profiles: ProfileStore | null;
+  private readonly writeBack: VariableWriteBack | null;
+  /** Bumped by every profile load, so a slow store read cannot undo a newer load. */
+  private loadToken = 0;
+  /** True while a typed line or a macro runs (it may reconnect). */
+  private userAction = false;
+  /** The current typed line already reconnected or reported "not connected". */
+  private userActionHandled = false;
 
   /** The current (or last) connection is a replay. */
   private replaying = false;
@@ -126,9 +162,11 @@ export class App {
       sink: this.assembler,
       ...(opts.socketFactory ? { socketFactory: opts.socketFactory } : {}),
     });
+    this.settings = opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null });
+    this.profiles = opts.profiles ?? null;
     this.cockpit = new Cockpit({
       root: this.el,
-      settings: opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null }),
+      settings: this.settings,
       cells: cells ?? new CellMetrics({ doc }),
       onFocusInput: () => this.input.focus(),
     });
@@ -142,6 +180,7 @@ export class App {
       sender: this.session,
       output: this.output,
       onCommand: (text) => this.onCommand(text),
+      onMacroKey: (key) => this.onMacroKey(key),
       ...(opts.onEscape ? { onEscape: opts.onEscape } : {}),
       ...(cells ? { cellWidth: () => cells.get().w } : {}),
     });
@@ -157,6 +196,25 @@ export class App {
         recOpts.onStatus?.(s);
       },
     });
+
+    // After the recorder: capture sees a line before the commands its
+    // actions send.
+    this.script = new ScriptEngine({
+      send: (text) => this.sendFromScript(text),
+      message: (text) => this.sys(text),
+      client: (name, args) => this.runClient(name, args),
+      onVariable: (name, value) => this.writeBack?.queue(name, value),
+      ...(opts.scheduler ? { scheduler: opts.scheduler } : {}),
+    });
+    this.script.attach(bus);
+    this.writeBack = this.profiles
+      ? new VariableWriteBack(this.profiles, {
+          ...(opts.writeBackDelayMs !== undefined ? { delayMs: opts.writeBackDelayMs } : {}),
+          onError: (m) => this.sys(m),
+        })
+      : null;
+    doc.defaultView?.addEventListener('pagehide', () => void this.writeBack?.flush());
+    if (this.profiles) void this.loadSelectedProfile(false);
 
     bus.on('gmcp', (m) => {
       if (m.pkg.toLowerCase() !== 'char.name') return;
@@ -212,6 +270,7 @@ export class App {
       case 'connecting':
         this.assembler.reset();
         this.sys(this.replaying ? `Replaying ${this.replayLabel}...` : 'Connecting to MUME...');
+        if (!this.replaying && this.profiles) void this.loadSelectedProfile(true);
         break;
       case 'login':
         if (!this.replaying) this.sys('Connected.');
@@ -220,6 +279,7 @@ export class App {
         this.sys(`${this.charName || 'Character'} logged in.`);
         break;
       case 'disconnected':
+        void this.writeBack?.flush();
         this.onDisconnected(s.reason ?? '');
         break;
     }
@@ -240,47 +300,138 @@ export class App {
     }
   }
 
-  // -------------------------------------------------------------- commands
+  // --------------------------------------------------------------- profile
 
-  /** Input hook: returns true when `text` was handled and must not be sent. */
-  onCommand(text: string): boolean {
-    const t = text.trim();
-    if (t.startsWith('#')) {
-      this.runBuiltin(t);
-      return true;
+  /**
+   * Loads the selected profile from the store into the engine. `announce`
+   * reports success (a live session start); problems are always reported.
+   */
+  async loadSelectedProfile(announce: boolean): Promise<void> {
+    const store = this.profiles;
+    if (!store) return;
+    const token = ++this.loadToken;
+    const name = this.settings.get().profile;
+    let text: string;
+    try {
+      const rec = await store.get(name);
+      if (token !== this.loadToken) return;
+      if (!rec) {
+        if (announce) this.sys(`Profile ${name} not found; no profile loaded.`);
+        return;
+      }
+      text = rec.text;
+    } catch (err) {
+      if (token === this.loadToken) this.sys(`Profile ${name} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+      return;
     }
-    const s = this.session.state;
-    if (s === 'disconnected' || s === 'idle') {
-      if (this.offline) this.sys('Not connected. #connect plays live, #replay loads a log.');
-      else this.connectLive();
-      return true;
+    await this.writeBack?.setTarget(null);
+    if (token !== this.loadToken) return;
+    const r = this.script.loadProfile(text);
+    if (!r.ok) {
+      this.sys(`Profile ${name} not loaded: ${r.reason}`);
+      return;
     }
-    return false;
+    void this.writeBack?.setTarget(name);
+    this.reportLoad(name, r.warnings, announce);
   }
 
-  private runBuiltin(t: string): void {
-    const parts = t.split(/\s+/);
-    const word = parts[0]!.toLowerCase();
-    const args = parts.slice(1);
-    switch (word) {
-      case '#connect':
+  private reportLoad(name: string, warnings: readonly string[], announce: boolean): void {
+    if (warnings.length === 0) {
+      if (announce) this.sys(`Profile ${name} loaded.`);
+      return;
+    }
+    this.sys(`Profile ${name} loaded with ${warnings.length} warning${warnings.length === 1 ? '' : 's'}:`);
+    const MAX = 10;
+    for (const w of warnings.slice(0, MAX)) this.sys('  ' + w);
+    if (warnings.length > MAX) this.sys(`  … and ${warnings.length - MAX} more.`);
+  }
+
+  /**
+   * Replaces the live profile with `text` (the ESC-menu editor's Apply).
+   * All or nothing: on failure the running profile stays as it was.
+   * Variables set later are written back to the loaded profile.
+   */
+  applyProfile(text: string): { ok: true; warnings: string[] } | { ok: false; reason: string } {
+    this.loadToken++;
+    const r: LoadResult = this.script.loadProfile(text);
+    if (!r.ok) return r;
+    if (this.writeBack && this.writeBack.target === null) void this.writeBack.setTarget(this.settings.get().profile);
+    return { ok: true, warnings: r.warnings };
+  }
+
+  /** Values queued for the profile write-back are saved now. */
+  flushWriteBack(): Promise<void> {
+    return this.writeBack?.flush() ?? Promise.resolve();
+  }
+
+  // -------------------------------------------------------------- commands
+
+  /**
+   * Input hook: runs a typed line through the script engine (aliases, `;`,
+   * `#` commands, client commands). Always handled. While disconnected the
+   * first command that would go to the game reconnects instead (or, offline,
+   * says how to connect).
+   */
+  onCommand(text: string): boolean {
+    this.userAction = true;
+    this.userActionHandled = false;
+    try {
+      this.script.input(text);
+    } finally {
+      this.userAction = false;
+    }
+    return true;
+  }
+
+  /** Macro hook: runs the macro for a key; false when none is bound. */
+  onMacroKey(key: string): boolean {
+    if (!this.script.hasMacro(key)) return false;
+    this.userAction = true;
+    this.userActionHandled = false;
+    try {
+      this.script.runMacro(key);
+    } finally {
+      this.userAction = false;
+    }
+    return true;
+  }
+
+  /** The engine's sender: to the game when connected. */
+  private sendFromScript(text: string): void {
+    const s = this.session.state;
+    if (s !== 'disconnected' && s !== 'idle') {
+      this.session.sendCommand(text);
+      return;
+    }
+    // Rules and timers do not reconnect; a typed line or key does, once.
+    if (!this.userAction || this.userActionHandled) return;
+    this.userActionHandled = true;
+    if (this.offline) this.sys('Not connected. #connect plays live, #replay loads a log.');
+    else this.connectLive();
+  }
+
+  /** Client commands from the engine (`#connect`, `#help` …). */
+  private runClient(name: string, argText: string): void {
+    const args = argText.split(/\s+/).filter(Boolean);
+    switch (name) {
+      case 'connect':
         this.connectLive();
         return;
-      case '#disconnect':
+      case 'disconnect':
         if (!this.isConnected) this.sys('Not connected.');
         else this.session.disconnect();
         return;
-      case '#reconnect':
+      case 'reconnect':
         if (this.replaying && this.isConnected) this.session.disconnect(REASON_REPLAY_STOP);
         this.replaying = false;
         this.offline = false;
         this.statusImpl.set({ replay: false });
         this.session.reconnect();
         return;
-      case '#runlog':
+      case 'runlog':
         void this.runlog();
         return;
-      case '#replay': {
+      case 'replay': {
         const speed = args[0] === undefined ? 1 : Number(args[0]);
         if (!Number.isFinite(speed) || speed < 0) {
           this.sys('Usage: #replay [speed]   (1 = real time, 0 = max speed)');
@@ -289,11 +440,11 @@ export class App {
         this.pickReplayFile(speed);
         return;
       }
-      case '#help':
+      case 'help':
         for (const l of HELP_LINES) this.sys(l);
         return;
       default:
-        this.sys(`Unknown command: ${parts[0]}`);
+        this.sys(`Unknown command: #${name}`);
     }
   }
 

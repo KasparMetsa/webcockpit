@@ -24,6 +24,7 @@
 
 import type { Bus } from '../core/bus';
 import type { Sender } from '../core/types';
+import { keyNameFromEvent } from '../script/keys';
 
 /** What the input pane needs from the output pane. */
 export interface ScrollTarget {
@@ -39,6 +40,13 @@ export interface InputPaneOptions {
   output?: ScrollTarget;
   /** Built-in command hook; return true when the text was handled. */
   onCommand?: (text: string) => boolean;
+  /**
+   * Macro hook (ADR 0015): called with the canonical key name of every
+   * keydown the input line sees (not in password mode, not with AltGr);
+   * returns true when a macro ran. A bound macro wins over the input
+   * line's own use of the key.
+   */
+  onMacroKey?: (key: string) => boolean;
   /** ESC when the output is not scrolled (the menu, stage 2). */
   onEscape?: () => void;
   /** Cell width in px for the caret (default: measured from the pane). */
@@ -344,11 +352,24 @@ export class InputPane {
       // focus during keydown redirects the resulting character.
       this.input.focus({ preventScroll: true });
     }
+    if (this.runMacro(e)) {
+      e.preventDefault();
+      return;
+    }
     if (this.handleKey(e)) e.preventDefault();
     // After the key's work (and any send); the default action moves the
     // selection later and fires selectionchange, which schedules again.
     this.scheduleCaret();
   };
+
+  /** Runs the macro bound to the key, if any. */
+  private runMacro(e: KeyboardEvent): boolean {
+    const hook = this.opts.onMacroKey;
+    if (!hook || this.password) return false;
+    if (e.getModifierState?.('AltGraph')) return false;
+    const name = keyNameFromEvent(e);
+    return name !== null && hook(name);
+  }
 
   /** Handles a key; returns true when it consumed it. */
   handleKey(e: KeyboardEvent): boolean {

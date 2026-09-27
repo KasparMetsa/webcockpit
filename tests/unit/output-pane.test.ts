@@ -11,6 +11,9 @@ function line(text: string, prompt = false, runs: StyleRun[] = []): Line {
 
 function setup(scrollback = 100) {
   const bus = new Bus();
+  // No script engine here: pass lines straight through the display events.
+  bus.on('text.line', (l) => bus.emit('text.display', { line: l, source: l }));
+  bus.on('text.partial', (l) => bus.emit('text.displayPartial', { line: l, source: l }));
   const root = document.createElement('div');
   document.body.appendChild(root);
   const frames: Array<() => void> = [];

@@ -160,6 +160,7 @@ export class Shell {
       offline,
       cells,
       settings,
+      profiles: this.profiles,
       onEscape: () => void this.openMenu(),
       ...(probe ? { requestFrame: probe.requestFrame } : {}),
     });
