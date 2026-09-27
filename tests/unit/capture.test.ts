@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Bus } from '../../src/core/bus';
 import type { Line } from '../../src/core/types';
 import {
@@ -14,6 +14,10 @@ import {
 import { buildRunBlob } from '../../src/capture/download';
 import { type LockManagerLike, Recorder, STATUS, runLockName } from '../../src/capture/recorder';
 import { CaptureStore } from '../../src/capture/store';
+import { Session } from '../../src/net/session';
+import { OPT_GMCP, WILL } from '../../src/net/telnet';
+import { LineAssembler } from '../../src/text/assembler';
+import { FakeSocket, IAC, concat, sb, utf8 } from './net-helpers';
 
 class FakeLocks implements LockManagerLike {
   held = new Set<string>();
@@ -230,5 +234,51 @@ describe('Recorder', () => {
     expect([b.sealed, b.endedUs]).toEqual([true, 300]);
     expect((await store.getRun('C/1'))!.sealed).toBe(false);
     expect((await store.latestRun())!.runId).toBe('C/1');
+  });
+});
+
+describe('capture timestamps (live path)', () => {
+  it('never go backwards when Char.Name and a prompt share a frame', async () => {
+    // Each clock read advances 1 ms, as time passes while a frame is parsed.
+    let ms = 1_000;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => (ms += 1));
+    try {
+      const bus = new Bus();
+      const sink = new LineAssembler(bus);
+      const sock = new FakeSocket();
+      const session = new Session({ bus, sink, socketFactory: () => sock });
+      const rec = new Recorder(bus, {
+        openStore: () => CaptureStore.open(new IDBFactory()),
+        locks: new FakeLocks(),
+        flushMs: 60000,
+        win: null,
+      });
+      session.connect();
+      sock.open();
+      sock.data([IAC, WILL, OPT_GMCP]);
+      const GA = 249;
+      // One frame: GMCP Char.Name (→ playing → two width commands sent
+      // synchronously), then prompt text ending in GA.
+      sock.data(
+        concat(sb(OPT_GMCP, utf8('Char.Name {"name":"Rasta","fullname":"Rasta X"}')), utf8('oO>'), [IAC, GA]),
+      );
+      await rec.idle();
+      await rec.flush();
+      const store = (await rec.getStore())!;
+      const text = await (await buildRunBlob(store, rec.runId!)).text();
+      const rows = text.trimEnd().split('\n');
+      expect(rows.map((r) => r.slice(r.indexOf(' ') + 1))).toEqual([
+        '> change width all 500',
+        '> change width table terminal',
+        'oO>',
+      ]);
+      const ts = rows.map((r) => Number(r.slice(0, r.indexOf(' '))));
+      for (let i = 1; i < ts.length; i++) expect(ts[i]).toBeGreaterThanOrEqual(ts[i - 1]!);
+      // All three events came from the one frame and carry its time.
+      expect(new Set(ts).size).toBe(1);
+      rec.dispose();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

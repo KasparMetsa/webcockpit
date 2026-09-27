@@ -37,6 +37,14 @@ per line, and allow cheap download, playback and retention later.
 - **No Web Locks or no IndexedDB** → capture is off and the reason is
   shown.
 - Chunks are stored uncompressed for now.
+- **Timestamps never decrease** (*added 2026-09-27*). Inbound lines
+  carry the receive time of the frame that completed them. A command
+  sent while a frame is being parsed (the `change width` commands sent
+  on GMCP `Char.Name`) is stamped by Session with that frame's time, not
+  the wall clock, so it is written in its true place (before the
+  frame's later prompt) with an equal timestamp. The recorder does not
+  clamp: clamping would hide the order problem by changing a later
+  line's time instead.
 
 ## Rationale
 

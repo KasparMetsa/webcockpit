@@ -14,6 +14,12 @@
 //
 // Sending is synchronous: `sendCommand` encodes and calls `socket.send`
 // in the same call stack, then emits `cmd.sent`.
+//
+// `cmd.sent` timestamps: a command sent while an inbound frame is being
+// parsed (e.g. the width commands sent on GMCP Char.Name) is stamped with
+// that frame's receive time, not the wall clock. Lines from the same frame
+// carry the frame's time too, so events stay in the order they happened
+// and the capture file's timestamps never go backwards.
 
 import type { Bus } from '../core/bus';
 import type { ConnState, Sender, Socketish } from '../core/types';
@@ -67,6 +73,8 @@ export class Session implements Sender {
   private socket: Socketish | null = null;
   private open = false;
   private st: ConnState = 'idle';
+  /** Receive time of the inbound frame being parsed, or null. */
+  private frameTs: number | null = null;
 
   constructor(opts: SessionOptions) {
     this.bus = opts.bus;
@@ -151,7 +159,13 @@ export class Session implements Sender {
     sock.onData = (bytes) => {
       if (this.socket !== sock) return;
       this.bus.emit('net.bytesIn', bytes);
-      this.telnet.receive(bytes, nowUs());
+      const ts = nowUs();
+      this.frameTs = ts;
+      try {
+        this.telnet.receive(bytes, ts);
+      } finally {
+        this.frameTs = null;
+      }
     };
     sock.onClose = (reason) => {
       if (this.socket !== sock) return;
@@ -225,7 +239,6 @@ export class Session implements Sender {
     if (!sock || !this.open) return false;
     sock.send(bytes);
     this.bus.emit('net.bytesOut', bytes);
-    this.keepalive.noteOutbound();
     return true;
   };
 
@@ -237,7 +250,7 @@ export class Session implements Sender {
   sendCommand(text: string, opts?: { secret?: boolean; echo?: boolean }): void {
     const secret = opts?.secret === true || this.passwordMode;
     if (!this.writeRaw(this.telnet.encodeText(text + '\r\n'))) return;
-    const ts = nowUs();
+    const ts = this.frameTs ?? nowUs();
     const ev: { text: string; ts: number; secret?: boolean; echo?: boolean } = {
       text: secret ? '' : text,
       ts,
