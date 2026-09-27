@@ -1,6 +1,6 @@
 # Stage 2 — Look and layout
 
-> Status: In progress (started 2026-09-27).
+> Status: Owner testing (build done 2026-09-27).
 > Source: spec §5 row 2, §1.3 (cell grid, cold start), §1.4, §2.3, §2.5,
 > §2.6 (skeleton), Inv §2.1, §3, §4, §10. ADR 0010.
 
@@ -74,7 +74,7 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
 
 ## Tasks
 
-- [ ] Stage file and ADR 0010.
+- [x] Stage file and ADR 0010.
 - [x] A. Foundation: settings store, tokens and theme application, fonts,
       cell metrics, colour toolkit, custom caret, `?safe`, remove status
       line. Unit tests. (ADR 0011; APIs: `src/settings`, `src/theme/*`,
@@ -88,9 +88,11 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
       frame, Options (Panes grid, Appearance), About, ESC menu, app flow
       start page ↔ cockpit. Unit + e2e tests. (ADR 0013; cold start
       264 ms median on throttled broadband.)
-- [ ] Benchmarks still pass (§1.3), cold start < 1 s.
-- [ ] Main-session verification in a browser.
-- [ ] Test guide ready.
+- [x] Benchmarks still pass (§1.3), cold start < 1 s (package C, after
+      merge; Chromium burst worst frame 39–57 ms is borderline, see ADR 0012).
+- [x] Main-session verification in a browser (334 unit, 60 e2e;
+      screenshots of start page, profile, cockpit, frames, ESC menu).
+- [x] Test guide ready.
 - [ ] Owner test.
 
 ## Live checks for the owner
@@ -102,7 +104,58 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
 
 ## Test guide
 
-(Written when the build is done.)
+**Start:** `cd ~/proj/webcockpit && npm install && npm run dev`, then open
+http://localhost:5173/ in Firefox or Chrome. The page now opens on the
+start page; nothing connects until you choose Enter MUME.
+
+**Start page:**
+
+1. Banner, twinkling stars, menu, a Tolkien quote, footer. Arrow keys,
+   Enter/Space, mouse hover and click. History, Spotlights and Credits
+   are dimmed (later stages).
+2. **Profile:** create (blank or copy), rename, delete, export (downloads
+   `<name>.tin`), import a `.tin` file. EDIT is dimmed until stage 3.
+3. **Options → Panes:** the pane × colour grid, Border column, corner
+   style, Reset layout.
+4. **Options → Appearance:** font (DejaVu Sans Mono / JetBrains Mono),
+   size, padding, font colour, background, ANSI palette, cursor style and
+   blink. Everything applies at once. If a setting makes the page
+   unusable, open http://localhost:5173/?safe.
+5. **About.**
+
+**Cockpit (live):**
+
+1. Enter MUME, log in and play. Right column: Character, Timers, Group,
+   Comm, UI (empty frames until stages 4–5).
+2. Arrange panes: drag a pane by its title row to the left edge, the
+   bottom (under the game pane) or another place in a column. Drag the
+   gaps to resize a dock or two neighbouring panes. Reload: the layout
+   is kept.
+3. Make the window narrow and small: side docks collapse; below 60×18
+   cells a "Window too small" notice shows.
+4. ESC opens the menu (ESC first leaves scrollback if you scrolled up).
+   Header: profile, `Link:` and capture state. Options work live from
+   here too. Exit session goes back to the start page.
+5. Live checks 1–2 above (idle timeout; `quit` → menu opens with
+   Reconnect selected).
+
+**Offline:** http://localhost:5173/?fixture=Rasta/2026-09-18T18-11-42.log&speed=0
+goes straight to the cockpit and replays a log.
+
+**Feedback wanted:**
+
+- Does the start page, the pane frames and the ESC menu look and feel
+  like Cockpit? What differs that bothers you?
+- Docking: is dragging and resizing natural? Anything missing (e.g.
+  tabs, other dock positions)?
+- Fonts and the cell grid: size steps (some neighbouring sizes look the
+  same, because cells snap to whole pixels), sharpness, cursor.
+- The Tolkien quotes (`src/chrome/quotes.ts`) — proofread if you like.
+
+Known in stage 2: panes are empty; the chrome keeps dark colours on the
+"paper" background; the Panes grid is clipped near the 60-column
+minimum; `[SYSTEM]` lines in the game output remain until the UI pane
+gets content (stage 4).
 
 ## Owner feedback
 

@@ -1,13 +1,13 @@
 # Progress
 
-Current stage: **2 — Look and layout** (not started).
+Current stage: **2 — Look and layout** (owner testing).
 
 ## Stages
 
 | # | Stage | Status | Stage file |
 |---|---|---|---|
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
-| 2 | Look and layout | Next | — |
+| 2 | Look and layout | Owner testing | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | — | — |
 | 4 | GMCP panes | — | — |
 | 5 | Timers and trackers | — | — |
@@ -21,6 +21,23 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-27 — Stage 2 build
+
+- **Done:** stage file, ADRs 0010–0013. Owner chose the MUME/COCKPIT
+  wordmark. A: settings store, theme tokens, colour toolkit, bundled
+  fonts, whole-pixel cell grid, custom caret, status line removed.
+  B: docking engine (left/right/bottom), glyph pane frames, drag/resize/
+  toggle, narrow collapse, size gate. C: Preact TUI kit, start page,
+  profiles (import/export), Options (Panes, Appearance), About, ESC menu
+  with auto-open. 334 unit, 60 e2e tests; bench passes; cold start
+  ~0.3 s throttled.
+- **Next:** owner tests stage 2 (test guide in the stage file), then
+  stage 3.
+- **Open issues:** idle-timeout live check still open; Chromium burst
+  worst frame borderline (39–57 ms vs 50 ms); chrome not light-themed
+  on "paper"; Panes grid clipped near 60 cols.
+- **Commits:** c815295…(this commit).
 
 ### 2026-09-27 — Stage 1 build
 
