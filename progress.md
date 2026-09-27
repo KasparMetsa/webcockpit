@@ -38,6 +38,11 @@ Newest first.
   8); replay fonts not subset (~0.3 MB); JetBrains Mono exports lack
   DejaVu fallback glyphs; a comment before the first line holds on a
   near-blank screen; reel load time on a large real library unmeasured.
+- **Owner test 1:** login system line now an editor row (comment before
+  it, exclude it; `hiddenSys` in the payload). Commands on the prompt
+  line in the replay vs a new line in RUN LOG: not reproduced (identical
+  rows in both players, e2e parity test added); asked the owner where.
+  968 unit.
 - **Commits:** 5dca49e…(this commit).
 
 ### 2026-09-28 — Stage 6 owner test 1 fixes
