@@ -34,6 +34,7 @@
 
 import type { Bus } from '../core/bus';
 import type { BusEvents, Line, StyleRun } from '../core/types';
+import { PLAYING_COMMANDS } from '../net/session';
 import { colorToCss, effectiveFg } from './palette';
 
 /** At most this many rows are built per animation frame. */
@@ -76,6 +77,11 @@ export interface OutputPaneOptions {
    * pane's own font. Call `remeasure()` when it changes.
    */
   cellSize?: () => { w: number; h: number };
+  /**
+   * Stamp each game-line row with its receive time (`data-ts`, µs). The log
+   * player maps its pause cursor line to a replay time with it.
+   */
+  stampRows?: boolean;
 }
 
 export class OutputPane {
@@ -95,6 +101,7 @@ export class OutputPane {
   private readonly onFocusInput: (() => void) | undefined;
   private readonly onResize: ((cols: number, rows: number) => void) | undefined;
   private readonly cellSizeFn: (() => { w: number; h: number }) | undefined;
+  private readonly stampRows: boolean;
 
   private queue: Op[] = [];
   private head = 0;
@@ -129,6 +136,7 @@ export class OutputPane {
     this.onFocusInput = opts.onFocusInput;
     this.onResize = opts.onResize;
     this.cellSizeFn = opts.cellSize;
+    this.stampRows = opts.stampRows ?? false;
 
     const doc = root.ownerDocument;
     this.el = doc.createElement('div');
@@ -207,10 +215,11 @@ export class OutputPane {
   }
 
   private onCmdSent(c: BusEvents['cmd.sent']): void {
-    // A replayed log's commands are not echoed: the log cannot tell typed
-    // commands from housekeeping (`change width`), and replays show only
-    // what the server sent, as before (ADR 0017 P0).
-    if (c.secret || c.echo === false || c.replay || c.text === '') return;
+    if (c.secret || c.echo === false || c.text === '') return;
+    // A replayed log's commands are echoed as they were live (ADR 0018),
+    // except the width commands sent on entering `playing`: live they are
+    // sent with `echo: false`, and a log cannot tell them from typed ones.
+    if (c.replay && PLAYING_COMMANDS.includes(c.text)) return;
     // An open partial (a prompt without GA, e.g. the login name prompt) gets
     // the echo; it moves onto the completed line when that arrives.
     if (this.partial && this.partialEcho === null) {
@@ -266,6 +275,7 @@ export class OutputPane {
       let row: HTMLElement | null;
       if (op.kind === OP_LINE) {
         row = renderLine(doc, op.line!);
+        if (this.stampRows) row.dataset.ts = String(op.line!.ts);
       } else if (op.kind === OP_SYS) {
         row = doc.createElement('div');
         row.className = 'wc-row wc-sys';

@@ -94,6 +94,83 @@ function isDigit(c: number): boolean {
 }
 
 /**
+ * Builds one telnet frame from log line bodies (the encoding described in
+ * the file header): inbound lines end in CR LF, or IAC GA when they look
+ * like a prompt; GMCP records become `IAC SB GMCP … IAC SE`, the first
+ * one of the builder's life preceded by `IAC WILL GMCP`. `take()` returns
+ * the bytes and starts the next frame. Shared by `logToFrames` and the
+ * log player (src/player/engine.ts).
+ */
+export class FrameBuilder {
+  private buf: Uint8Array;
+  private len = 0;
+  private gmcpAnnounced = false;
+  private readonly enc = new TextEncoder();
+
+  constructor(capacity = 32768) {
+    this.buf = new Uint8Array(capacity);
+  }
+
+  /** Bytes in the frame being built. */
+  get length(): number {
+    return this.len;
+  }
+
+  private room(chars: number): void {
+    const need = this.len + chars * 3 + 8;
+    if (need <= this.buf.length) return;
+    const nb = new Uint8Array(Math.max(need, this.buf.length * 2));
+    nb.set(this.buf.subarray(0, this.len));
+    this.buf = nb;
+  }
+
+  /** One inbound line (ANSI kept). */
+  inbound(line: string): void {
+    this.room(line.length);
+    const buf = this.buf;
+    this.len += this.enc.encodeInto(line, buf.subarray(this.len)).written;
+    if (isPromptLike(line)) {
+      buf[this.len++] = IAC;
+      buf[this.len++] = GA;
+    } else {
+      buf[this.len++] = 13;
+      buf[this.len++] = 10;
+    }
+  }
+
+  /** One GMCP record payload (`<pkg>[ <json>]`). */
+  gmcp(payload: string): void {
+    this.room(payload.length + 3);
+    const buf = this.buf;
+    // UTF-8 never contains 0xFF, so the payload needs no IAC escaping.
+    if (!this.gmcpAnnounced) {
+      this.gmcpAnnounced = true;
+      buf[this.len++] = IAC;
+      buf[this.len++] = WILL;
+      buf[this.len++] = OPT_GMCP;
+    }
+    buf[this.len++] = IAC;
+    buf[this.len++] = SB;
+    buf[this.len++] = OPT_GMCP;
+    this.len += this.enc.encodeInto(payload, buf.subarray(this.len)).written;
+    buf[this.len++] = IAC;
+    buf[this.len++] = SE;
+  }
+
+  /** The frame's bytes (a copy); the builder is empty afterwards. */
+  take(): Uint8Array {
+    const out = this.buf.slice(0, this.len);
+    this.len = 0;
+    return out;
+  }
+
+  /** Forgets whether GMCP was announced (a new connection). */
+  resetGmcp(): void {
+    this.gmcpAnnounced = false;
+  }
+}
+
+/**
  * Turns a Cockpit raw log into telnet frames with delivery times. Pure and
  * lazy: frames are produced as the caller iterates.
  */
@@ -103,25 +180,21 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
   const chunk = Math.max(256, opts.chunkBytes ?? 16384);
   const groupUs = opts.groupUs ?? 1000;
   const sends = opts.sends ?? false;
-  const enc = new TextEncoder();
 
-  let buf = new Uint8Array(chunk * 2);
-  let len = 0;
+  const fb = new FrameBuilder(chunk * 2);
   // Speed 0: the commands inside the frame being built.
   let inFrame: ReplaySend[] | null = null;
   const frame = (): ReplayFrame => {
-    const f: ReplayFrame = { atMs: frameAt, bytes: buf.slice(0, len) };
+    const f: ReplayFrame = { atMs: frameAt, bytes: fb.take() };
     if (inFrame) {
       f.sends = inFrame;
       inFrame = null;
     }
-    len = 0;
     return f;
   };
   let clock = 0;
   let frameAt = 0;
   let lastTs = -1;
-  let gmcpAnnounced = false;
   let pos = 0;
   const n = logText.length;
 
@@ -150,7 +223,7 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
       if (!sends) continue;
       if (speed <= 0) {
         // No clock at speed 0: the command rides in the current frame.
-        (inFrame ??= []).push({ at: len, text: logText.slice(bodyStart + 2, end) });
+        (inFrame ??= []).push({ at: fb.length, text: logText.slice(bodyStart + 2, end) });
         continue;
       }
       // Its own frame, after what came before it. The clock does not move:
@@ -158,7 +231,7 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
       const ts = Number(logText.slice(start, start + TS_DIGITS));
       const deltaUs = lastTs >= 0 ? Math.max(0, ts - lastTs) : 0;
       const at = clock + (speed > 0 ? Math.min(deltaUs / 1000, maxGapMs) / speed : 0);
-      if (len > 0) yield frame();
+      if (fb.length > 0) yield frame();
       yield { atMs: at, bytes: NO_BYTES, sent: logText.slice(bodyStart + 2, end) };
       continue;
     }
@@ -179,43 +252,16 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
     let gapMs = 0;
     const deltaUs = lastTs >= 0 ? Math.max(0, ts - lastTs) : 0;
     if (speed > 0) gapMs = Math.min(deltaUs / 1000, maxGapMs) / speed;
+    const len = fb.length;
     if (len > 0 && (len >= chunk || (speed > 0 && deltaUs >= groupUs))) yield frame();
     clock += gapMs;
-    if (len === 0) frameAt = clock;
+    if (fb.length === 0) frameAt = clock;
     lastTs = ts;
 
-    const need = len + line.length * 3 + 8;
-    if (need > buf.length) {
-      const nb = new Uint8Array(Math.max(need, buf.length * 2));
-      nb.set(buf.subarray(0, len));
-      buf = nb;
-    }
-    if (gmcp) {
-      // UTF-8 never contains 0xFF, so the payload needs no IAC escaping.
-      if (!gmcpAnnounced) {
-        gmcpAnnounced = true;
-        buf[len++] = IAC;
-        buf[len++] = WILL;
-        buf[len++] = OPT_GMCP;
-      }
-      buf[len++] = IAC;
-      buf[len++] = SB;
-      buf[len++] = OPT_GMCP;
-      len += enc.encodeInto(line, buf.subarray(len)).written;
-      buf[len++] = IAC;
-      buf[len++] = SE;
-      continue;
-    }
-    len += enc.encodeInto(line, buf.subarray(len)).written;
-    if (isPromptLike(line)) {
-      buf[len++] = IAC;
-      buf[len++] = GA;
-    } else {
-      buf[len++] = 13;
-      buf[len++] = 10;
-    }
+    if (gmcp) fb.gmcp(line);
+    else fb.inbound(line);
   }
-  if (len > 0 || inFrame) yield frame();
+  if (fb.length > 0 || inFrame) yield frame();
 }
 
 /** Telnet bytes announcing GMCP and sending `Char.Name`, so replay reaches `playing`. */
