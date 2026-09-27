@@ -1,0 +1,201 @@
+// Stage 7 P2: the HTML replay. The dev app builds the file from the demo
+// backup (Rasta's two-run session, with a title, a comment and a cut); the
+// test writes it to disk and opens it from file:// in a fresh context with
+// no network, and with IndexedDB, localStorage, sessionStorage, fetch,
+// XMLHttpRequest and WebSocket throwing (and counted) on any touch.
+import { writeFileSync } from 'node:fs';
+import { type Browser, type Page, expect, test } from '@playwright/test';
+import { biggestFixture } from './fixtures';
+
+interface Eng {
+  position: number;
+  duration: number;
+  playing: boolean;
+  seeking: boolean;
+  speed: number;
+}
+
+async function engine(page: Page): Promise<Eng> {
+  return page.evaluate(() => {
+    const w = window as unknown as { __wcReplay: { host: { engine: Eng } } };
+    const e = w.__wcReplay.host.engine;
+    return { position: e.position, duration: e.duration, playing: e.playing, seeking: e.seeking, speed: e.speed };
+  });
+}
+
+/** Everything a file:// page may not have: each touch throws and is counted in `__touched`. */
+const NO_STORAGE_NO_NETWORK = (): void => {
+  const w = window as unknown as { __touched: string[] };
+  w.__touched = [];
+  const deny = (name: string): never => {
+    w.__touched.push(name);
+    throw new DOMException(`${name} is not available`, 'SecurityError');
+  };
+  for (const name of ['indexedDB', 'localStorage', 'sessionStorage']) {
+    Object.defineProperty(window, name, { configurable: true, get: () => deny(name) });
+  }
+  const fn = (name: string) =>
+    function () {
+      return deny(name);
+    };
+  Object.defineProperty(window, 'fetch', { configurable: true, value: fn('fetch') });
+  Object.defineProperty(window, 'XMLHttpRequest', { configurable: true, value: fn('XMLHttpRequest') });
+  Object.defineProperty(window, 'WebSocket', { configurable: true, value: fn('WebSocket') });
+};
+
+/** Builds a replay in the dev app (demo backup restored): its HTML and the cut lines' text. */
+async function buildHtml(page: Page, withEdits: boolean): Promise<{ html: string; cut: string[] }> {
+  await page.goto('/');
+  await page.waitForFunction(() => (window as unknown as { __wc?: unknown }).__wc !== undefined);
+  return page.evaluate(async (edits) => {
+    const w = window as unknown as {
+      __wc: {
+        runs(): Promise<{
+          restore(b: Blob): Promise<unknown>;
+          listSessions(now: number): Promise<Array<{ id: string; runs: Array<{ runId: string }> }>>;
+          chainLog(ids: string[]): Promise<Array<{ text: string }>>;
+        }>;
+        replayHtml(o?: unknown): Promise<string>;
+      };
+    };
+    const lib = await w.__wc.runs();
+    await lib.restore(await (await fetch('/__fixtures/runs-demo.jsonl.gz')).blob());
+    if (!edits) return { html: await w.__wc.replayHtml(), cut: [] };
+    const s = (await lib.listSessions(Date.now() * 1000)).find((x) => x.runs.length > 1)!;
+    const text = (await lib.chainLog(s.runs.map((r) => r.runId)))[0]!.text;
+    // Inbound text lines (no ESC record, no command) of run 1.
+    const lines = [...text.matchAll(/^(\d{16}) (?![\x1b>])(.*)$/gm)].filter((m) => m[2]!.trim() !== '');
+    // The comment goes before the 12th text line; lines 30–39 are cut.
+    const anchor = Number(lines[12]![1]);
+    const cut: [number, number] = [Number(lines[30]![1]), Number(lines[40]![1])];
+    const html = await w.__wc.replayHtml({
+      session: s.id,
+      doc: { title: 'Demo fight', comments: [{ beforeUs: anchor, text: 'Watch the tank here.' }], excludes: [cut] },
+    });
+    return { html, cut: lines.slice(30, 40).map((m) => m[0]) };
+  }, withEdits);
+}
+
+/** Opens `html` from a temp file in a context with no network and no storage. */
+async function openFile(browser: Browser, html: string, path: string): Promise<{ page: Page; errors: string[] }> {
+  writeFileSync(path, html);
+  const context = await browser.newContext({ viewport: { width: 1400, height: 820 }, offline: true });
+  await context.route(/^(https?|wss?):/, (r) => r.abort());
+  await context.addInitScript(NO_STORAGE_NO_NETWORK);
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('request', (r) => {
+    if (!r.url().startsWith('file:') && !r.url().startsWith('data:')) errors.push(`request ${r.url()}`);
+  });
+  await page.goto(`file://${path}`);
+  await page.waitForFunction(() => (window as unknown as { __wcReplay?: unknown }).__wcReplay != null);
+  return { page, errors };
+}
+
+const player = (page: Page) => page.locator('.wc-player');
+const chrome = (page: Page) => page.locator('.wc-player-chrome');
+
+test('the HTML replay plays from file:// with no network and no storage', async ({ page, browser }, info) => {
+  const { html, cut } = await buildHtml(page, true);
+  // One file: doctype, GPL notice, fonts inline, payload, script; nothing fetched.
+  expect(html.startsWith('<!doctype html>\n<!--')).toBe(true);
+  expect(html).toContain('GNU General Public License');
+  expect(html).toContain('src:url(data:font/woff2;base64,');
+  expect(html).not.toMatch(/<script[^>]+src=/);
+  expect(html).toContain('<title>Demo fight</title>');
+  console.log(`replay size (demo, Rasta session): ${html.length} bytes`);
+
+  const { page: p, errors } = await openFile(browser, html, info.outputPath('replay.html'));
+  await expect(p).toHaveTitle('Demo fight');
+  // The cut lines are not in the file.
+  const texts = await p.evaluate(() =>
+    (window as unknown as { __wcReplay: { payload: { runs: Array<{ text: string }> } } }).__wcReplay.payload.runs.map((r) => r.text).join(''),
+  );
+  expect(cut.length).toBe(10);
+  for (const line of cut) expect(texts).not.toContain(line);
+
+  // Header, hints, the panes, text, markers, no input line.
+  await expect(chrome(p).locator('.wc-player-header')).toContainText('Demo fight · Rasta (L42) · 2026-09-26');
+  await expect(chrome(p).locator('.wc-player-hints')).toHaveText('Space Play · ↑↓ Scroll · 1–6 Speed · F Fullscreen');
+  await expect(player(p).locator('.wc-output')).toContainText('Rivendell Stables');
+  await expect(player(p).locator('.wc-pane[data-pane="character"]')).toContainText('Rasta');
+  await expect(chrome(p).locator('.wc-player-mark')).toHaveText(['AL►', 'K►', 'D►']);
+  await expect(player(p).locator('.wc-input-slot')).toBeHidden();
+  await expect(chrome(p).locator('.wc-player-strip')).toBeVisible();
+  // The font came from the file.
+  expect(await p.evaluate(() => document.fonts.check('15px "DejaVu Sans Mono"'))).toBe(true);
+
+  // The comment holds playback, whatever the speed: at 8x nothing follows it for seconds.
+  await p.keyboard.press('6');
+  await expect(chrome(p).locator('[data-act="speed"]')).toHaveText('8x   ');
+  const comment = player(p).locator('.wc-output .wc-comment');
+  await expect(comment).toHaveText('## Watch the tank here.', { timeout: 15_000 });
+  const rows = player(p).locator('.wc-output .wc-rows .wc-row');
+  await p.waitForTimeout(2000);
+  await expect(rows.last()).toHaveText('## Watch the tank here.');
+  expect((await engine(p)).playing).toBe(true);
+
+  // Play / pause, and the speed keys.
+  await p.keyboard.press(' ');
+  await expect(chrome(p).locator('[data-act="play"]')).toHaveText('► Play  ');
+  await p.keyboard.press(' ');
+  await expect(chrome(p).locator('[data-act="play"]')).toHaveText('▌▌ Pause');
+  await p.keyboard.press('1');
+  await expect(chrome(p).locator('[data-act="speed"]')).toHaveText('0.25x');
+  expect((await engine(p)).speed).toBe(0.25);
+
+  // Strip hover shows MM:SS; a click seeks.
+  const strip = (await chrome(p).locator('.wc-player-strip').boundingBox())!;
+  await p.mouse.move(strip.x + strip.width / 2, strip.y + strip.height / 2);
+  await expect(chrome(p).locator('.wc-player-hint')).toHaveText(/^\s*\d\d:\d\d\s*$/);
+  await p.mouse.click(strip.x + strip.width / 2, strip.y + strip.height * 0.8);
+  await expect.poll(async () => (await engine(p)).seeking).toBe(false);
+  const e = await engine(p);
+  expect(e.position / e.duration).toBeGreaterThan(0.7);
+
+  // F and the box button toggle fullscreen; ESC does not close the replay.
+  const fsButton = chrome(p).locator('.wc-player-box .wc-player-btn', { hasText: 'Fullscreen' });
+  await expect(fsButton).toHaveText('Fullscreen');
+  await p.keyboard.press('f');
+  await expect.poll(() => p.evaluate(() => document.fullscreenElement !== null)).toBe(true);
+  await expect(fsButton).toHaveText('Exit fullscreen');
+  await p.keyboard.press('F');
+  await expect.poll(() => p.evaluate(() => document.fullscreenElement !== null)).toBe(false);
+  await expect(fsButton).toHaveText('Fullscreen');
+  await p.keyboard.press('Escape');
+  await expect(player(p)).toBeVisible();
+
+  expect(await p.evaluate(() => (window as unknown as { __touched: string[] }).__touched)).toEqual([]);
+  expect(errors).toEqual([]);
+  await p.context().close();
+});
+
+test('without a title the file is named by the character and date', async ({ page }) => {
+  const { html: plain } = await buildHtml(page, false);
+  expect(plain).toContain('<title>Rasta · 2026-09-26</title>');
+});
+
+test('replay file size of the longest Cockpit log', async ({ page }) => {
+  const f = biggestFixture();
+  test.skip(!f, 'no Cockpit fixtures');
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.waitForFunction(() => (window as unknown as { __wc?: unknown }).__wc !== undefined);
+  const size = await page.evaluate(
+    async (rel) => (await (window as unknown as { __wc: { replayHtml(o: unknown): Promise<string> } }).__wc.replayHtml({ logs: [rel] })).length,
+    f!.rel,
+  );
+  console.log(`replay size (${f!.rel}, ${f!.size} bytes of log): ${size} bytes`);
+  expect(size).toBeGreaterThan(0);
+});
+
+test('?replayhtml= builds the demo replay and opens it', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?replayhtml=runs-demo.jsonl.gz');
+  await expect.poll(() => page.url()).toMatch(/^blob:/);
+  await expect(chrome(page).locator('.wc-player-header')).toContainText('Rasta (L42) · 2026-09-26');
+  await expect(player(page).locator('.wc-output')).toContainText('Rivendell Stables');
+  expect(errors).toEqual([]);
+});

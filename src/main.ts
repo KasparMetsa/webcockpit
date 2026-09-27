@@ -11,6 +11,10 @@
 //                           runs are missing, then open the log player on
 //                           the session `id` (default: the newest session
 //                           with more than one run, else the newest)
+//   ?replayhtml=<rel>[&session=<id>]
+//                           dev server only: the same, but builds the HTML
+//                           replay of the session and opens the file
+//                           (src/replay/dev.ts)
 //   ?safe                   default appearance, not saved until changed
 //                           (a way back from a setting that breaks the page)
 //
@@ -71,11 +75,16 @@ if (import.meta.env.DEV) {
     runs: () => shell.runLibrary(),
     openPlayer: (id) => openPlayerSession(id),
     openPlayerLogs: (rels, character) => openPlayerLogs(rels, character),
+    replayHtml: async (o) => (await import('./replay/dev')).devReplayHtml(shell, settings, o),
   };
 }
 await shell.boot();
 const playerFixture = import.meta.env.DEV ? params.get('player') : null;
 if (playerFixture !== null) void openPlayerFixture(playerFixture, params.get('session'));
+const replayFixture = import.meta.env.DEV ? params.get('replayhtml') : null;
+if (replayFixture !== null) {
+  void import('./replay/dev').then((m) => m.openReplayFixture(shell, settings, replayFixture, params.get('session')));
+}
 
 const app = shell.app;
 if (app) {
@@ -163,6 +172,8 @@ declare global {
       openPlayer: (id?: string | null) => Promise<boolean>;
       /** Opens the log player on raw `.log` fixtures (not stored); resolves to the load time, ms. */
       openPlayerLogs: (rels: string[], character?: string) => Promise<number>;
+      /** Builds an HTML replay (src/replay/dev.ts); resolves to the file's text. */
+      replayHtml: (o?: import('./replay/dev').DevReplayOptions) => Promise<string>;
     };
   }
 }
