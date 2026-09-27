@@ -101,6 +101,9 @@ export class StoredTracker implements Tracker {
   onSent(text: string): void {
     const t = text.trim();
     if (!t) return;
+    // Quick reject: `store …` starts with s, a cast with c.
+    const c0 = t.charCodeAt(0) | 0x20;
+    if (c0 !== 0x73 && c0 !== 0x63) return;
     const w = STORE_WORD.exec(t);
     if (w) {
       const target = resolveSpell(w[2]!);

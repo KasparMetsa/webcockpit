@@ -69,6 +69,9 @@ export interface ParsedCast {
  */
 export function parseCast(text: string): ParsedCast | null {
   const t = text.trimStart();
+  // Quick reject: every abbreviation of `cast` starts with c (most sent
+  // commands are movement and the like).
+  if ((t.charCodeAt(0) | 0x20) !== 0x63) return null;
   let i = 0;
   while (i < t.length && t.charCodeAt(i) > 32) i++;
   const word = t.slice(0, i).toLowerCase();
