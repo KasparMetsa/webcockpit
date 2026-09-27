@@ -35,8 +35,14 @@ import {
   type PaneSettings,
   SETTINGS_VERSION,
   type Settings,
+  TIMER_COLOR_ORDER,
+  TIMER_COLS_MIN,
+  type TimersSettings,
   defaultSettings,
+  defaultTimersSettings,
+  timerColsMax,
 } from './types';
+import { TIMER_GROUPS } from '../timers/entry';
 
 /** Largest dock size / desired value kept, in cells (a sanity bound only). */
 export const MAX_CELLS = 1000;
@@ -166,6 +172,28 @@ export function migrateComm(raw: unknown): CommSettings {
   return { filters, showHeader: bool(c.showHeader, d.showHeader) };
 }
 
+/**
+ * Timers options from anything: every key falls back to its own default
+ * (Inv §2.6.3), `cols` is clamped (1–6, Charmies 1–2).
+ */
+export function migrateTimers(raw: unknown): TimersSettings {
+  const d = defaultTimersSettings();
+  const t = isObj(raw) ? raw : {};
+  const groups = isObj(t.groups) ? t.groups : {};
+  for (const id of TIMER_GROUPS) {
+    const x = isObj(groups[id]) ? (groups[id] as Obj) : {};
+    const dg = d.groups[id];
+    d.groups[id] = {
+      enabled: bool(x.enabled, dg.enabled),
+      color: oneOf(x.color, TIMER_COLOR_ORDER, dg.color),
+      cols: int(x.cols, TIMER_COLS_MIN, timerColsMax(id), dg.cols),
+      clock: bool(x.clock, dg.clock),
+      bar: bool(x.bar, dg.bar),
+    };
+  }
+  return { groups: d.groups, headers: bool(t.headers, d.headers), compact: bool(t.compact, d.compact) };
+}
+
 /** A complete, valid `Settings` from anything (stored data of any version). */
 export function migrateSettings(raw: unknown): Settings {
   const d = defaultSettings();
@@ -179,5 +207,6 @@ export function migrateSettings(raw: unknown): Settings {
     profile,
     group: migrateGroup(s.group),
     comm: migrateComm(s.comm),
+    timers: migrateTimers(s.timers),
   };
 }

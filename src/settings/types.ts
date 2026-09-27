@@ -5,6 +5,7 @@
 
 import { type LayoutModel, type PaneColor, type PaneId, defaultLayout } from '../layout/types';
 import { DEFAULT_TERM_BG, DEFAULT_TERM_FG, DOS_PALETTE } from '../theme/presets';
+import type { TimerGroup } from '../timers/entry';
 
 /** Bundled font families (public/fonts). */
 export type FontId = 'dejavu' | 'jetbrains';
@@ -75,6 +76,61 @@ export interface CommSettings {
   showHeader: boolean;
 }
 
+/** The seven Timers swatches (Inv §2.6.3), in the Options column order. */
+export type TimerColor = 'blue' | 'green' | 'red' | 'magenta' | 'cyan' | 'violet' | 'orange';
+export const TIMER_COLOR_ORDER: readonly TimerColor[] = ['blue', 'green', 'red', 'magenta', 'cyan', 'violet', 'orange'];
+/** Swatch colours (bar fill; charm name colour). */
+export const TIMER_COLOR_HEX: Readonly<Record<TimerColor, string>> = {
+  blue: '#66b2ff',
+  green: '#00d900',
+  red: '#d90000',
+  magenta: '#ff66ff',
+  cyan: '#00cccc',
+  violet: '#b388ff',
+  orange: '#ff9933',
+};
+/** Swatch labels (the Options header row). */
+export const TIMER_COLOR_LABELS: Readonly<Record<TimerColor, string>> = {
+  blue: 'Blue',
+  green: 'Green',
+  red: 'Red',
+  magenta: 'Magenta',
+  cyan: 'Cyan',
+  violet: 'Violet',
+  orange: 'Orange',
+};
+/** Column caps: 1–6, Charmies 1–2 (Inv §2.6.3). */
+export const TIMER_COLS_MIN = 1;
+export const TIMER_COLS_MAX = 6;
+export const TIMER_CHARM_COLS_MAX = 2;
+
+/** The column cap limit of a group. */
+export function timerColsMax(g: TimerGroup): number {
+  return g === 'charm' ? TIMER_CHARM_COLS_MAX : TIMER_COLS_MAX;
+}
+
+/** One Timers group's look (Options → Panes → Timers). */
+export interface TimerGroupSettings {
+  /** Shown (a swatch is checked); the colour is remembered while off. */
+  enabled: boolean;
+  color: TimerColor;
+  /** Column cap, a ceiling (1–6, Charmies 1–2). */
+  cols: number;
+  /** Countdown over the bar (never on Charmies). */
+  clock: boolean;
+  /** Drain bar; off paints the name in the group colour (Charmies never have one). */
+  bar: boolean;
+}
+
+/** Options → Panes → Timers (Inv §2.6.3, ADR 0017), global. */
+export interface TimersSettings {
+  groups: Record<TimerGroup, TimerGroupSettings>;
+  /** A dim `Group:` header row above each group. */
+  headers: boolean;
+  /** No blank row between groups. */
+  compact: boolean;
+}
+
 export interface Settings {
   /** Schema version of the stored object (bumped only for non-additive changes). */
   version: number;
@@ -85,6 +141,7 @@ export interface Settings {
   profile: string;
   group: GroupSettings;
   comm: CommSettings;
+  timers: TimersSettings;
 }
 
 /**
@@ -92,11 +149,18 @@ export interface Settings {
  * input line's behaviour and the profile). Recorded in the run capture as a
  * `VIEW` record (ADR 0016).
  */
-export type ViewSnapshot = Pick<Settings, 'appearance' | 'panes' | 'layout' | 'group' | 'comm'>;
+export type ViewSnapshot = Pick<Settings, 'appearance' | 'panes' | 'layout' | 'group' | 'comm' | 'timers'>;
 
 /** The `ViewSnapshot` of `s` (shares its objects; serialise, do not mutate). */
 export function viewSnapshot(s: Readonly<Settings>): ViewSnapshot {
-  return { appearance: s.appearance, panes: s.panes, layout: s.layout, group: s.group, comm: s.comm };
+  return {
+    appearance: s.appearance,
+    panes: s.panes,
+    layout: s.layout,
+    group: s.group,
+    comm: s.comm,
+    timers: s.timers,
+  };
 }
 
 export const SETTINGS_VERSION = 1;
@@ -129,6 +193,30 @@ export function defaultSettings(): Settings {
     profile: 'default',
     group: { showPlayers: true, npcMode: 'labeled' },
     comm: { filters: {}, showHeader: true },
+    timers: defaultTimersSettings(),
+  };
+}
+
+/** Timers defaults (Inv §2.6.3): all on, cols 4/4/4/4/2/1, no clock, bars on. */
+export function defaultTimersSettings(): TimersSettings {
+  const g = (color: TimerColor, cols: number): TimerGroupSettings => ({
+    enabled: true,
+    color,
+    cols,
+    clock: false,
+    bar: true,
+  });
+  return {
+    groups: {
+      spell: g('blue', 4),
+      buff: g('green', 4),
+      debuff: g('red', 4),
+      stored: g('magenta', 4),
+      blind: g('cyan', 2),
+      charm: g('violet', 1),
+    },
+    headers: true,
+    compact: true,
   };
 }
 

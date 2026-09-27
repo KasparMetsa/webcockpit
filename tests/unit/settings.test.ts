@@ -9,6 +9,9 @@ import {
   SettingsStore,
   defaultSettings,
   migrateComm,
+  migrateTimers,
+  defaultTimersSettings,
+  TIMER_COLOR_HEX,
   migrateGroup,
   migrateSettings,
   readAppearanceMirror,
@@ -147,9 +150,44 @@ describe('migrateSettings', () => {
     expect(store.get().group).toEqual({ showPlayers: true, npcMode: 'all' });
   });
 
+  it('adds the timers options with defaults (Inv §2.6.3)', () => {
+    const s = migrateSettings({ appearance: {}, profile: 'pvp' });
+    expect(s.timers).toEqual(defaultTimersSettings());
+    expect(s.timers.groups.blind).toEqual({ enabled: true, color: 'cyan', cols: 2, clock: false, bar: true });
+    expect(s.timers.groups.charm).toMatchObject({ color: 'violet', cols: 1 });
+    expect(Object.values(s.timers.groups).map((g) => g.cols)).toEqual([4, 4, 4, 4, 2, 1]);
+    expect(s.timers.headers).toBe(true);
+    expect(s.timers.compact).toBe(true);
+    expect(TIMER_COLOR_HEX.violet).toBe('#b388ff');
+  });
+
+  it('checks timers values per key and clamps the column caps', () => {
+    const t = migrateTimers({
+      groups: {
+        spell: { enabled: false, color: 'orange', cols: 9, clock: true, bar: false },
+        buff: { enabled: 'no', color: 'yellow', cols: 0, clock: 1 },
+        charm: { cols: 5 },
+        stored: 'junk',
+        bogus: { cols: 3 },
+      },
+      headers: false,
+      compact: 'x',
+    });
+    expect(t.groups.spell).toEqual({ enabled: false, color: 'orange', cols: 6, clock: true, bar: false });
+    expect(t.groups.buff).toEqual({ enabled: true, color: 'green', cols: 1, clock: false, bar: true });
+    expect(t.groups.charm.cols).toBe(2);
+    expect(t.groups.stored).toEqual(defaultTimersSettings().groups.stored);
+    expect(Object.keys(t.groups)).toEqual(['spell', 'buff', 'debuff', 'stored', 'blind', 'charm']);
+    expect(t.headers).toBe(false);
+    expect(t.compact).toBe(true);
+    const store = new SettingsStore({ factory: null, storage: null, win: null });
+    store.update({ timers: { groups: { debuff: { cols: 3 } } } });
+    expect(store.get().timers.groups.debuff).toMatchObject({ cols: 3, color: 'red' });
+  });
+
   it('viewSnapshot picks the screen settings', () => {
     const v = viewSnapshot(DEFAULT_SETTINGS);
-    expect(Object.keys(v).sort()).toEqual(['appearance', 'comm', 'group', 'layout', 'panes']);
+    expect(Object.keys(v).sort()).toEqual(['appearance', 'comm', 'group', 'layout', 'panes', 'timers']);
     expect(v.layout).toBe(DEFAULT_SETTINGS.layout);
   });
 
@@ -226,7 +264,7 @@ describe('database', () => {
     });
     const cap = await CaptureStore.open(factory);
     expect(cap.db.version).toBe(DB_VERSION);
-    expect([...cap.db.objectStoreNames].sort()).toEqual(['comm', 'profiles', 'runChunks', 'runs', 'settings']);
+    expect([...cap.db.objectStoreNames].sort()).toEqual(['comm', 'profiles', 'runChunks', 'runs', 'settings', 'timers']);
     expect((await cap.listRuns()).map((r) => r.runId)).toEqual(['A/1']);
     cap.close();
   });
