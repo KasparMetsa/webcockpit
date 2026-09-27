@@ -7,20 +7,23 @@
 // Screen (C × R cells):
 //
 //   +------+--+----------------------+--+---------+
-//   | left |  |        game          |  |  right  |
-//   | dock |g |                      |g |  dock   |
-//   |      |a +----------------------+a |         |
-//   |      |p |      (gap row)       |p |         |
+//   | left |  |   top dock           |  |  right  |
+//   | dock |g +----------------------+g |  dock   |
+//   |      |a |      (gap row)       |a |         |
+//   |      |p |        game          |p |         |
+//   |      |  +----------------------+  |         |
+//   |      |  |      (gap row)       |  |         |
 //   |      |  |   bottom dock        |  |         |
 //   +------+--+----------------------+--+---------+
 //   | input line (full width, 1 row, clock strip at its right end) |
 //   +--------------------------------------------------------------+
 //
-// - Side docks run the full height above the input; the bottom dock sits
-//   under the game pane only, between the side docks (ADR 0012).
+// - Side docks run the full height above the input; the top and bottom
+//   docks span the game column only, between the side docks (ADR 0012,
+//   ADR 0014).
 // - One gap cell separates the game column from each shown side dock, and
-//   one gap row separates the game pane from the bottom dock. Panes inside
-//   a dock touch (their frames separate them, as in Cockpit).
+//   one gap row separates the game pane from the top and bottom docks.
+//   Panes inside a dock touch (their frames separate them, as in Cockpit).
 // - Along a dock, panes get their `desired` content size if everything
 //   fits, the leftover going to the highest-priority pane; otherwise
 //   Character is reserved first and the rest scale between minimum and
@@ -41,11 +44,12 @@ export const MIN_VIEW_COLS = 60;
 export const MIN_VIEW_ROWS = 18;
 /** Cells a frame adds on each axis (top+bottom rows or left+right columns). */
 export const FRAME_CELLS = 2;
-/** Gap between the game column and a side dock, or the game pane and the bottom dock. */
+/** Gap between the game column and a side dock, or the game pane and the top/bottom dock. */
 export const DOCK_GAP = 1;
-/** Narrowest side dock and lowest bottom dock (cells, frame included). */
+/** Narrowest side dock and lowest top/bottom dock (cells, frame included). */
 export const SIDE_DOCK_MIN = 10;
 export const BOTTOM_DOCK_MIN = 3;
+export const TOP_DOCK_MIN = 3;
 /** Rows of the input line. */
 export const INPUT_ROWS = 1;
 
@@ -57,9 +61,9 @@ export const MIN_ROWS: Readonly<Record<PaneId, number>> = {
   comm: 1,
   ui: 1,
 };
-/** Minimum content columns in the bottom dock (ADR 0012). */
+/** Minimum content columns in the top/bottom dock (ADR 0012). */
 export const MIN_COLS = 8;
-/** Desired content columns of a pane that enters the bottom dock (ADR 0012). */
+/** Desired content columns of a pane that enters the top/bottom dock (ADR 0012). */
 export const DEFAULT_BOTTOM_DESIRED = 30;
 
 /** Who gets the leftover cells first (Inv §2.1). */
@@ -67,8 +71,8 @@ export const LEFTOVER_PRIORITY: readonly PaneId[] = ['ui', 'character', 'comm', 
 /** Who is dropped first when even the minimums do not fit (Inv §2.1). */
 export const DROP_ORDER: readonly PaneId[] = ['group', 'timers', 'comm', 'character', 'ui'];
 
-/** True for the docks that stack panes vertically. */
-export const isSideDock = (d: DockId): boolean => d !== 'bottom';
+/** True for the docks that stack panes vertically (left, right). */
+export const isSideDock = (d: DockId): boolean => d === 'left' || d === 'right';
 
 /** Minimum content size of `id` along the axis of `dock`. */
 export function minContent(id: PaneId, dock: DockId): number {
@@ -227,7 +231,7 @@ export interface LayoutResult {
   docks: Partial<Record<DockId, DockBox>>;
   /** Docks with panes switched on that are hidden for lack of space. */
   collapsed: DockId[];
-  /** Shown panes, dock by dock (left, right, bottom), in stack order. */
+  /** Shown panes, dock by dock (left, right, top, bottom), in stack order. */
   panes: PaneBox[];
   /** Panes switched on but not shown: dropped by allocation or in a collapsed dock. */
   hidden: PaneId[];
@@ -272,6 +276,7 @@ export function allocate(input: AllocateInput): LayoutResult {
   const items: Record<DockId, AxisItem[]> = {
     left: axisItems(input, 'left'),
     right: axisItems(input, 'right'),
+    top: axisItems(input, 'top'),
     bottom: axisItems(input, 'bottom'),
   };
   const sideW = (d: DockId): number => Math.max(SIDE_DOCK_MIN, input.layout.docks[d].size);
@@ -298,17 +303,34 @@ export function allocate(input: AllocateInput): LayoutResult {
   const gx = showL ? leftW + DOCK_GAP : 0;
   const gw = cols - gx - (showR ? rightW + DOCK_GAP : 0);
 
-  // Bottom dock: shrinks to keep GAME_MIN_ROWS, hidden below BOTTOM_DOCK_MIN.
-  let bottomH = 0;
-  if (items.bottom.length > 0) {
-    bottomH = Math.min(input.layout.docks.bottom.size, H - DOCK_GAP - GAME_MIN_ROWS);
-    if (bottomH < BOTTOM_DOCK_MIN) {
-      bottomH = 0;
-      res.collapsed.push('bottom');
-      res.hidden.push(...items.bottom.map((i) => i.id));
+  // Top and bottom docks: they shrink to keep the game pane GAME_MIN_ROWS
+  // high. The bottom dock is sized first; if that leaves the top dock less
+  // than its minimum, the bottom dock gives up rows down to its own
+  // minimum. A dock that still gets less than its minimum is collapsed.
+  const avail = H - GAME_MIN_ROWS;
+  const size = (d: DockId): number => input.layout.docks[d].size;
+  let bottomH = items.bottom.length > 0 ? Math.min(size('bottom'), avail - DOCK_GAP) : 0;
+  if (bottomH < BOTTOM_DOCK_MIN) bottomH = 0;
+  let topH = 0;
+  if (items.top.length > 0) {
+    topH = Math.min(size('top'), avail - DOCK_GAP - (bottomH > 0 ? bottomH + DOCK_GAP : 0));
+    if (topH < TOP_DOCK_MIN && bottomH > 0) {
+      const b = avail - 2 * DOCK_GAP - TOP_DOCK_MIN;
+      if (b >= BOTTOM_DOCK_MIN && size('top') >= TOP_DOCK_MIN) {
+        bottomH = Math.min(bottomH, b);
+        topH = Math.min(size('top'), avail - 2 * DOCK_GAP - bottomH);
+      }
+    }
+    if (topH < TOP_DOCK_MIN) topH = 0;
+  }
+  for (const [d, h] of [['top', topH], ['bottom', bottomH]] as const) {
+    if (h === 0 && items[d].length > 0) {
+      res.collapsed.push(d);
+      res.hidden.push(...items[d].map((i) => i.id));
     }
   }
-  res.game = { x: gx, y: 0, w: gw, h: bottomH > 0 ? H - bottomH - DOCK_GAP : H };
+  const gy = topH > 0 ? topH + DOCK_GAP : 0;
+  res.game = { x: gx, y: gy, w: gw, h: H - gy - (bottomH > 0 ? bottomH + DOCK_GAP : 0) };
 
   const place = (dock: DockId, rect: Rect): void => {
     const side = isSideDock(dock);
@@ -334,6 +356,7 @@ export function allocate(input: AllocateInput): LayoutResult {
   };
   if (showL) place('left', { x: 0, y: 0, w: leftW, h: H });
   if (showR) place('right', { x: cols - rightW, y: 0, w: rightW, h: H });
+  if (topH > 0) place('top', { x: gx, y: 0, w: gw, h: topH });
   if (bottomH > 0) place('bottom', { x: gx, y: H - bottomH, w: gw, h: bottomH });
   return res;
 }

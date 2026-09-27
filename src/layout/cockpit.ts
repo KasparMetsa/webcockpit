@@ -44,14 +44,14 @@ import {
   type PaneBox,
   type Rect,
   SIDE_DOCK_MIN,
+  TOP_DOCK_MIN,
   allocate,
   isSideDock,
 } from './allocate';
 import { isNoopMove, movePane, setDesired, setDockSize, shiftBoundary } from './model';
 import {
-  DEFAULT_BOTTOM_DOCK_SIZE,
-  DEFAULT_SIDE_DOCK_SIZE,
   type DockId,
+  defaultDockSize,
   type LayoutModel,
   PANE_IDS,
   type PaneId,
@@ -284,6 +284,8 @@ export class Cockpit {
           add({ x: (d.x - DOCK_GAP) * cell.w, y: 0, w: DOCK_GAP * cell.w, h: d.h * cell.h }, 'x', { dock: 'right' });
         } else if (dock.id === 'left') {
           add({ x: (d.x + d.w) * cell.w, y: 0, w: DOCK_GAP * cell.w, h: d.h * cell.h }, 'x', { dock: 'left' });
+        } else if (dock.id === 'top') {
+          add({ x: d.x * cell.w, y: (d.y + d.h) * cell.h, w: d.w * cell.w, h: DOCK_GAP * cell.h }, 'y', { dock: 'top' });
         } else {
           add({ x: d.x * cell.w, y: (d.y - DOCK_GAP) * cell.h, w: d.w * cell.w, h: DOCK_GAP * cell.h }, 'y', {
             dock: 'bottom',
@@ -403,10 +405,13 @@ export class Cockpit {
       let size: number;
       let min: number;
       let max: number;
-      if (d.dock === 'bottom') {
-        size = H - DOCK_GAP - Math.floor(y / cell.h);
-        min = BOTTOM_DOCK_MIN;
-        max = H - DOCK_GAP - GAME_MIN_ROWS;
+      if (d.dock === 'bottom' || d.dock === 'top') {
+        // The other of the two keeps what it shows now.
+        const other = r.docks[d.dock === 'bottom' ? 'top' : 'bottom'];
+        const row = Math.floor(y / cell.h);
+        size = d.dock === 'bottom' ? H - DOCK_GAP - row : row;
+        min = d.dock === 'bottom' ? BOTTOM_DOCK_MIN : TOP_DOCK_MIN;
+        max = H - DOCK_GAP - GAME_MIN_ROWS - (other ? other.rect.h + DOCK_GAP : 0);
       } else {
         const col = Math.floor(x / cell.w);
         size = d.dock === 'right' ? r.cols - DOCK_GAP - col : col;
@@ -432,7 +437,7 @@ export class Cockpit {
         const t = d.target;
         this.settings.update((draft) => {
           let m = movePane(draft.layout, d.id, t.dock, t.index);
-          if (t.open) m = setDockSize(m, t.dock, isSideDock(t.dock) ? DEFAULT_SIDE_DOCK_SIZE : DEFAULT_BOTTOM_DOCK_SIZE);
+          if (t.open) m = setDockSize(m, t.dock, defaultDockSize(t.dock));
           draft.layout = m;
         });
       }
@@ -539,7 +544,11 @@ export class Cockpit {
     if (cy < H) {
       if (hidden('left') && cx < E) return open('left', { x: 0, y: 0, w: 2 * T, h: H * cell.h });
       if (hidden('right') && cx >= r.cols - E) return open('right', { x: W - 2 * T, y: 0, w: 2 * T, h: H * cell.h });
-      if (hidden('bottom') && cy >= H - E && cx >= r.game.x && cx < r.game.x + r.game.w) {
+      const inGameCol = cx >= r.game.x && cx < r.game.x + r.game.w;
+      if (hidden('top') && cy < E && inGameCol) {
+        return open('top', { x: r.game.x * cell.w, y: 0, w: r.game.w * cell.w, h: 2 * T });
+      }
+      if (hidden('bottom') && cy >= H - E && inGameCol) {
         return open('bottom', { x: r.game.x * cell.w, y: H * cell.h - 2 * T, w: r.game.w * cell.w, h: 2 * T });
       }
     }

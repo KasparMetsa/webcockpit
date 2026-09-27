@@ -30,17 +30,17 @@ export const PANE_COLORS: readonly PaneColor[] = [
   'black', 'red', 'green', 'blue', 'grey', 'orange', 'purple',
 ];
 
-/** The three docks around the game pane. */
-export type DockId = 'left' | 'right' | 'bottom';
+/** The four docks around the game pane. */
+export type DockId = 'left' | 'right' | 'top' | 'bottom';
 
-export const DOCK_IDS: readonly DockId[] = ['left', 'right', 'bottom'];
+export const DOCK_IDS: readonly DockId[] = ['left', 'right', 'top', 'bottom'];
 
 /** One pane's place in a dock. */
 export interface DockPane {
   id: PaneId;
   /**
    * Wanted content size in cells: rows in a left/right dock, columns in
-   * the bottom dock. Allocation may give less (or more, to the
+   * the top/bottom dock. Allocation may give less (or more, to the
    * highest-priority pane); drag end stores the new value here.
    */
   desired: number;
@@ -48,9 +48,9 @@ export interface DockPane {
 
 /** One dock. */
 export interface DockState {
-  /** Width in cells (left/right) or height in cells (bottom). */
+  /** Width in cells (left/right) or height in cells (top/bottom). */
   size: number;
-  /** Panes in stack order (top→bottom, or left→right for the bottom dock). */
+  /** Panes in stack order (top→bottom, or left→right for the top/bottom dock). */
   panes: DockPane[];
 }
 
@@ -76,6 +76,15 @@ export const DEFAULT_PANE_DESIRED: Readonly<Record<PaneId, number>> = {
 export const DEFAULT_SIDE_DOCK_SIZE = 33;
 /** Default height of the bottom dock in cells. */
 export const DEFAULT_BOTTOM_DOCK_SIZE = 10;
+/** Default height of the top dock in cells. */
+export const DEFAULT_TOP_DOCK_SIZE = 10;
+
+/** The size a dock opens at when a pane is dropped on its screen edge. */
+export function defaultDockSize(dock: DockId): number {
+  if (dock === 'top') return DEFAULT_TOP_DOCK_SIZE;
+  if (dock === 'bottom') return DEFAULT_BOTTOM_DOCK_SIZE;
+  return DEFAULT_SIDE_DOCK_SIZE;
+}
 
 /** A fresh copy of Cockpit's default layout (ADR 0010). */
 export function defaultLayout(): LayoutModel {
@@ -86,6 +95,7 @@ export function defaultLayout(): LayoutModel {
         size: DEFAULT_SIDE_DOCK_SIZE,
         panes: PANE_IDS.map((id) => ({ id, desired: DEFAULT_PANE_DESIRED[id] })),
       },
+      top: { size: DEFAULT_TOP_DOCK_SIZE, panes: [] },
       bottom: { size: DEFAULT_BOTTOM_DOCK_SIZE, panes: [] },
     },
   };

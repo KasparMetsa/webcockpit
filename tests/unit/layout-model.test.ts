@@ -9,13 +9,13 @@ import {
   shiftBoundary,
   togglePatch,
 } from '../../src/layout/model';
-import { type LayoutModel, PANE_IDS, defaultLayout } from '../../src/layout/types';
+import { type DockId, type LayoutModel, PANE_IDS, defaultLayout } from '../../src/layout/types';
 import { defaultSettings } from '../../src/settings/types';
 
-const order = (m: LayoutModel, d: 'left' | 'right' | 'bottom') => m.docks[d].panes.map((p) => p.id);
+const order = (m: LayoutModel, d: DockId) => m.docks[d].panes.map((p) => p.id);
 
 function everyPaneOnce(m: LayoutModel): void {
-  const ids = [...order(m, 'left'), ...order(m, 'right'), ...order(m, 'bottom')];
+  const ids = [...order(m, 'left'), ...order(m, 'right'), ...order(m, 'top'), ...order(m, 'bottom')];
   expect(ids.sort()).toEqual([...PANE_IDS].sort());
 }
 
@@ -46,6 +46,12 @@ describe('movePane', () => {
     expect(m.docks.bottom.panes[0]).toEqual({ id: 'comm', desired: DEFAULT_BOTTOM_DESIRED });
     m = movePane(m, 'comm', 'right', 0);
     expect(m.docks.right.panes[0]).toEqual({ id: 'comm', desired: 10 });
+    m = movePane(m, 'comm', 'top', 0);
+    expect(m.docks.top.panes[0]).toEqual({ id: 'comm', desired: DEFAULT_BOTTOM_DESIRED });
+    m = setDesired(m, { comm: 40 });
+    m = movePane(m, 'comm', 'bottom', 0);
+    expect(m.docks.bottom.panes[0]).toEqual({ id: 'comm', desired: 40 });
+    everyPaneOnce(m);
   });
 
   it('does not mutate its input', () => {

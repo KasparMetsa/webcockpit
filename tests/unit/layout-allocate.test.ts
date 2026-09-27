@@ -218,6 +218,42 @@ describe('allocate', () => {
     expect(small.hidden).toContain('comm');
   });
 
+  it('lays out the top dock above the game pane, side by side, between the side docks', () => {
+    let m = movePane(defaultLayout(), 'comm', 'top', 0);
+    m = movePane(m, 'group', 'left', 0);
+    m = setDockSize(m, 'left', 20);
+    const r = allocate(input(120, 50, m));
+    const t = r.docks.top!;
+    expect(t.rect).toEqual({ x: 21, y: 0, w: 120 - 21 - 34, h: 10 });
+    expect(r.game).toEqual({ x: 21, y: 11, w: 120 - 21 - 34, h: 49 - 11 });
+    expect(r.docks.left!.rect).toEqual({ x: 0, y: 0, w: 20, h: 49 });
+    const comm = r.panes.find((p) => p.id === 'comm')!;
+    expect(comm).toMatchObject({ dock: 'top', index: 0, rect: t.rect });
+    expect(r.panes.map((p) => p.dock)).toEqual(['left', 'right', 'right', 'right', 'top']);
+    expect(r.input).toEqual({ x: 0, y: 49, w: 120, h: 1 });
+  });
+
+  it('fits top and bottom docks together and keeps the game pane 5 rows high', () => {
+    let m = movePane(defaultLayout(), 'comm', 'top', 0);
+    m = movePane(m, 'ui', 'bottom', 0);
+    const r = allocate(input(120, 50, m));
+    expect(r.docks.top!.rect).toEqual({ x: 0, y: 0, w: 86, h: 10 });
+    expect(r.docks.bottom!.rect).toEqual({ x: 0, y: 39, w: 86, h: 10 });
+    expect(r.game).toEqual({ x: 0, y: 11, w: 86, h: 49 - 22 });
+    // 18 rows: 17 above the input, 12 for docks and gaps.
+    const s = allocate(input(120, 18, m));
+    expect(s.game.h).toBe(5);
+    expect(s.docks.top!.rect.h).toBe(3);
+    expect(s.docks.bottom!.rect.h).toBe(7);
+    expect(s.game.y).toBe(4);
+    // A top dock that cannot get its minimum collapses; the bottom dock stays.
+    const t = allocate(input(120, 18, setDockSize(setDockSize(m, 'bottom', 8), 'top', 2)));
+    expect(t.collapsed).toEqual(['top']);
+    expect(t.hidden).toContain('comm');
+    expect(t.docks.bottom!.rect.h).toBe(8);
+    expect(t.game).toEqual({ x: 0, y: 0, w: 86, h: 17 - 9 });
+  });
+
   it('never makes a side dock narrower than 10 cells', () => {
     const r = allocate(input(120, 30, setDockSize(defaultLayout(), 'right', 3)));
     expect(r.docks.right!.rect.w).toBe(10);

@@ -6,6 +6,7 @@ import type { PaneSettings } from '../settings/types';
 import { DEFAULT_BOTTOM_DESIRED, isSideDock, minContent } from './allocate';
 import {
   DEFAULT_PANE_DESIRED,
+  DOCK_IDS,
   type DockId,
   type DockPane,
   type LayoutModel,
@@ -13,18 +14,14 @@ import {
 } from './types';
 
 function copy(m: LayoutModel): LayoutModel {
-  return {
-    docks: {
-      left: { size: m.docks.left.size, panes: m.docks.left.panes.map((p) => ({ ...p })) },
-      right: { size: m.docks.right.size, panes: m.docks.right.panes.map((p) => ({ ...p })) },
-      bottom: { size: m.docks.bottom.size, panes: m.docks.bottom.panes.map((p) => ({ ...p })) },
-    },
-  };
+  const docks = {} as LayoutModel['docks'];
+  for (const d of DOCK_IDS) docks[d] = { size: m.docks[d].size, panes: m.docks[d].panes.map((p) => ({ ...p })) };
+  return { docks };
 }
 
 /** The dock that holds `id` and its index there, or null. */
 export function findPane(m: LayoutModel, id: PaneId): { dock: DockId; index: number } | null {
-  for (const dock of ['left', 'right', 'bottom'] as const) {
+  for (const dock of DOCK_IDS) {
     const index = m.docks[dock].panes.findIndex((p) => p.id === id);
     if (index >= 0) return { dock, index };
   }
@@ -62,7 +59,7 @@ export function isNoopMove(m: LayoutModel, id: PaneId, dock: DockId, index: numb
   return !from || (from.dock === dock && (index === from.index || index === from.index + 1));
 }
 
-/** Sets a dock's width (left/right) or height (bottom) in cells (≥ 1). */
+/** Sets a dock's width (left/right) or height (top/bottom) in cells (≥ 1). */
 export function setDockSize(m: LayoutModel, dock: DockId, size: number): LayoutModel {
   const s = Math.max(1, Math.round(size));
   if (m.docks[dock].size === s) return m;

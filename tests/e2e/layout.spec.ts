@@ -134,6 +134,33 @@ test('drag a pane by its title row to the left dock', async ({ page }) => {
     .toEqual(['ui', 'character', 'timers', 'group']);
 });
 
+test('drag a pane to the top screen edge opens the top dock', async ({ page }) => {
+  const { cw, ch, cols, rows } = await open(page);
+  const o = await origin(page);
+  const comm = await box(page, '.wc-pane-comm');
+  await page.mouse.move(o.x + comm.x + 6 * cw, o.y + comm.y + ch / 2);
+  await page.mouse.down();
+  await page.mouse.move(o.x + 300, o.y + ch / 2, { steps: 8 });
+  await expect(page.locator('.wc-drop-bar')).toBeVisible();
+  await expect(page.locator('.wc-drop-bar')).toHaveAttribute('data-dock', 'top');
+  await page.mouse.up();
+
+  await expect.poll(() => box(page, '.wc-pane-comm')).toEqual({ x: 0, y: 0, width: (cols - 34) * cw, height: 10 * ch });
+  expect(await box(page, '.wc-game')).toEqual({ x: 0, y: 11 * ch, width: (cols - 34) * cw, height: (rows - 12) * ch });
+  expect(await box(page, '.wc-input-slot')).toEqual({ x: 0, y: (rows - 1) * ch, width: cols * cw, height: ch });
+  const top = await page.evaluate(() => window.__wc!.settings.get().layout.docks.top);
+  expect(top).toEqual({ size: 10, panes: [{ id: 'comm', desired: 30 }] });
+
+  // The gap row under the top dock resizes it.
+  const gapY = o.y + 10 * ch + ch / 2;
+  await page.mouse.move(o.x + 300, gapY);
+  await page.mouse.down();
+  await page.mouse.move(o.x + 300, gapY + 4 * ch, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => box(page, '.wc-pane-comm')).toMatchObject({ height: 14 * ch });
+  await expect(page.locator('.wc-input-field')).toBeFocused();
+});
+
 test('dock and pane resize persist across a reload', async ({ page }) => {
   const { cw, ch, cols } = await open(page);
   const o = await origin(page);

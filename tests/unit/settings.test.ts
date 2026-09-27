@@ -124,6 +124,8 @@ describe('migrateSettings', () => {
     expect(s.layout.docks.right.panes.map((p) => p.id)).toEqual(['ui', 'character', 'timers', 'group']);
     expect(s.layout.docks.right.panes[0]).toEqual({ id: 'ui', desired: 5 });
     expect(s.layout.docks.bottom).toEqual({ size: 10, panes: [] });
+    // Layouts stored before the top dock existed get an empty one.
+    expect(s.layout.docks.top).toEqual({ size: 10, panes: [] });
     const all = Object.values(s.layout.docks).flatMap((d) => d.panes.map((p) => p.id));
     expect(all.sort()).toEqual([...PANE_IDS].sort());
   });
