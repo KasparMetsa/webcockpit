@@ -77,7 +77,7 @@ gmcp('Char.StatusVars', {
   subclass: 'warrior',
   level: 25,
   'next-level-xp': 20000,
-  'next-level-tp': 3300,
+  'next-level-tp': 500,
 });
 const vitals = {
   hp: 172,
@@ -90,7 +90,7 @@ const vitals = {
   'mp-string': 'Rested',
   maxmp: 131,
   xp: 5770000,
-  tp: 40100,
+  tp: 41500,
   carrying: 'light',
   ride: null,
   ridden: null,
@@ -244,9 +244,9 @@ event([c(31, 'You slash an orc scout extremely hard.')], '*= HP:Fine R:Dying>');
 wait(1);
 line('');
 line('An orc scout is dead! R.I.P.');
-gmcp('Char.Vitals', { position: 'standing', opponent: null, buffer: null, 'opponent-hits': null, 'buffer-hits': null, xp: 5795500, tp: 40350 });
+gmcp('Char.Vitals', { position: 'standing', opponent: null, buffer: null, 'opponent-hits': null, 'buffer-hits': null, xp: 5860000, tp: 42700 });
 line(c(1, 'You rise a level!'));
-gmcp('Char.StatusVars', { level: 26, 'next-level-xp': 750000, 'next-level-tp': 3400 });
+gmcp('Char.StatusVars', { level: 26, 'next-level-xp': 680000, 'next-level-tp': 2700 });
 gmcp('Group.Update', { id: 4, hp: 88, 'hp-string': 'Wounded', mp: 140, 'mp-string': 'Rested' });
 gmcp('Event.Achieved', { what: 'Defeated an orc scout at the Ford of Bruinen.' });
 line('Achievement unlocked: Defeated an orc scout at the Ford of Bruinen.');
