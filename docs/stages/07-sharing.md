@@ -67,7 +67,7 @@ owner may want to change after testing are listed in the test guide.
 - [ ] P1. Export editor frame, History EXPORT, downloads.
 - [ ] P2. HTML replay: replay bundle (dev and build), page runtime,
       `buildReplayHtml`.
-- [ ] P3. Spotlights reel, Credits, Options → Spotlights, start page.
+- [x] P3. Spotlights reel, Credits, Options → Spotlights, start page.
 - [ ] Merge; bench still passes (§1.3).
 - [ ] Main-session verification (unit, e2e, screenshots).
 - [ ] Test guide ready.
