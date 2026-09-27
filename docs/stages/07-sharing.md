@@ -64,7 +64,7 @@ owner may want to change after testing are listed in the test guide.
       model, timeline edits (cuts, comments with holds, spotlight
       windows, blanks), engine holds, `PlayerView` options, text export,
       replay payload, spotlight selection, chronicle, spotlight settings.
-- [ ] P1. Export editor frame, History EXPORT, downloads.
+- [x] P1. Export editor frame, History EXPORT, downloads.
 - [x] P2. HTML replay: replay bundle (dev and build), page runtime,
       `buildReplayHtml`.
 - [ ] P3. Spotlights reel, Credits, Options → Spotlights, start page.

@@ -1,0 +1,66 @@
+/* Export editor (Inv §7.7, export-editor.tsx, export-input.tsx). Colours
+ * are the inventory's export colours; the rest are kit tokens. */
+
+.wc-exp-row {
+  cursor: pointer;
+  color: var(--term-fg);
+}
+
+.wc-exp-row.is-empty {
+  cursor: default;
+}
+
+/* The cursor row: a band across the log width. */
+.wc-exp-row.is-cur {
+  background: #303030;
+}
+
+.wc-exp-mark {
+  color: var(--c-hint);
+}
+
+.wc-exp-mark.is-focus {
+  color: var(--c-cursor);
+  font-weight: bold;
+}
+
+/* Exclusion bar, excluded lines (flat grey), comments. */
+.wc-exp-bar {
+  color: #af5f5f;
+}
+
+.wc-exp-excl {
+  color: #4e4e4e;
+}
+
+.wc-exp-comment {
+  color: #ffd75f;
+}
+
+/* A command row's `> `. */
+.wc-exp-prefix {
+  color: var(--c-hint);
+}
+
+/* Overview map. */
+.wc-exp-map-row {
+  cursor: pointer;
+}
+
+.wc-exp-map-excl {
+  color: #6f3030;
+}
+
+.wc-exp-map-track {
+  color: var(--c-off);
+}
+
+.wc-exp-map-thumb {
+  color: var(--c-hint);
+}
+
+/* Input frame caret. */
+.wc-exp-caret {
+  color: var(--c-cursor);
+  font-weight: bold;
+}
