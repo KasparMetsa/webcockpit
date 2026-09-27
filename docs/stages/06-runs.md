@@ -64,7 +64,7 @@ owner may want to change after testing are listed in the test guide.
 - [x] P0. Foundation: DB v5, run events deriver + writer, UI `◆` lines,
       run library (list, stitch, chain load, save/rate, delete, sweep,
       backup/restore), demo backup generator. Notes in ADR 0018.
-- [ ] P1. History, Statistics (both surfaces), Exit with rating, start
+- [x] P1. History, Statistics (both surfaces), Exit with rating, start
       page and ESC menu entries. Notes in ADR 0018.
 - [ ] P2. Log player: controllable replay with replay clock, seek,
       speeds, recorded layout, chrome (header, strip, markers, control

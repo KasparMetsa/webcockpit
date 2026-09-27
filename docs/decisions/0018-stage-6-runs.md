@@ -407,3 +407,79 @@ machine); Firefox burst 1431 ms, longest frame 34.2 ms.
 
 **Sweep.** `Shell.showStart` runs `runLibrary().sweep(nowUs())` once per
 page (first start page), silently.
+
+### P1 — History, Statistics, Exit rating (2026-09-27)
+
+**Files.** New: `src/chrome/frames/history.tsx` (HistoryFrame, RateFrame,
+DeleteFrame), `history-model.ts` (sort, cells, pill window, formatters;
+pure), `statistics.tsx` (StatsView, LiveStatsFrame, SessionStatsFrame),
+`stats-layout.ts` (widths, table sort and cells, sparklines, XP ruler as
+coloured segments; pure). Changed: `src/chrome/index.tsx`
+(`StartPageHandle.show({ keep })`), `kit/hooks.ts` (`ChromeServices.runs`,
+`openPlayer?`), `kit/widgets.tsx` (`Stars`, `ratingKey`, `Button.dim`,
+`Page.titleClass`), `kit/kit.css`, `frames/start-main.tsx` (History
+active), `frames/esc-main.tsx` (Statistics row, Exit with rating;
+`EscActions.runs?: LiveRuns`), `src/app/shell.ts` (two lines: `runs` in
+`services()`, `runs: app.runs` for the menu), `src/theme/presets.ts` +
+`apply.ts` (`STATS_COLORS` as `--st-*`: Cockpit's statistics palette),
+`src/capture/recorder.ts` (per-run buffers). Tests:
+`tests/unit/chrome-history.test.tsx`, `chrome-stats-layout.test.ts`,
+`capture.test.ts` (the race), `font-glyphs.test.ts` (new glyphs),
+`tests/e2e/history.spec.ts`. History and Statistics are in the chrome
+chunk (`runs/stats.ts` only there).
+
+**Seam for P2.** `ChromeServices.openPlayer?(session)` is called by
+RUN LOG, Enter/Space on a row with a log, and a click on such a row;
+without it History flashes `Log player not available.`. The shell adds
+`openPlayer` in `services()` and, to open: `this.start?.hide()` and hide
+`startHost`; to return: show `startHost` and call
+**`this.start.show({ keep: true })`** — not `showStart()`, which starts a
+fresh frame stack (and is where the sweep runs). With `keep` the stack is
+the same component tree (never unmounted while hidden), so History has its
+filter, sort, cursor and scroll; it re-reads the list when it is on top
+again and keeps the cursor on the same session id. The Statistics tick and
+the banner stop while hidden (`useIsTop` is false).
+
+**Recorder race (P0's open issue).** Each run now has its own
+`RunCapture` (lines, events, seq, summary, lock release). The run that takes
+events is switched at the next run's start, as before; a run that starts
+before the previous seal task ran no longer shares or clears its buffers.
+Unit test in `capture.test.ts`.
+
+**Interpretations and deviations.**
+- *Buttons:* RUN LOG, STATS, RATE, SAVE, EXPORT, DELETE, BACKUP, RESTORE,
+  BACK. EXPORT is dim but selectable (flashes `Coming in a later stage.`)
+  and disabled without a log, as RUN LOG. STATS / RATE / DELETE are
+  disabled without a row (Cockpit: enabled no-ops). BACKUP is disabled
+  when there are no sessions. Home/End/PgUp/PgDn act in the table only.
+- *Focus on open:* the table, row 0. Filter resets to All on each open.
+- *Table height* fits the data, at least the button column, at most the
+  window; the storage line (`Storage: 147 KB of 6.4 GB`, from
+  `estimate()`) sits on the row above the footer.
+- *Feedback:* `Saved.`, `Rated ★★★.` / `Saved, no rating.`,
+  `Session deleted.`, `Saved webcockpit-runs-….jsonl.gz.` (backup),
+  `Restored N runs (M already present).`, `Restore failed: …` (the
+  `BadBackupError` text).
+- *Rate* shows the session (`Rasta · 2026-09-26 · 21:00 · 1h34m`) above
+  the stars. Stars everywhere are `★` gold / `☆` grey (Exit's sketch);
+  JetBrains Mono lacks `☆` and `▬`, DejaVu is its fallback.
+- *Statistics:* default focus KILLS. Scrollbars sit on the data rows only
+  (not on the title/divider rows). No row hover in the History variant
+  (`C_ROW_HOVER` is undefined, Inv §10.3). When the window is short the
+  sparklines, then the ruler, are dropped before KILLS/PvPs go below 2
+  rows. Live stars (` · ★★★`) are read on open and on R, not every tick
+  (the live chain can only be saved from Exit). Live duration runs on the
+  wall clock, except in a replay (log time, no running clock). Numbers
+  that do not fit their column are k-formatted; Totals always are.
+- *Exit rating:* rateable when `app.runs.anchor()` is not null (so never
+  in a replay); prefill from `chain()` (saved rating, else 0) unless the
+  user already changed it; Y awaits `saveChain(rating)` (errors ignored)
+  and then exits.
+- *ESC menu:* Statistics sits between Reconnect and Profile, shown while
+  `app.runs.current()` is not null (re-checked a tick after every run
+  event and on every status change).
+
+**Open issues.**
+- Sparkline rates early in a run are extreme (a 90k kill in a 10 s run
+  is 945M XP/h): per-bucket rates as Inv §7.3 defines them. Owner may
+  want a minimum span.
