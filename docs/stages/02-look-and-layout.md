@@ -184,3 +184,20 @@ Follow-up tasks:
 - [x] Floating panes: drag out of a dock to float, move, resize from
       edges/corners, bring to front, dock again by dropping on an edge;
       persisted; clamped to the window on resize. (ADR 0014)
+
+### 2026-09-27 — second test (docking)
+
+1. Moving and resizing floating panes with the mouse only is fine.
+2. The input line is always attached directly under the game pane. A
+   pane docked left or right sits beside the input line too (side docks
+   run the full height). A pane docked at the bottom goes under the
+   input line. (This replaces Cockpit's full-width input row.)
+3. A docked pane dragged out to float always gets a standard "moderate"
+   floating size (main-session choice: 36 × 14 cells outer, clamped to
+   the window); the user resizes it from there.
+
+Follow-up tasks:
+
+- [ ] Centre column = top dock, game, input, bottom dock; side docks
+      full height.
+- [ ] Standard size when a docked pane starts floating.
