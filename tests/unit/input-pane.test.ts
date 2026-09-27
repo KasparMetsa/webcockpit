@@ -305,7 +305,7 @@ describe('StatusLine', () => {
     expect(s.text).toBe(' idle · Link: — · XML: off');
     bus.emit('conn.state', { state: 'playing', prev: 'login' });
     bus.emit('gmcp', { pkg: 'Char.Name', data: { name: 'Rasta', fullname: 'Rasta Fari' } });
-    bus.emit('link.rtt', { ms: 38.4, suspect: false });
+    bus.emit('link.rtt', { ms: 38.4, last: 38.4, suspect: false });
     bus.emit('xml.seen', undefined);
     s.setCapture('capture: recording');
     expect(s.text).toBe(' playing · Rasta · Link: 38ms · XML: on · capture: recording');

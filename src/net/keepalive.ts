@@ -8,6 +8,11 @@
 //   given up and the next tick sends a new one, so a lost reply cannot
 //   stop the keep-alive for good.
 // - MUME answers with `Core.Ping`; the reply gives the round trip in ms.
+//   MUME answers on its game pulse (~250 ms), so single samples spread
+//   over ~250 ms above the network RTT. `link.rtt.ms` is therefore the
+//   minimum of the samples received in the last `windowMs` (60 s, about
+//   six samples); `link.rtt.last` is the raw latest sample. See
+//   notes/research/mume-websocket.md, "Measured 2026-09-27".
 // - When the outstanding ping has had no reply for `timeoutMs` (10 s),
 //   `link.rtt` is emitted with `suspect: true`. The link is not closed.
 //   The next reply clears it.
@@ -42,6 +47,8 @@ export interface KeepAliveOptions {
   timeoutMs?: number;
   /** An unanswered ping is given up after this long (default 60 000). */
   staleMs?: number;
+  /** `ms` is the minimum RTT over samples this recent (default 60 000). */
+  windowMs?: number;
 }
 
 export class KeepAlive {
@@ -50,6 +57,7 @@ export class KeepAlive {
   private readonly intervalMs: number;
   private readonly timeoutMs: number;
   private readonly staleMs: number;
+  private readonly windowMs: number;
 
   private running = false;
   private tickTimer: unknown = null;
@@ -57,6 +65,9 @@ export class KeepAlive {
   /** Send time of the outstanding ping, or null. */
   private outstanding: number | null = null;
   private lastRtt: number | null = null;
+  /** RTT samples (receive time, ms) within the window, oldest first. */
+  private samples: { at: number; ms: number }[] = [];
+  private minRtt: number | null = null;
   private isSuspect = false;
 
   constructor(opts: KeepAliveOptions) {
@@ -65,10 +76,16 @@ export class KeepAlive {
     this.intervalMs = opts.intervalMs ?? 10_000;
     this.timeoutMs = opts.timeoutMs ?? 10_000;
     this.staleMs = opts.staleMs ?? 60_000;
+    this.windowMs = opts.windowMs ?? 60_000;
   }
 
-  /** Last round trip in ms, or null before the first reply. */
+  /** Minimum round trip in ms over the window, or null before the first reply. */
   get rtt(): number | null {
+    return this.minRtt;
+  }
+
+  /** Latest raw round trip in ms, or null before the first reply. */
+  get lastSample(): number | null {
     return this.lastRtt;
   }
 
@@ -85,6 +102,8 @@ export class KeepAlive {
     this.stop();
     this.running = true;
     this.lastRtt = null;
+    this.samples = [];
+    this.minRtt = null;
     this.isSuspect = false;
     this.emit();
     this.armTick();
@@ -104,14 +123,23 @@ export class KeepAlive {
     const sent = this.outstanding;
     if (sent === null) return; // unsolicited
     this.outstanding = null;
-    this.lastRtt = Math.max(0, Math.round(this.t.now() - sent));
+    const now = this.t.now();
+    this.lastRtt = Math.max(0, Math.round(now - sent));
+    this.samples.push({ at: now, ms: this.lastRtt });
+    // The new sample is always kept, so the window is never empty here.
+    this.samples = this.samples.filter((s) => now - s.at < this.windowMs);
+    this.minRtt = Math.min(...this.samples.map((s) => s.ms));
     this.isSuspect = false;
     this.clearSuspect();
     this.emit();
   }
 
   private emit(): void {
-    this.o.bus.emit('link.rtt', { ms: this.lastRtt, suspect: this.isSuspect });
+    this.o.bus.emit('link.rtt', {
+      ms: this.minRtt,
+      last: this.lastRtt,
+      suspect: this.isSuspect,
+    });
   }
 
   private armTick(): void {
