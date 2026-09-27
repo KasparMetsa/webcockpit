@@ -74,7 +74,7 @@ this stage builds the system store they will use), `#list`,
 ## Tasks
 
 - [x] Stage file and ADR 0015.
-- [ ] P1. Document model and key table (`src/script/doc/`,
+- [x] P1. Document model and key table (`src/script/doc/`,
       `src/script/keys.ts`). Round-trip corpus tests.
 - [ ] P2. Script engine, display pipeline, app wiring, macros, runtime
       variable write-back, benchmark (`src/script/engine/`).

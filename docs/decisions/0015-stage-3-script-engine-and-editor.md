@@ -140,3 +140,66 @@ TypeScript, unit tested in Node.
 ## Package notes
 
 (P1–P3 append decisions made while building.)
+
+### P1 — document model, command table, key table
+
+- **Command resolution** (`src/script/commands.ts`). The table lists every
+  tt++ command, not only the ones we run, plus the client commands, in
+  alphabetical order. A word resolves case-insensitively: an exact name
+  wins, else the first name in alphabetical order that starts with the
+  word, as tt++ walks its table (`#var`, `#act`, `#al`, `#sub`, `#show`,
+  `#hi`, `#mac`, `#tick`, `#ses` all resolve as in tt++; `#re` is `#read`,
+  `#con` is `#config`, `#conn` is `#connect`). Exception: a one-letter
+  word that starts several names is `'ambiguous'` (tt++ would pick the
+  first, so `#s` would silently be `#scan`). `minAbbrev` is derived from
+  this rule. Tiers: `must`/`should` (spec §3), `client`, `inert` (file,
+  shell, session, screen commands) and `unsupported` (real tt++ commands
+  out of scope this stage: `#list`, `#foreach`, `#loop`, `#switch` …).
+  Both of the last two have `inert: true` and a hint.
+- **Document structure.** A node covers whole lines. A command runs to
+  the line where its brace depth is back to 0, and also takes following
+  lines that start with `{` (tt++'s `#class write` layout). A backslash
+  escapes the next character except a line break. A typed entry needs
+  all arguments braced: exactly 2 for macros and variables, 2–3 for the
+  others with a numeric third (`5`, `-1`, `2.5`), and only whitespace
+  after the last `}`. Unbraced forms (`#var x 1`) are passthrough
+  (`malformed`). Each blank line is its own node.
+- **Passthrough reasons:** `text`, `unknown` (including ambiguous words),
+  `inert`, `command` (known but not typed, e.g. `#gag`, `#ticker`, `#if`),
+  `malformed`. The editor can show the inert hint from `node.command`.
+- **Edits are pure:** every edit returns a new `ProfileDoc`; untouched
+  nodes are shared. Edits do not validate: callers use `validateEntry` /
+  `isSafeArgument` first ("saving is never blocked", Inv §5.6).
+- **Add placement:** after the last entry of the same kind; with none,
+  after the last entry of any kind, with a blank line before it (and one
+  after when text follows); with no entries, at the end after a blank
+  line. The command word copies the last entry of the kind, else the full
+  name, upper-cased when the file's entries are upper-case. New text uses
+  the document's dominant line ending.
+- **Remove rule:** when the removed node sits between a blank line and a
+  blank line (or the end), the blank line before it goes too; when it is
+  the first node and a blank line follows, that blank line goes. Blank-
+  separated entries stay separated by exactly one blank line.
+- **Body normalisation** is only `displayBody`/`storeBody`. `storeBody`
+  returns the previous raw body when its display is unchanged, and
+  stores an edited multi-line action/alias/macro body as
+  `{\n    a;\n    b\n}` inside the canonical form.
+- **setVariable** updates the last top-level definition of the name
+  (the one that wins on load), case-sensitive, splicing only the value.
+  It refuses (returns the same doc) a value with unbalanced braces or a
+  trailing lone backslash.
+- **Validation messages** use the kind's field labels (`Key required` for
+  macros, `Unbalanced braces in New text` for substitutes), with the
+  Inv §5.6 precedence.
+- **Keys** (`src/script/keys.ts`). Display: letters lower-case unless Shift
+  is held (`Alt+a`, `Ctrl+Shift+A`), `Up`/`PgDn`/`Del`/`Ins`/`Esc`,
+  punctuation as its character. Escape forms also cover xterm modifier
+  forms (`\e[15;5~`, `\e[1;2P`), cursor keys and `\e<Upper>` =
+  Alt+Shift. Bindability follows the ADR list; Meta+letter counts as
+  printable (needs Ctrl or Alt). Lite sort (`compareKeys`): keys without
+  modifiers first, then by modifier set (Shift, Alt, Alt+Shift, Ctrl, …);
+  inside a set F-keys, numpad, letters, digits, navigation, editing,
+  punctuation; unknown keys last. `INPUT_LINE_KEYS` lists what the input
+  line (and the native text field) does with a key, for the editor's
+  shadow warning. AltGr on Windows arrives as Ctrl+Alt: P2 should ignore
+  keydowns with `getModifierState('AltGraph')` when matching macros.
