@@ -110,6 +110,34 @@ export function markRows(
     .map(([row, v]) => ({ row, offset: v.offset, text: MARK_ORDER.filter((l) => v.letters.has(l)).join('') + '►' }));
 }
 
+/**
+ * Key hints on the header's right, in display order; `drop` is the order
+ * they give way in when the header is narrow (1 first). `ESC Back` stays.
+ */
+export const HINTS: ReadonlyArray<{ text: string; drop: number }> = [
+  { text: 'Space Play/Pause', drop: 3 },
+  { text: '1–6 Speed', drop: 2 },
+  { text: '↑↓ Cursor', drop: 1 },
+  { text: 'ESC Back', drop: Infinity },
+];
+export const HINT_SEP = ' · ';
+
+/** Cells the hints take joined by ` · `. */
+export function hintsWidth(tokens: readonly string[]): number {
+  return tokens.reduce((n, t) => n + t.length, 0) + HINT_SEP.length * Math.max(0, tokens.length - 1);
+}
+
+/** The hints that fit in `cols` cells, dropping the lowest priority first; `ESC Back` always. */
+export function fitHints(cols: number): string[] {
+  const keep = [...HINTS];
+  while (keep.length > 1 && hintsWidth(keep.map((h) => h.text)) > cols) {
+    let low = 0;
+    for (let i = 1; i < keep.length; i++) if (keep[i]!.drop < keep[low]!.drop) low = i;
+    keep.splice(low, 1);
+  }
+  return keep.map((h) => h.text);
+}
+
 /** `MM:SS` with unbounded minutes (`78:34`). */
 export function fmtClock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));

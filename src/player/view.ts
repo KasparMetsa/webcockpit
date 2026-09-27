@@ -5,7 +5,7 @@
 // nothing about it (the stage 7 HTML replay brings its own chrome).
 //
 //   .wc-player-chrome           over the whole player (pointer-events none)
-//     .wc-player-header         top row: `<char> (L<lvl>) · Run X of Y · date`, `ESC Back`
+//     .wc-player-header         top row: `<char> (L<lvl>) · Run X of Y · date`, key hints
 //     .wc-player-marks          markers, 5 cols left of the strip
 //     .wc-player-strip          right edge, 2 cols, full height
 //     .wc-player-box            control box, 8 cols in from the right, 1 row up
@@ -24,8 +24,12 @@ import './player.css';
 import type { OutputPane } from '../ui/output-pane';
 import type { PlayerEngine } from './engine';
 import {
+  HINTS,
+  HINT_SEP,
   STRIP_COLS,
   type MarkLetter,
+  fitHints,
+  hintsWidth,
   type MarkRow,
   fmtClock,
   fmtDateTime,
@@ -41,8 +45,10 @@ import { playAtLogUs } from './timeline';
 export const HIDE_MS = 6000;
 /** Cursor step of PgUp / PgDn, lines. */
 export const PAGE_STEP = 20;
-/** Header width in cells (centred). */
+/** Header width in cells (centred); wider only as far as the full hint list needs. */
 const HEADER_COLS = 80;
+/** Least gap between the header's left part and the hints, cells. */
+const HEADER_GAP = 2;
 /** Control box: cells in from the right edge, rows up from the bottom. */
 const BOX_RIGHT = 8;
 const BOX_BOTTOM = 1;
@@ -85,6 +91,7 @@ export class PlayerView {
   private readonly win: Window;
   private readonly headerEl: HTMLDivElement;
   private readonly headLeft: HTMLSpanElement;
+  private readonly headHints: HTMLSpanElement;
   private readonly marksEl: HTMLDivElement;
   private readonly stripEl: HTMLDivElement;
   private readonly boxEl: HTMLDivElement;
@@ -123,11 +130,9 @@ export class PlayerView {
     this.headerEl = div('wc-player-header');
     this.headLeft = this.doc.createElement('span');
     this.headLeft.className = 'wc-player-head-left';
-    const back = this.doc.createElement('span');
-    back.className = 'wc-player-back';
-    back.textContent = 'ESC Back';
-    back.addEventListener('click', () => this.o.onBack());
-    this.headerEl.append(this.headLeft, back);
+    this.headHints = this.doc.createElement('span');
+    this.headHints.className = 'wc-player-hints';
+    this.headerEl.append(this.headLeft, this.headHints);
     this.marksEl = div('wc-player-marks');
     this.stripEl = div('wc-player-strip');
     this.boxEl = div('wc-player-box');
@@ -277,8 +282,14 @@ export class PlayerView {
 
     // Header.
     const hd = this.o.header(eng.run);
-    const hc = Math.min(HEADER_COLS, cols - STRIP_COLS);
-    const headSig = `${JSON.stringify(hd)}|${hc}|${w}|${W}`;
+    const nameText = hd.character + (hd.level !== undefined ? ` (L${hd.level})` : '');
+    const runText = `Run ${hd.run + 1} of ${hd.runs}`;
+    const dateText = fmtDateTime(hd.startUs);
+    const leftLen = nameText.length + runText.length + dateText.length + 6;
+    const full = hintsWidth(HINTS.map((x) => x.text));
+    const hc = Math.max(1, Math.min(Math.max(HEADER_COLS, leftLen + HEADER_GAP + full), cols - STRIP_COLS));
+    const hints = fitHints(hc - leftLen - HEADER_GAP);
+    const headSig = `${JSON.stringify(hd)}|${hc}|${w}|${W}|${hints.join()}`;
     if (headSig !== this.headSig) {
       this.headSig = headSig;
       this.headerEl.style.width = `${hc * w}px`;
@@ -286,14 +297,24 @@ export class PlayerView {
       this.headLeft.textContent = '';
       const name = this.doc.createElement('span');
       name.className = 'wc-player-name';
-      name.textContent = hd.character + (hd.level !== undefined ? ` (L${hd.level})` : '');
+      name.textContent = nameText;
       const sep = (): HTMLSpanElement => {
         const s = this.doc.createElement('span');
         s.className = 'wc-player-sep';
         s.textContent = ' · ';
         return s;
       };
-      this.headLeft.append(name, sep(), `Run ${hd.run + 1} of ${hd.runs}`, sep(), fmtDateTime(hd.startUs));
+      this.headLeft.append(name, sep(), runText, sep(), dateText);
+      this.headHints.textContent = '';
+      hints.forEach((t, i) => {
+        if (i > 0) this.headHints.append(HINT_SEP);
+        if (t !== 'ESC Back') return void this.headHints.append(t);
+        const back = this.doc.createElement('span');
+        back.className = 'wc-player-back';
+        back.textContent = t;
+        back.addEventListener('click', () => this.o.onBack());
+        this.headHints.append(back);
+      });
     }
 
     // Strip.

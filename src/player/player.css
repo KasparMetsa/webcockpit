@@ -64,6 +64,17 @@
   overflow: hidden;
 }
 
+.wc-player-head-left {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wc-player-hints {
+  flex: 0 0 auto;
+  padding-left: calc(var(--cell-w) * 2);
+}
+
 .wc-player-name {
   color: var(--c-body);
 }
