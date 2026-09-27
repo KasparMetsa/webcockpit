@@ -74,7 +74,9 @@ owner may want to change after testing are listed in the test guide.
       editor, the replay, the reel and Credits). Two reel fixes: info box
       over the game text, login state read for the panes.
 - [x] Test guide ready.
-- [ ] Owner test 1.
+- [x] Owner test 1: system lines in the editor (fixed); echo placement
+      (not reproduced, question to the owner).
+- [ ] Owner test 2.
 
 ## Live checks for the owner
 
@@ -144,3 +146,34 @@ and Credits feel like Cockpit's.
    Fixed: the scroller's scrollbar is transparent unless the view is
    scrolled back (`wc-scrolled`); transparent rather than hidden, so a
    classic scrollbar keeps its width and the text never reflows.
+
+### Test 1 (2026-09-28)
+
+1. *The `[SYSTEM] Rasta logged in.` line was not in the export editor*,
+   so a comment put at the top played after it. Cause: the editor showed
+   only game lines and commands; the login line is printed by the player
+   when a run's recorded `Char.Name` arrives. Fixed: the editor derives
+   the player's system lines (only the login line, one per run) and shows
+   them as yellow rows anchored on that `Char.Name`. A comment before the
+   row plays before it (a top comment is now the replay's first row); `X`
+   excludes it like any line: the replay does not print it (payload
+   `hiddenSys`, the panes still get the login state) and the text export
+   leaves it out. The text export now writes the shown system lines, as
+   the replay shows them (ADR 0019 amendment "System lines").
+2. *Commands on the prompt's line in the HTML replay, on a line of their
+   own in RUN LOG.* Not reproduced: both run the same player code, and
+   every output row is identical (text and prompt/echo form) for the demo
+   session, a Cockpit log and the chain inside your exported
+   `mume-Rasta-2026-09-28T00-04-34.html`, in Chromium and Firefox; both
+   put a command after its prompt, as the game does. A command gets a row
+   of its own in both only when no prompt comes right before it (e.g. a
+   comment placed on the command, or the prompt excluded). The export
+   editor shows commands on rows of their own (`> look`) by design. An
+   e2e now compares the two players row by row. Need from you: where you
+   saw the difference (a screenshot of each, or the moment), or whether
+   you mean the editor's `> command` rows, which the replay could copy.
+
+Retest: History → EXPORT on a real session: the first row is `[SYSTEM]
+… logged in.`; put a comment above it and exclude a later login line,
+export HTML and TEXT, and check both. For item 2, compare RUN LOG and the
+replay at the same moment.

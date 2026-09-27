@@ -80,6 +80,11 @@ log µs is in it:
 The HTML replay and the text export never contain removed content: P0's
 payload builder writes new capture texts without it.
 
+*Amended 2026-09-28 (owner test 1):* the player's system lines
+(`[SYSTEM] Rasta logged in.`) are visible entries too; excluding one
+stops the replay from printing it and drops it from the text export,
+while its `Char.Name` GMCP is kept. See "Amendment: system lines" below.
+
 ### Comments and holds
 
 - A comment is shown in the game output as its wrapped `## ` lines
@@ -713,3 +718,59 @@ creditsWidth(cols), creditsRoll(lines, rows, cellH) → { fromY, toY, ms }
   run. `loadReel` also reads the run's login stretch (capture start to
   `run_start` + 10 s) and puts its lines before the prefix; the timeline
   keeps only their GMCP / VIEW / SIZE. Unit test in `share-reel.test.ts`.
+
+### Amendment: system lines (2026-09-28, owner test 1)
+
+**Problem.** An export starts with `[SYSTEM] Rasta logged in.`, which the
+player App prints when a run's connection reaches `playing`, but the
+editor did not show it. A comment put at the very top was anchored on the
+first game line, so the replay showed it after the system line.
+
+**Which lines.** A player App prints no connect, replay or disconnect
+lines; the only `[SYSTEM]` line it prints into the game text is the login
+line `<name> logged in.`. Session goes `login → playing` on a run's first
+GMCP `Char.Name` (a `Core.Goodbye` ends the connection first, so a later
+one prints nothing); the App takes the name from that message before
+(its bus listener runs first), so the line carries the latest
+`Char.Name` name, else an earlier run's, else `Character`. Every run
+connects anew: at most one login line per run. `GMCP <pkg>: bad JSON` is
+not derived (browser-specific error text; not seen in recordings).
+
+**Decision.**
+- `src/share/system-lines.ts` (pure): `playerEntries(chain)` yields the
+  capture entries with a synthetic `{ kind: 'sys', run, ts, body }` right
+  after the entry that prints it; `ts` is that `Char.Name` entry's log µs
+  (the anchor). `systemLines(chain)` lists them.
+- **Editor:** a system line is a row (`KIND_SYS`, `[SYSTEM] …` in the
+  output pane's yellow, `data-kind="system"`). It is a cursor stop,
+  counts in `N lines`, can carry a comment before it and be excluded
+  like any entry (`X` / `X`).
+- **Placement:** a comment's `beforeUs` = the anchor puts it before the
+  first entry with `ts ≥ anchor`, i.e. before the `Char.Name` entry (the
+  timeline places comments before GMCP entries too), so it plays before
+  the system line; a top comment is the first row of the replay. The
+  payload's comment move (`nextKept`) counts shown system lines as kept,
+  so such a comment is not moved to the next game line.
+- **Exclusion:** a system line whose anchor is in an excluded range is
+  hidden. The payload lists hidden ones as `hiddenSys: number[]` (run
+  indexes; absent when none, and in older files); `PlayerOpenOptions.
+  hiddenSys` sets `App.quietLogin` before each run connects, and a
+  player App with it set does not print the login line. The `Char.Name`
+  GMCP stays (not Comm text), so the panes still fill. The in-app player
+  passes nothing and is unchanged.
+- **Text export:** writes the system lines that are not excluded, as
+  `[SYSTEM] Rasta logged in.`, where the replay prints them (comments
+  before them by the same rule), so the text matches the replay.
+
+**Echo (owner test 1, item 2).** Reported: commands in the HTML replay
+sit on the prompt's line, in the log player on a line of their own. Not
+reproduced: the two run the same code (`PlayerHost`, `OutputPane.
+renderEcho`), and the output rows (text and prompt/echo classes) are
+identical after playing the demo session, a Cockpit log and the owner's
+exported file's own chain in both (Chromium and Firefox); rows differ
+only where a comment sits. A command gets its own row in both only when
+no open prompt precedes it (a comment anchored on the command, a prompt
+removed by an exclusion, the first command of a log). The e2e now
+compares every output row of the log player and the replay of the demo
+session.
+
