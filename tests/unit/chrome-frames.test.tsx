@@ -1,0 +1,216 @@
+// @vitest-environment happy-dom
+import { act } from 'preact/test-utils';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { AppStatusState, AppStatusView } from '../../src/app/status';
+import { aboutLines } from '../../src/chrome/frames/about';
+import { headerParts, linkClass } from '../../src/chrome/frames/esc-main';
+import { colorChoices, gridToggle, parseHex } from '../../src/chrome/frames/options';
+import { type ChromeServices, mountEscMenu, mountStartPage } from '../../src/chrome';
+import { ProfileStore } from '../../src/profiles';
+import { SettingsStore } from '../../src/settings';
+import { CellMetrics } from '../../src/theme/cells';
+import { TERMINAL_FG_PRESETS } from '../../src/theme/presets';
+
+const status = (p: Partial<AppStatusState> = {}): AppStatusState => ({
+  conn: 'playing',
+  replay: false,
+  character: '',
+  linkMs: 38,
+  linkSuspect: false,
+  capture: 'capture: recording',
+  xml: true,
+  ...p,
+});
+
+describe('options helpers', () => {
+  it('toggles the pane grid: 0 or 1 checked cell per row', () => {
+    const p = { on: true, color: 'red' as const, border: true };
+    expect(gridToggle(p, 1)).toEqual({ on: false, color: 'red', border: true }); // checked cell → off
+    expect(gridToggle(p, 3)).toEqual({ on: true, color: 'blue', border: true }); // other → that colour
+    expect(gridToggle({ ...p, on: false }, 1)).toEqual({ on: true, color: 'red', border: true });
+    expect(gridToggle(p, 7)).toEqual({ on: true, color: 'red', border: false }); // Border column
+  });
+
+  it('parses hex colours', () => {
+    expect(parseHex('#FF5F5F')).toBe('#ff5f5f');
+    expect(parseHex('00ff00')).toBe('#00ff00');
+    expect(parseHex('#abc')).toBe('#aabbcc');
+    expect(parseHex('#ff5f5')).toBeNull();
+    expect(parseHex('red')).toBeNull();
+  });
+
+  it('puts an off-palette colour first in the cycle', () => {
+    expect(colorChoices(TERMINAL_FG_PRESETS, '#c0c0c0')[0]).toBe('#778a8d');
+    expect(colorChoices(TERMINAL_FG_PRESETS, '#123456')[0]).toBe('#123456');
+  });
+});
+
+describe('ESC header', () => {
+  it('shows profile, link and capture; colours the link by quality', () => {
+    expect(headerParts('default', status()).map((p) => p.text)).toEqual([
+      'Profile: default',
+      'Link: 38ms',
+      'capture: recording',
+    ]);
+    expect(linkClass(status())).toBe('wc-c-hint');
+    expect(linkClass(status({ linkSuspect: true }))).toBe('wc-c-yellow');
+    expect(linkClass(status({ linkMs: null }))).toBe('wc-c-err');
+    expect(headerParts('x', status({ capture: '' }))).toHaveLength(2);
+  });
+});
+
+describe('About text', () => {
+  it('styles headings, keys and body, wrapped to the width', () => {
+    const lines = aboutLines(60);
+    expect(lines.find((l) => l.text === 'KEYS')?.cls).toBe('wc-c-title');
+    const esc = lines.find((l) => l.key?.trim() === 'ESC');
+    expect(esc?.cls).toBe('wc-c-body');
+    for (const l of lines) expect((l.key?.length ?? 0) + l.text.length).toBeLessThanOrEqual(60);
+  });
+});
+
+// ------------------------------------------------------------- rendering
+
+beforeAll(() => {
+  // happy-dom does no layout: give every element a 100 × 30 cell box.
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 1000 });
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 600 });
+});
+
+let cleanup: Array<() => void> = [];
+afterEach(() => {
+  for (const c of cleanup.splice(0)) c();
+  document.body.innerHTML = '';
+});
+
+function services(): ChromeServices {
+  const settings = new SettingsStore({ factory: null, storage: null, win: null });
+  const cells = new CellMetrics({ measure: () => ({ w: 10, h: 20, px: 15, ls: 0 }), loadFont: async () => {} });
+  void cells.update(settings.get().appearance);
+  const profiles = new ProfileStore({ factory: null });
+  return { settings, cells, profiles, version: '9.9.9' };
+}
+
+const key = (k: string, init: KeyboardEventInit = {}) =>
+  act(() => {
+    (document.activeElement ?? document.body).dispatchEvent(
+      new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }),
+    );
+  });
+
+const selected = (host: HTMLElement) => host.querySelector('.wc-frame:not([hidden]) .wc-mrow.is-sel')?.textContent;
+const title = (host: HTMLElement) => host.querySelector('.wc-frame:not([hidden]) .wc-c-section')?.textContent;
+
+describe('start page', () => {
+  it('renders the banner and menu, navigates, and keeps keys from the page', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const onEnter = vi.fn();
+    const docKeys = vi.fn();
+    document.addEventListener('keydown', docKeys, true);
+    cleanup.push(() => document.removeEventListener('keydown', docKeys, true));
+    const page = mountStartPage(host, services(), { onEnter });
+    cleanup.push(() => page.dispose());
+    await act(() => page.show());
+
+    expect(host.querySelectorAll('.wc-banner .wc-line')).toHaveLength(11);
+    expect(host.querySelector('[data-star]')).not.toBeNull();
+    expect(selected(host)).toBe('<< Enter MUME >>');
+
+    await key('ArrowUp');
+    expect(selected(host)).toBe('<< About >>');
+    await key('ArrowDown');
+    await key('ArrowDown');
+    expect(selected(host)).toBe('<< Profile >>');
+    expect(docKeys).not.toHaveBeenCalled();
+
+    // Dimmed rows flash instead of opening.
+    await key('ArrowDown');
+    await key('ArrowDown');
+    await key('Enter');
+    expect(host.querySelector('.wc-flash')?.textContent).toMatch(/later stage/);
+
+    // Options opens and ESC comes back with the cursor kept.
+    await key('ArrowUp');
+    await key('Enter');
+    expect(title(host)).toBe('─── Options ───');
+    await key('Escape');
+    expect(title(host)).toBeUndefined();
+    expect(selected(host)).toBe('<< Options >>');
+
+    // ESC on the main page is a no-op; Enter MUME calls back.
+    await key('Escape');
+    expect(selected(host)).toBe('<< Options >>');
+    await key('Home');
+    await key('Enter');
+    expect(onEnter).toHaveBeenCalledTimes(1);
+
+    // Hidden: keys pass through.
+    await act(() => page.hide());
+    await key('ArrowDown');
+    expect(docKeys).toHaveBeenCalledTimes(1);
+  });
+
+  it('mouse click selects and activates', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const page = mountStartPage(host, services(), { onEnter: () => {} });
+    cleanup.push(() => page.dispose());
+    await act(() => page.show());
+    const about = host.querySelector<HTMLElement>('.wc-mrow[data-key="about"] .wc-label')!;
+    await act(() => about.click());
+    expect(title(host)).toBe('─── About ───');
+    expect(host.querySelector('.wc-frame:not([hidden]) .wc-title-row')?.textContent).toBe('─── About ─── 9.9.9');
+  });
+});
+
+describe('ESC menu', () => {
+  function view(s: AppStatusState): AppStatusView & { set(p: Partial<AppStatusState>): void } {
+    let cur = s;
+    const fns = new Set<(s: AppStatusState) => void>();
+    return {
+      get: () => cur,
+      subscribe: (fn) => {
+        fns.add(fn);
+        return () => fns.delete(fn);
+      },
+      set(p) {
+        cur = { ...cur, ...p };
+        for (const f of fns) f(cur);
+      },
+    };
+  }
+
+  it('opens with Continue when connected, Reconnect when not, and closes on ESC', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const st = view(status());
+    const close = vi.fn();
+    const exit = vi.fn();
+    const menu = mountEscMenu(host, services(), { status: st, close, reconnect: vi.fn(), exit });
+    cleanup.push(() => menu.dispose());
+    await act(() => menu.open());
+    expect(selected(host)).toBe('<< Continue >>');
+    expect(host.querySelector('.wc-esc-header')?.textContent).toBe(
+      'Profile: default  ·  Link: 38ms  ·  capture: recording',
+    );
+    await key('Escape');
+    expect(close).toHaveBeenCalledTimes(1);
+    await act(() => menu.close());
+
+    st.set({ conn: 'disconnected', linkMs: null });
+    await act(() => menu.open());
+    expect(selected(host)).toBe('<< Reconnect >>');
+    expect(host.querySelector('.wc-mrow[data-key="continue"]')).toBeNull();
+    expect(host.querySelector('.wc-esc-header .wc-c-err')?.textContent).toBe('Link: —');
+
+    // Exit session → confirm → Y.
+    await key('End');
+    await key('Enter');
+    expect(title(host)).toBe('─── Exit session ───');
+    await key('n');
+    expect(exit).not.toHaveBeenCalled();
+    await key('y');
+    expect(exit).toHaveBeenCalledTimes(1);
+  });
+});
