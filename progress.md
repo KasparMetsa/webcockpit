@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **7 — Sharing** (in progress).
+Current stage: **8 — Hardening → v1** (not started).
 
 ## Stages
 
@@ -12,8 +12,8 @@ Current stage: **7 — Sharing** (in progress).
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
-| 7 | Sharing | Owner testing | `docs/stages/07-sharing.md` |
-| 8 | Hardening → v1 | — | — |
+| 7 | Sharing | Done | `docs/stages/07-sharing.md` |
+| 8 | Hardening → v1 | Next | — |
 | 9 | Map (after v1) | — | — |
 
 Statuses: Next, In progress, Owner testing, Done.
@@ -43,6 +43,13 @@ Newest first.
   line in the replay vs a new line in RUN LOG: not reproduced (identical
   rows in both players, e2e parity test added); asked the owner where.
   968 unit.
+- **Owner test 2:** approved ("seems to work well"); item 2 dropped.
+  Stage 7 closed. Next session: write `docs/stages/08-…md` from spec §5
+  (fixes from PvP testing, perf pass, polish). Carry: Chromium burst
+  frame (39–58 ms), player paint after a long seek, replay font
+  subsetting (~0.3 MB/file), JetBrains Mono exports without DejaVu
+  fallback glyphs, reel load time on a large library, live checks of
+  stage 7 (Spotlights/Credits after real PvP, replay on another machine).
 - **Commits:** 5dca49e…(this commit).
 
 ### 2026-09-28 — Stage 6 owner test 1 fixes

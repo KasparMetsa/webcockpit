@@ -1,6 +1,6 @@
 # Stage 7 — Sharing
 
-> Status: In progress (started 2026-09-28).
+> Status: Done 2026-09-28.
 > Source: spec §5 row 7, §2.8, §2.5. Inv §7.6 (Spotlights, Credits),
 > §7.7 (export editor, HTML replay), §3.8 (Options → Spotlights), §7.4
 > (History EXPORT), §7.8 (sweep also removes export records).
@@ -76,7 +76,8 @@ owner may want to change after testing are listed in the test guide.
 - [x] Test guide ready.
 - [x] Owner test 1: system lines in the editor (fixed); echo placement
       (not reproduced, question to the owner).
-- [ ] Owner test 2.
+- [x] Owner test 2 (2026-09-28): approved ("seems to work well"); item 2
+      of test 1 dropped by the owner. Stage closed..
 
 ## Live checks for the owner
 
@@ -177,3 +178,8 @@ Retest: History → EXPORT on a real session: the first row is `[SYSTEM]
 … logged in.`; put a comment above it and exclude a later login line,
 export HTML and TEXT, and check both. For item 2, compare RUN LOG and the
 replay at the same moment.
+
+### Test 2 (2026-09-28)
+
+Approved: "Verkar fungera bra" (seems to work well). Item 2 of test 1
+(commands on the prompt line) dropped by the owner. Stage 7 closed.
