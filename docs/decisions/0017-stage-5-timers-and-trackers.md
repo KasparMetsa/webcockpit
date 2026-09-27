@@ -251,3 +251,44 @@ and herb add/remove work). Without injecting: `game.timers.debugAdd(cell)`,
 `debugHerbs(list)`, `debugClear()` — an internal, never-saved tracker,
 cleared by `connecting`; in the browser `__wc.app.game.timers.debugAdd({
 id, name, group, startedAt, expiresAt, expected, tracked })`.
+
+### P2 — Timers pane and options (2026-09-27)
+
+**Modules.** `src/panes/timers.ts`: pure `timersLayout(input)` →
+`{ lines: CellLine[], zones, scroll, total, listH, corner, timed }` plus
+helpers `effectiveCols`, `cellWidths`, `clockContent` (ladder A/B/C),
+`charmName`, `hitKey` (unit tested in `tests/unit/panes-timers.test.ts`),
+and `TimersPane` (DOM only). `src/chrome/frames/options-timers.tsx`
+(`TimersOptionsFrame`, helpers `colorToggle`, `stepCols`, `timersHeader`),
+listed in the Panes hub as General · Timers · Communication · Group · Back.
+CSS in `src/panes/panes.css` (`.wc-timers-hit`).
+
+**Clicks.** The layout returns hit zones (charm `×`, herb label, corner,
+`↑` indicator); the pane draws one transparent `.wc-timers-hit` box per
+zone (`data-hit`, `data-id` / `data-key`), raised above the title-row
+grip (z-index 2), and handles `mousedown` / `mousemove` on the content.
+Hover is a zone key passed back into the layout, so the colours stay in
+one place. Clicks call the hub (`dropCharm`, `addHerb`, `removeHerb`),
+no optimistic UI. The wheel listens on the pane element (the grip covers
+the top content row when the border is off); 40 px per row as the
+anchored list. `data-mode` on the content is `grid` / `add`.
+
+**Tick.** After each render the pane arms one timeout for the next
+wall-clock second + 5 ms while any enabled group has a tracked cell with
+an expiry (bars, countdowns, charm minutes); none otherwise. Leaving
+`playing` resets mode, scroll and hover and clears the timer.
+
+**Deviations.**
+- Light pane: the drained-name / charm-minutes grey `#C0C0C0` becomes
+  `darkInk(bg)` and the untracked-affect `#3a3a3a` becomes the ramp's
+  `dim` (Cockpit only adapts barless names, which we darken with
+  `lightShift` as it does). Bars stay the vivid group colour.
+- Indicator in the singular for 1 (`↑ 1 row above`, `↓ 1 more row`), as
+  the Comm pane.
+- Options header: colour names left-aligned over their `[X]███` cells
+  like the General grid (Cockpit centres them).
+- Barless untracked stored spells paint their name in `#cccccc`.
+
+**Test note.** `playwright.config.ts` reuses any server on 5173; with
+parallel worktrees that can be another branch's. P2 ran its e2e with a
+private copy of the config on another port.
