@@ -79,9 +79,10 @@ export class LiveRuns {
 
   /** The anchor run's session, or null. */
   async chain(): Promise<Session | null> {
+    // Pending writes first: a run that is still starting becomes the anchor.
+    await this.recorder.flush();
     const id = this.anchor();
     if (!id) return null;
-    await this.recorder.flush();
     const lib = await this.library();
     return lib ? lib.chainOf(id, this.clock()) : null;
   }
