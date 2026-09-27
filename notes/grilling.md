@@ -144,3 +144,14 @@ Questions asked:
 4. Readability modules: out. Key manager: out (a standalone Cockpit
    script). Everything else in: mirror Cockpit's launcher/start page,
    menus, design and TUI feel nearly identically.
+
+## Intent review (2026-09-27)
+
+Owner approved the draft with additions:
+
+- Panes can be toggled on/off and customised like Cockpit, on top of
+  free docking with a Cockpit-like default.
+- The map comes after a fully working client, but MMapper integration
+  (direct MMapper or something new based on it) is critical. The
+  integration path must be understood early so nothing built is
+  incompatible with MMapper.

@@ -1,6 +1,6 @@
 # WebCockpit — Intent
 
-> Status: DRAFT, awaiting owner approval.
+> Status: APPROVED by owner 2026-09-27.
 > Source: `notes/grilling.md`, rounds 1–3 (2026-09-27).
 
 ## Vision
@@ -48,7 +48,8 @@ reference only.
    - Export editor with HTML replay.
    - Spotlights.
 
-   Panes can be docked and arranged freely.
+   The default layout looks like Cockpit. Panes can be docked and
+   arranged freely, toggled on and off, and customised like in Cockpit.
 5. **Full GMCP integration, plus a GMCP editor** (new compared to
    Cockpit).
 6. **Configurable look:** font, colours and cursor, like foot in
@@ -57,8 +58,11 @@ reference only.
    as a local file.
 8. **Hotkeys in a normal browser tab.** Every key combination the browser
    allows can be bound.
-9. **An MMapper-like map,** built after the full client works. It is
-   designed for from the start, but built last.
+9. **An MMapper-based map,** built after the full client works. It will
+   either integrate MMapper directly or be new work based on MMapper.
+   Getting this integration right is critical. The integration path is
+   researched and decided before the spec is approved, so that nothing
+   built before then is incompatible with MMapper.
 
 ## Non-goals
 
@@ -106,3 +110,6 @@ None blocking. The following are decided in `spec.md` or ADRs:
 - Stage order.
 - Storage layout.
 - Hosting while private.
+
+Researched before spec approval: how MMapper will be integrated (see
+Goal 9).
