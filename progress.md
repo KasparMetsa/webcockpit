@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **4 — GMCP panes** (in progress).
+Current stage: **5 — Timers and trackers** (not started).
 
 ## Stages
 
@@ -9,8 +9,8 @@ Current stage: **4 — GMCP panes** (in progress).
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
-| 4 | GMCP panes | Owner testing | `docs/stages/04-gmcp-panes.md` |
-| 5 | Timers and trackers | — | — |
+| 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
+| 5 | Timers and trackers | Next | — |
 | 6 | Runs | — | — |
 | 7 | Sharing | — | — |
 | 8 | Hardening → v1 | — | — |
@@ -38,8 +38,10 @@ Newest first.
   Comm header over the drag grip when borderless.
 - **Owner test 1:** group pane follows the fight; carried live checks
   (idle timeout, ESC auto-open) pass; `[SYSTEM]` lines stay in both
-  places. Comm talker names shortened as in Cockpit (fixed). Waiting
-  for the owner's verdict on the stage.
+  places. Comm talker names shortened as in Cockpit (fixed). Stage 4
+  approved and closed. Next session: write `docs/stages/05-…md` from
+  spec §5; timers state per character must survive sessions (owner
+  wish); the Timers pane plugs into `PaneContext`/`GameState`.
 - **Commits:** e93638a…(this commit).
 
 ### 2026-09-27 — Stage 3 build

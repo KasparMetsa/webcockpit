@@ -1,6 +1,6 @@
 # Stage 4 — GMCP panes
 
-> Status: In progress.
+> Status: Done 2026-09-27.
 > Source: spec §5 row 4, §2.4, §1.4, §2.1 (connection lines). Inv §2.1
 > (inactive panes, shade ramp), §2.2, §2.3, §2.4, §2.5, §2.7, §8.1–8.2,
 > §8.3 (wimpy, clock lines only). ADR 0016.
@@ -96,7 +96,7 @@ Carried: the owner wants per-character state to survive sessions
 - [x] Main-session verification (696 unit, 114 e2e; demo screenshot:
       all four panes, clock strip, blank lines in the game output).
 - [x] Test guide ready.
-- [ ] Owner test.
+- [x] Owner test (approved 2026-09-27).
 
 ## Live checks for the owner
 
@@ -189,3 +189,4 @@ disagrees with Cockpit's own code); MSSP game day is taken as 0-based
 4. Live checks: the link survives 5+ minutes idle and `Link:` keeps
    updating; the ESC menu opens by itself on disconnect. Both carried
    checks are closed.
+5. Approved ("looks good"). Stage 4 closed.
