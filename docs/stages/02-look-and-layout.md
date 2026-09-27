@@ -75,9 +75,10 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
 ## Tasks
 
 - [ ] Stage file and ADR 0010.
-- [ ] A. Foundation: settings store, tokens and theme application, fonts,
+- [x] A. Foundation: settings store, tokens and theme application, fonts,
       cell metrics, colour toolkit, custom caret, `?safe`, remove status
-      line. Unit tests.
+      line. Unit tests. (ADR 0011; APIs: `src/settings`, `src/theme/*`,
+      `src/layout/types.ts`, `app.status`.)
 - [ ] B. Layout: docking engine (model + allocation, pure and tested),
       pane frame, pane shells, drag/resize/toggle, narrow collapse, size
       gate. Unit + e2e tests.
