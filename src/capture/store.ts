@@ -1,6 +1,6 @@
 // IndexedDB storage for raw run capture (ADR 0006, ADR 0008).
 //
-// Database `webcockpit`, version 1:
+// Stores in the shared `webcockpit` database (opened by src/core/db.ts):
 //
 //   runs       keyPath 'runId'
 //              { runId, character, startedUs, endedUs: number|null,
@@ -10,14 +10,11 @@
 //              { runId, seq, firstUs, lastUs, text }
 //
 // `bytes` is the UTF-8 size of all chunk texts, `lines` the number of
-// captured lines. Later stores (profiles, settings, run events, map) are
-// added by bumping the version; the upgrade handler must stay a chain of
-// `if (oldVersion < N)` steps so every older database upgrades in order.
-// When a second module needs the database, move `openWebcockpitDb` to a
-// shared core module.
+// captured lines.
 
-export const DB_NAME = 'webcockpit';
-export const DB_VERSION = 1;
+import { idbDone as done, idbRequest as req, openWebcockpitDb } from '../core/db';
+
+export { DB_NAME, DB_VERSION, openWebcockpitDb, requestPersistence } from '../core/db';
 
 export interface RunMeta {
   runId: string;
@@ -35,56 +32,6 @@ export interface RunChunk {
   firstUs: number;
   lastUs: number;
   text: string;
-}
-
-function req<T>(r: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
-}
-
-function done(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error ?? new Error('transaction aborted'));
-  });
-}
-
-let persistAsked = false;
-
-/** Asks once per page for persistent storage (ADR 0006). Never throws. */
-export function requestPersistence(): void {
-  if (persistAsked) return;
-  persistAsked = true;
-  try {
-    const p = globalThis.navigator?.storage?.persist?.();
-    p?.catch(() => {});
-  } catch {
-    /* not available */
-  }
-}
-
-/** Opens (and creates or upgrades) the `webcockpit` database. */
-export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Promise<IDBDatabase> {
-  if (!factory) return Promise.reject(new Error('IndexedDB unavailable'));
-  requestPersistence();
-  return new Promise((resolve, reject) => {
-    const r = factory.open(DB_NAME, DB_VERSION);
-    r.onupgradeneeded = (ev) => {
-      const db = r.result;
-      if (ev.oldVersion < 1) {
-        const runs = db.createObjectStore('runs', { keyPath: 'runId' });
-        runs.createIndex('character', 'character');
-        runs.createIndex('startedUs', 'startedUs');
-        db.createObjectStore('runChunks', { keyPath: ['runId', 'seq'] });
-      }
-    };
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-    r.onblocked = () => reject(new Error('database upgrade blocked by another tab'));
-  });
 }
 
 export class CaptureStore {
