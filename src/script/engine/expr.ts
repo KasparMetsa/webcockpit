@@ -124,7 +124,10 @@ function wordEnd(src: string, i: number): number {
 class Parser {
   private i = 0;
   dec = 0;
-  constructor(private readonly toks: Tok[]) {}
+  private readonly toks: Tok[];
+  constructor(toks: Tok[]) {
+    this.toks = toks;
+  }
 
   private peek(): Tok {
     return this.toks[this.i]!;

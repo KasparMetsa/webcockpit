@@ -61,7 +61,10 @@ export function matchBrace(text: string, open: number): number {
 /** A cursor over a command's argument text. */
 export class ArgReader {
   pos = 0;
-  constructor(readonly text: string) {}
+  readonly text: string;
+  constructor(text: string) {
+    this.text = text;
+  }
 
   private skipWs(): void {
     const t = this.text;

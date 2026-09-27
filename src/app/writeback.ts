@@ -31,10 +31,12 @@ export class VariableWriteBack {
   private readonly setTimer: (fn: () => void, ms: number) => unknown;
   private readonly clearTimer: (h: unknown) => void;
 
-  constructor(
-    private readonly store: ProfileStore,
-    private readonly opts: WriteBackOptions = {},
-  ) {
+  private readonly store: ProfileStore;
+  private readonly opts: WriteBackOptions;
+
+  constructor(store: ProfileStore, opts: WriteBackOptions = {}) {
+    this.store = store;
+    this.opts = opts;
     this.delayMs = opts.delayMs ?? WRITE_BACK_DELAY_MS;
     this.setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));

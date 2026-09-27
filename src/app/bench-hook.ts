@@ -10,8 +10,11 @@
 //   exactly like a WebSocket frame would, and `send` records its call time
 //   for the key → send measurement.
 
-import type { Socketish } from '../core/types';
+import { Bus } from '../core/bus';
+import type { Line, Socketish } from '../core/types';
 import { logToFrames } from '../net/replay-socket';
+import { ScriptEngine } from '../script/engine';
+import { LineAssembler } from '../text/assembler';
 import type { App } from './app';
 
 export interface FlushRecord {
@@ -138,6 +141,66 @@ export class BenchProbe {
     field.dispatchEvent(ev);
     const sentAt = sock.lastSendAt;
     return sentAt === 0 ? -1 : sentAt - t0;
+  }
+
+  /** Loads a profile into the app's script engine (App.applyProfile). */
+  applyProfile(text: string): boolean {
+    return this.app!.applyProfile(text).ok;
+  }
+
+  /** Keydown `code` on the input (a macro key); returns ms from dispatch to socket send. */
+  macroToSend(code: string, key: string): number {
+    const app = this.app!;
+    const sock = this.sock!;
+    const field = app.input.input;
+    field.focus();
+    sock.lastSendAt = 0;
+    const ev = new KeyboardEvent('keydown', { key, code, bubbles: true, cancelable: true });
+    const t0 = performance.now();
+    field.dispatchEvent(ev);
+    const sentAt = sock.lastSendAt;
+    return sentAt === 0 ? -1 : sentAt - t0;
+  }
+
+  /**
+   * The 500-rule budget (spec §1.3): the log's lines (assembled once) go
+   * through a separate ScriptEngine's display pipeline with no rules and
+   * with `profile`. Returns µs per line (median of 5 runs after a warm-up).
+   */
+  ruleBench(logText: string, profile: string): { lines: number; baseUs: number; rulesUs: number; shown: number } {
+    const lines: Line[] = [];
+    const bus = new Bus();
+    bus.on('text.line', (l) => lines.push(l));
+    const asm = new LineAssembler(bus);
+    for (const raw of logText.split('\n')) {
+      const sp = raw.indexOf(' ');
+      if (sp < 0) continue;
+      const rest = raw.slice(sp + 1);
+      if (rest.startsWith('> ') || rest === '>') continue;
+      asm.text(rest + '\r\n', 0);
+    }
+    const run = (text: string | null): { us: number; shown: number } => {
+      const b = new Bus();
+      let shown = 0;
+      b.on('text.display', () => shown++);
+      const e = new ScriptEngine({ send: () => {}, message: () => {} });
+      e.attach(b);
+      if (text !== null && !e.loadProfile(text).ok) throw new Error('bench profile did not load');
+      const once = (): number => {
+        const t0 = performance.now();
+        for (let i = 0; i < lines.length; i++) e.processLine(lines[i]!);
+        return performance.now() - t0;
+      };
+      once();
+      const times: number[] = [];
+      for (let i = 0; i < 5; i++) times.push(once());
+      times.sort((a, x) => a - x);
+      e.dispose();
+      return { us: (times[2]! / lines.length) * 1000, shown: shown / 6 };
+    };
+    const base = run(null);
+    const rules = run(profile);
+    return { lines: lines.length, baseUs: base.us, rulesUs: rules.us, shown: rules.shown };
   }
 
   /** Starts a replay at `speed`; resolves when it finished and the output drained. */

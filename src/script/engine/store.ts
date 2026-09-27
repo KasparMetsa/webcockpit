@@ -104,11 +104,15 @@ export class RuleStore {
   /** Bumped on every rule list change (for callers' caches). */
   version = 0;
 
-  constructor(
-    readonly name: 'user' | 'system',
-    private readonly scheduler: Scheduler,
-    private readonly onTimer: (t: Timer, store: RuleStore) => void,
-  ) {}
+  readonly name: 'user' | 'system';
+  private readonly scheduler: Scheduler;
+  private readonly onTimer: (t: Timer, store: RuleStore) => void;
+
+  constructor(name: 'user' | 'system', scheduler: Scheduler, onTimer: (t: Timer, store: RuleStore) => void) {
+    this.name = name;
+    this.scheduler = scheduler;
+    this.onTimer = onTimer;
+  }
 
   // ----------------------------------------------------------------- rules
 
