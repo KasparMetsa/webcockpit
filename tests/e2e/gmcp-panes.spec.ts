@@ -71,6 +71,7 @@ test('Options → Panes → Group applies live from the ESC menu', async ({ page
   await expect(menuTitle(page)).toHaveText('─── Panes ───');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await expect(menuSel(page)).toHaveText('<< Group >>');
   await page.keyboard.press('Enter');
   await expect(menuTitle(page)).toHaveText('─── Group ───');
