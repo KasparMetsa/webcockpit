@@ -65,7 +65,7 @@ owner may want to change after testing are listed in the test guide.
       windows, blanks), engine holds, `PlayerView` options, text export,
       replay payload, spotlight selection, chronicle, spotlight settings.
 - [ ] P1. Export editor frame, History EXPORT, downloads.
-- [ ] P2. HTML replay: replay bundle (dev and build), page runtime,
+- [x] P2. HTML replay: replay bundle (dev and build), page runtime,
       `buildReplayHtml`.
 - [ ] P3. Spotlights reel, Credits, Options → Spotlights, start page.
 - [ ] Merge; bench still passes (§1.3).

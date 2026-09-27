@@ -446,3 +446,102 @@ overlay: { el: infoBox, keepVisible: true }, startHidden: true } })`.
   gained an optional op field); the merge task runs it.
 - Comments in a run's lead-in hold at playback 0 before any text: fine for
   the replay, but P1/P2 may want to anchor such comments visibly.
+
+### P2 — HTML replay (2026-09-28)
+
+**Files.** New: `src/replay/codec.ts` (payload gzip + base64,
+`PAYLOAD_ELEMENT_ID`), `src/replay/title.ts` (`fmtDate`, `replayTitle`),
+`src/replay/export.ts` (`buildReplayHtml`, `assembleReplayHtml`,
+`escapeHtml`, `escapeScript`, `replayFonts`), `src/replay/page.ts` (the
+runtime: `startReplay`, `openReplay`, `replayHeader`, `REPLAY_HINTS`,
+fullscreen helpers), `src/replay/main.ts` (bundle entry), `replay.css`,
+`src/replay/dev.ts` (dev helpers). Changed: `vite.config.ts`
+(`replayBundlePlugin`), `src/main.ts` (`?replayhtml=`,
+`__wc.replayHtml`), `playwright.config.ts` (`WC_E2E_PORT`). Tests:
+`tests/unit/replay-export.test.ts`, `tests/e2e/replay.spec.ts`.
+
+**API for P1.**
+
+```ts
+import { buildReplayHtml } from '../../replay/export';
+const blob = await buildReplayHtml(buildReplayPayload(chain, events, doc, settings.get()));
+// → text/html Blob; download as exportFileName(doc, char, startUs)
+buildReplayHtml(payload, { fetch?, base? })   // injectable for tests
+```
+
+`export.ts` imports no runtime code (fonts table, capture reader, codec),
+so the export editor's chunk stays small; the bundle is fetched as text.
+
+**Bundle.** `bundleReplay()` in `vite.config.ts` runs a second Vite build
+(`configFile: false`, lib mode, `formats: ['iife']`, `write: false`, same
+`define` and JSX options) of `src/replay/main.ts`; a post plugin removes
+the CSS assets and prepends a snippet that adds them as a `<style>`.
+`vite build` emits the result as `dist/replay/replay.js` (the main
+build's `generateBundle`); `vite` serves `<base>replay/replay.js` from a
+cached build that any change under `src/` drops. The app never loads it
+as a script (the main entry chunk is byte-identical to before). The
+bundle is about 302 KB minified (App, panes, script engine, player).
+
+**File layout.** `<!doctype html>`, a GPL-3.0-or-later notice comment
+(ADR 0001; also names the font licences), `<title>` (the export title,
+else `<char> · YYYY-MM-DD`), a `<style>` with html/body in the exporter's
+colours and one `@font-face` per face with a `data:font/woff2;base64,`
+URI (`font-display: block`, as the app), `<div id="app">`, the payload
+`<script type="application/json" id="wc-replay-payload">` (base64, so no
+`<`), then the bundle in an inline `<script>`. `escapeScript` writes the
+`<` of every `</script` and `<!--` as `\x3C` (the same inside strings,
+templates and regexes, `u` flag included; minified code has neither
+outside them).
+
+**Fonts.** The exporter's family plus any family a recorded VIEW sets
+(the player overlays VIEW appearance, so the recording's font must be in
+the file too); regular and bold each. Fetched as `fonts/<file>` relative
+to `document.baseURI` (a subpath deploy works), like the bundle.
+
+**Runtime.** `openReplay` makes a `SettingsStore({ factory: null,
+storage: null, win: null })`, puts `migrateSettings(payload.settings)`
+in it, applies the theme to `<html>` and opens a `PlayerHost` with the
+P0 recipe (`payloadEdits`, markers via `playAtLogUs`, `stripHoverTime`,
+`boxButtons: [Fullscreen / Exit fullscreen]`, `keys`: F/f toggles
+fullscreen, `onEsc`: leave fullscreen, never close). Autoplay, as the
+in-app player and Cockpit's replay. Speeds are the player's (0.25×–8×,
+keys 1–6). Fullscreen goes through the standard API with the `webkit`
+fallbacks (Safari). `fullscreenchange` refreshes the box label. A payload
+that cannot be decoded shows a one-line notice instead of the player.
+`window.__wcReplay` holds `{ host, payload, settings }` (tests, console).
+
+**Header.** `<title> · <char> (L<lvl>) · YYYY-MM-DD` (title clipped to
+60 cells with `…` in the header; without a title the character is the
+highlighted part). Hints `Space Play · ↑↓ Scroll · 1–6 Speed · F
+Fullscreen`, all with finite `drop` (↑↓ first, then speed, F, Space), so
+they give way one by one and are gone on a narrow window.
+
+**No storage, no network.** The player App already injects null stores
+(ADR 0018); the replay adds the null settings store and never calls
+fetch. The e2e opens the file from `file://` in an offline context with
+`indexedDB`, `localStorage`, `sessionStorage`, `fetch`, `XMLHttpRequest`
+and `WebSocket` replaced by throwing, counting stubs: nothing touches
+them, no request other than `file:`/`data:` is made, no page errors
+(Chromium and Firefox).
+
+**Sizes.** Demo backup, Rasta's two-run session (2 min of play):
+696 KB. The longest Cockpit log (`Rasta/2026-09-18T18-11-42.log`,
+4.7 MB, 5.4 h): 2.0 MB (DejaVu fonts ~390 KB and the bundle ~300 KB of
+that). Above the ADR's 1–1.5 MB estimate for 5 h, mostly because the
+DejaVu files are not subset.
+
+**Dev.** `?replayhtml=<backup fixture>[&session=<id>]` restores the
+backup, builds the session's replay with its stored export doc and
+navigates to it (a `blob:` URL; storage works there, unlike `file://`).
+`__wc.replayHtml({ session?, doc?, logs?, character? })` returns the
+HTML text (`doc` overrides title/excludes/comments; `logs` builds from
+raw `.log` fixtures). `WC_E2E_PORT=<port> npx playwright test …` runs
+the e2e against a dev server of this worktree.
+
+**Open issues.**
+- A JetBrains Mono export does not embed DejaVu Sans Mono, the stack's
+  fallback for `✦ ✧ ⚔ ♦ ★ ✖`; those glyphs then come from a system font.
+  Adding DejaVu would cost ~390 KB per file; subsetting both fonts to the
+  glyphs the log and panes use would cut the file by ~300 KB.
+- The bundle is the whole player App (~300 KB); it has not been profiled
+  for parts a replay never runs (the recorder, profile write-back).
