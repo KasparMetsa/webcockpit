@@ -607,3 +607,91 @@ browser download). No `-2` suffix handling (the browser's job, Inv §7.7).
 - Comments anchored inside an excluded range show where they were placed;
   the payload moves them to the next kept entry (P0), so the replay can
   show them a little later than the editor suggests.
+
+### P3 — Spotlights and Credits (2026-09-28)
+
+**Files.** New: `src/player/spotlight-reel.ts` (loading and the reel's
+arithmetic, no DOM), `src/player/spotlight-box.ts` + `spotlight.css` (the
+info box), `src/player/spotlight-mode.ts` (`openSpotlightReel(host, reel)`),
+`src/chrome/frames/spotlights.tsx` (start page action, `EmptyStateFrame`
+shared with Credits), `credits.tsx` + `credits.css`,
+`options-spotlights.tsx`. Changed: `src/app/shell.ts`
+(`openSpotlights()`), `src/chrome/kit/hooks.ts` (`ChromeServices.
+openSpotlights`), `start-main.tsx` (Spotlights and Credits active),
+`options.tsx` (hub row Spotlights). Tests: `tests/unit/share-reel.test.ts`,
+two start page tests in `chrome-frames.test.tsx`,
+`tests/e2e/spotlights.spec.ts`; `chrome.spec.ts` now opens Credits where it
+used to expect the "later stage" flash.
+
+**API.**
+
+```ts
+// src/player/spotlight-reel.ts
+loadReel(lib, filters) → Promise<{ spots: Spotlight[]; chain: ChainRun[] } | { empty: 'no_data'|'filtered' }>
+spotStarts(tl) / spotAt(starts, p) / navTarget(starts, p, ±1) (RESTART_MS 1500)
+spotMoments(tl, spots) / reelMarks(tl, spots)
+countdownHalf(start, moment, p) / countdownRow(half) / labelLines(label, 28) / boxFits(cols)
+// src/player/spotlight-mode.ts
+openSpotlightReel(host: PlayerHost, reel: Reel): void
+// Shell / ChromeServices
+openSpotlights(): Promise<'no_data' | 'filtered' | null>   // null = the reel is up
+// src/chrome/frames/credits.tsx
+creditsWidth(cols), creditsRoll(lines, rows, cellH) → { fromY, toY, ms }
+```
+
+**Decisions.**
+- *All windows are read before the reel opens* (not "starts when the first
+  few are loaded"). The timeline, the header's TOTAL, the strip and the
+  markers cover the whole reel and a timeline cannot grow while the engine
+  plays it; each window reads only its own chunks (4 at a time), so a
+  reel of a hundred spotlights opens in well under a second. The start
+  page flashes `Loading spotlights…` meanwhile. Lazy = per window, never
+  whole runs.
+- *Spotlight index* is the last spotlight whose start (its blank entry's
+  playback time) is at or before the position, not `engine.run` (same
+  value; the reel's own starts also drive ←/→ and the box).
+- *The moment* is `playAtLogUs(tl, atUs, i)`, except after the run's last
+  entry (a level-up or achievement without a matching line): there the
+  log time moves on with the post-roll dwell, so the moment is the last
+  entry's time plus the difference, capped at the spotlight's end. The
+  countdown is full at the spotlight's start (after the pre-roll trim)
+  and drains one cell from each side to 0 at the moment; no bar after it
+  or when the moment is the first line.
+- *← / → while parked at the end* seek and play again (a paused seek in
+  the middle of the reel keeps the pause). → on the last spotlight and
+  the hidden ► do nothing. Shift/Ctrl/Alt/Meta arrows fall through.
+- *Header:* `<Char> (L<lvl>) · SPOTLIGHT N / TOTAL · YYYY-MM-DD` with the
+  character as stored (the box's type line is upper case, Inv §7.6), the
+  level at the event, the event's local date; hints `ESC Back` (always,
+  clickable) and `←→ Prev/next` (drops first).
+- *Info box:* an overlay with `keepVisible`, z 49 (under the player
+  chrome, so markers and the strip hint stay on top), canvas background
+  on every cell. `[data-hidden]` → `display: none` (never set by the reel,
+  styled for the contract); too narrow (`cols < 36`) → `[data-narrow]` →
+  `visibility: hidden`, which keeps its width as the cell-size probe.
+  Clicks on the box stop there (the stage would move the pause cursor).
+- *Credits scroll* is a Web Animations transform (linear, `will-change`),
+  from the first line on the bottom row to `The End.` above the top, 1
+  row/s, smooth per pixel; it runs on the compositor, costs no script per
+  frame, and stops with the frame. A resize restarts it with the elapsed
+  time kept. *Fade:* white text under a `mask-image` gradient
+  (transparent → opaque over 35 % at each end), which over the canvas is
+  the linear blend canvas → white. Keys: ESC pops; other nav keys are
+  swallowed, other keys (F5, F12…) keep their browser meaning.
+- *Credits input:* every stored run (sealed or not, with or without a
+  log), per `buildChronicle`. Empty chronicle → the Credits empty state
+  inside the same frame (no_data / filtered by the same "any kind off"
+  rule as Spotlights).
+- *Empty states:* our own wording; body centred, `Any key to return`;
+  any key but a bare modifier (or a click) pops.
+- *Options → Spotlights* sits in the shared Options hub (Panes ·
+  Appearance · Spotlights · Back), so the ESC menu has it too; each flip
+  is saved at once (ADR 0010: no Back-batched save).
+
+**Open issues.**
+- The reel reads every window up front; a very large library (hundreds
+  of events, each with a 10-minute state prefix of 2 s chunks) could take
+  a few seconds with only the flash as feedback. Not measured on real
+  data.
+- The demo's windows are short; the countdown and the dwell were checked
+  on the demo and unit tests only.

@@ -1,0 +1,60 @@
+/* The Spotlights info box (src/player/spotlight-box.ts, Inv §7.6). Inside
+ * .wc-player, so the cell size and the canvas colour are its custom
+ * properties. Below the player chrome (z 50), so the markers and the
+ * strip hint stay on top. */
+
+.wc-spot-box {
+  position: absolute;
+  top: calc(var(--cell-h) * 2);
+  right: calc(var(--cell-w) * 4);
+  width: calc(var(--cell-w) * 30);
+  z-index: 49;
+  background: var(--term-bg);
+  color: #585858;
+  white-space: pre;
+  user-select: none;
+  pointer-events: auto;
+}
+
+/* The view hides an overlay with the chrome through data-hidden (the reel
+ * keeps it visible); data-narrow: the player is too narrow for the box
+ * (it keeps its layout, so its width still gives the cell size). */
+.wc-spot-box[data-hidden] {
+  display: none;
+}
+
+.wc-spot-box[data-narrow] {
+  visibility: hidden;
+}
+
+.wc-spot-row,
+.wc-spot-bar {
+  height: var(--cell-h);
+  overflow: hidden;
+}
+
+.wc-spot-bar {
+  color: #333333;
+}
+
+.wc-spot-count {
+  color: #6f6f6f;
+}
+
+.wc-spot-arrow {
+  color: #c79a4a;
+  cursor: pointer;
+}
+
+.wc-spot-arrow:hover {
+  color: #ffaf00;
+}
+
+.wc-spot-type {
+  color: #8a8a8a;
+}
+
+.wc-spot-label {
+  color: #dde4e0;
+  font-weight: bold;
+}

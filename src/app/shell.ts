@@ -33,6 +33,11 @@
 // its own); its ESC closes it and shows the start page as it was
 // (`show({ keep: true })`). Only from the start page, never over the
 // cockpit.
+//
+// Spotlights (ADR 0019): `openSpotlights()` (the start page's Spotlights)
+// loads the reel (src/player/spotlight-reel.ts) and opens it in the same
+// player host (src/player/spotlight-mode.ts); ESC returns to the start
+// page's main menu the same way.
 
 import type { BenchProbe } from './bench-hook';
 import type { ChromeServices, EscMenuHandle, StartPageHandle } from '../chrome';
@@ -190,6 +195,20 @@ export class Shell {
     return this.startPlayer((host) => host.openChain(chain, events, info));
   }
 
+  /**
+   * Loads the Spotlights reel and plays it (from the start page only).
+   * Resolves to the empty state when there is nothing to play.
+   */
+  async openSpotlights(): Promise<'no_data' | 'filtered' | null> {
+    if (this.inCockpit || this.player || this.playerOpening) return null;
+    const [{ loadReel }, lib] = await Promise.all([import('../player/spotlight-reel'), this.runLibrary()]);
+    const reel = await loadReel(lib, this.opts.settings.get().spotlights);
+    if ('empty' in reel) return reel.empty;
+    const { openSpotlightReel } = await import('../player/spotlight-mode');
+    await this.startPlayer((host) => openSpotlightReel(host, reel));
+    return null;
+  }
+
   private async startPlayer(load: (host: PlayerHost) => Promise<void> | void): Promise<void> {
     if (this.inCockpit || this.player || this.playerOpening) return;
     this.playerOpening = true;
@@ -289,6 +308,7 @@ export class Shell {
       onProfileSaved: (name) => this.appRef?.ui('system', `Profile {${uiValue(name)}} saved.`),
       runs: () => this.runLibrary(),
       openPlayer: (session) => void this.openPlayer(session),
+      openSpotlights: () => this.openSpotlights(),
     };
   }
 

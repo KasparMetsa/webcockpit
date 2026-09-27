@@ -1,0 +1,29 @@
+/* Credits (src/chrome/frames/credits.tsx, Inv §7.6). */
+
+.wc-credits {
+  position: relative;
+}
+
+.wc-credits-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* White text; the view's mask blends it into the canvas at the bands. */
+.wc-credits-col {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  color: #ffffff;
+  will-change: transform;
+}
+
+.wc-credits-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--cell-h);
+  color: #555555;
+}

@@ -144,13 +144,13 @@ describe('start page', () => {
     expect(selected(host)).toBe('<< Profile >>');
     expect(docKeys).not.toHaveBeenCalled();
 
-    // Dimmed rows (Spotlights) flash instead of opening.
+    // Spotlights without the player service says so.
     await key('ArrowDown');
     await key('ArrowDown');
     await key('ArrowDown');
     expect(selected(host)).toBe('<< Spotlights >>');
     await key('Enter');
-    expect(host.querySelector('.wc-flash')?.textContent).toMatch(/later stage/);
+    expect(host.querySelector('.wc-flash')?.textContent).toMatch(/not available/);
 
     // Options opens and ESC comes back with the cursor kept.
     await key('ArrowUp');
@@ -186,6 +186,46 @@ describe('start page', () => {
     await act(() => about.click());
     expect(title(host)).toBe('─── About ───');
     expect(host.querySelector('.wc-frame:not([hidden]) .wc-title-row')?.textContent).toBe('─── About ─── 9.9.9');
+  });
+
+  it('Spotlights shows the empty state from the service; any key returns', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const openSpotlights = vi.fn(async () => 'no_data' as const);
+    const page = mountStartPage(host, { ...services(), openSpotlights }, { onEnter: () => {} });
+    cleanup.push(() => page.dispose());
+    await act(() => page.show());
+    await act(() => host.querySelector<HTMLElement>('.wc-mrow[data-key="spotlights"] .wc-label')!.click());
+    await act(async () => {});
+    expect(openSpotlights).toHaveBeenCalledTimes(1);
+    expect(title(host)).toBe('─── Spotlights ───');
+    expect(host.querySelector('.wc-frame:not([hidden])')?.textContent).toContain('No spotlights yet.');
+    expect(host.querySelector('.wc-frame:not([hidden]) .wc-footer')?.textContent).toBe('Any key to return');
+    await key('Shift');
+    expect(title(host)).toBe('─── Spotlights ───');
+    await key('q');
+    expect(selected(host)).toBe('<< Spotlights >>');
+  });
+
+  it('Options → Spotlights flips the four kinds in the settings', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const svc = services();
+    const page = mountStartPage(host, svc, { onEnter: () => {} });
+    cleanup.push(() => page.dispose());
+    await act(() => page.show());
+    await act(() => host.querySelector<HTMLElement>('.wc-mrow[data-key="options"] .wc-label')!.click());
+    await act(() => host.querySelector<HTMLElement>('.wc-frame:not([hidden]) .wc-mrow[data-key="spotlights"] .wc-label')!.click());
+    expect(title(host)).toBe('─── Spotlights ───');
+    const labels = () => [...host.querySelectorAll('.wc-frame:not([hidden]) .wc-mrow .wc-label')].map((e) => e.textContent);
+    expect(labels()).toEqual(['[X] Achievements', '[X] Deaths', '[X] Level-ups', '[X] PvP kills', 'Back']);
+    await key('Enter');
+    await key('ArrowDown');
+    await key(' ');
+    expect(svc.settings.get().spotlights).toEqual({ achievements: false, deaths: false, levelUps: true, pvp: true });
+    expect(labels()).toEqual(['[ ] Achievements', '[ ] Deaths', '[X] Level-ups', '[X] PvP kills', 'Back']);
+    await key('Enter');
+    expect(svc.settings.get().spotlights.deaths).toBe(true);
   });
 });
 
