@@ -31,6 +31,8 @@ export interface StartPageOptions {
 export interface StartPageHandle {
   /** Shows the start page on its main frame (a fresh frame stack). */
   show(): void;
+  /** Shows the start page again as it was hidden (its frame stack kept; the log player's ESC). */
+  reveal(): void;
   hide(): void;
   readonly visible: boolean;
   dispose(): void;
@@ -107,6 +109,10 @@ export function mountStartPage(host: HTMLElement, services: ChromeServices, opts
     show() {
       visible = true;
       epoch++;
+      draw();
+    },
+    reveal() {
+      visible = true;
       draw();
     },
     hide() {

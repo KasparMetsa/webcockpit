@@ -1,0 +1,146 @@
+/* The log player (src/app/player-host.ts, src/player/view.ts; Inv §7.5).
+ * The player element carries its own theme and cell custom properties
+ * (the recorded VIEW, the fitted font size), so everything inside is
+ * re-declared from them rather than inherited from <body>. */
+
+.wc-player {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: var(--term-bg);
+  color: var(--term-fg);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
+  letter-spacing: var(--cell-ls, 0);
+}
+
+.wc-player-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* No input pane: its row stays (the recorded layout) but shows nothing. */
+.wc-player .wc-input-slot,
+.wc-player .wc-tail-bar,
+.wc-player .wc-pane-grip,
+.wc-player .wc-handles {
+  visibility: hidden;
+}
+
+.wc-player .wc-player-cursor {
+  background: #303030;
+}
+
+.wc-player-chrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  white-space: pre;
+  user-select: none;
+  transition: opacity 0.2s linear;
+}
+
+.wc-player-chrome[data-hidden] {
+  opacity: 0;
+}
+
+.wc-player-chrome[data-hidden] > * {
+  pointer-events: none !important;
+}
+
+.wc-player-header {
+  position: absolute;
+  top: 0;
+  height: var(--cell-h);
+  display: flex;
+  justify-content: space-between;
+  background: var(--term-bg);
+  color: var(--c-hint);
+  overflow: hidden;
+}
+
+.wc-player-name {
+  color: var(--c-body);
+}
+
+.wc-player-sep {
+  color: var(--c-off);
+}
+
+.wc-player-back {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.wc-player-strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: calc(var(--cell-w) * 2);
+  background: var(--term-bg);
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.wc-player-strip > div {
+  height: var(--cell-h);
+}
+
+.wc-player-marks {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--cell-w) * 2);
+  width: calc(var(--cell-w) * 5);
+}
+
+.wc-player-mark {
+  position: absolute;
+  right: 0;
+  height: var(--cell-h);
+  color: #4d4d4d;
+  background: var(--term-bg);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.wc-player-box {
+  position: absolute;
+  background: var(--term-bg);
+  color: #585858;
+}
+
+.wc-player-box-row {
+  height: var(--cell-h);
+}
+
+.wc-player-clock {
+  color: #6f6f6f;
+}
+
+.wc-player-btn {
+  color: #9a9a9a;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.wc-player-btn:hover {
+  color: #dde4e0;
+  background: #242a27;
+  font-weight: bold;
+}
+
+.wc-player-hint {
+  position: absolute;
+  right: calc(var(--cell-w) * 2);
+  height: var(--cell-h);
+  color: var(--c-accent);
+  background: var(--term-bg);
+}

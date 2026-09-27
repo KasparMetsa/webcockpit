@@ -4,6 +4,7 @@ import { createContext } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import type { AppStatusState, AppStatusView } from '../../app/status';
 import type { ProfileStore } from '../../profiles';
+import type { Session } from '../../runs/stitch';
 import type { Settings, SettingsStore } from '../../settings';
 import type { CellMetrics, CellSize } from '../../theme/cells';
 
@@ -16,6 +17,8 @@ export interface ChromeServices {
   version: string;
   /** The profile editor saved `name` (the UI pane line, ADR 0016). */
   onProfileSaved?: (name: string) => void;
+  /** Opens the log player on a History session (ADR 0018; src/app/player-host.ts). */
+  openPlayer?: (session: Session) => void;
 }
 
 export const ServicesCtx = createContext<ChromeServices | null>(null);
