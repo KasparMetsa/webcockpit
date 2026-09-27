@@ -314,18 +314,20 @@ export class ScriptEngine {
     return parts;
   }
 
-  private execList(text: string, ctx: Ctx): void {
+  /** Runs a command list; returns the #if chain state at its end. */
+  private execList(text: string, ctx: Ctx, ifStart = IF_NONE): number {
     const cmds = this.split(text);
-    let ifState = IF_NONE;
+    let ifState = ifStart;
     for (let i = 0; i < cmds.length; i++) {
       if (++this.budget > BUDGET) {
         if (this.budget === BUDGET + 1) this.warn(`Too many commands in one go (${BUDGET}); stopped.`);
-        return;
+        return IF_NONE;
       }
       const cmd = cmds[i]!;
       if (cmd.charCodeAt(0) === 0x23 /* # */) ifState = this.execHash(cmd, ctx, ifState);
       else this.execText(cmd, ctx);
     }
+    return ifState;
   }
 
   private lookup(ctx: Ctx): (name: string) => string | undefined {
@@ -636,31 +638,45 @@ export class ScriptEngine {
     if (ctx.store === this.userStore && !this.loading) this.opts.onVariable?.(name, value);
   }
 
+  /**
+   * #if / #elseif / #else. The chain state lives in the command list, so
+   * `#if {…} {…};#else {…}` works. Text after the branches that is not a
+   * braced else-argument (`#if {…} {…} #else {…}` without `;`, as tt++
+   * accepts) continues the chain.
+   */
   private control(name: string, r: ArgReader, ctx: Ctx, ifState: number): number {
     if (name === 'else') {
       if (ifState === IF_OPEN) this.execList(r.next('all'), ctx);
       return IF_NONE;
     }
-    if (name === 'elseif' && ifState !== IF_OPEN) return ifState === IF_TAKEN ? IF_TAKEN : IF_NONE;
     const cond = r.next('one');
     const then = r.next('one');
-    const other = name === 'if' && !r.done ? r.next('all') : null;
-    let ok: boolean;
-    try {
-      ok = evalCondition(this.vars(cond, ctx));
-    } catch (err) {
-      this.warn(`#${name} {${clip(cond)}}: ${err instanceof ExprError ? err.message : String(err)}`);
-      return IF_NONE;
+    let other: string | null = null;
+    let rest = '';
+    if (!r.done) {
+      if (name === 'if' && r.nextIsBraced) other = r.next('one');
+      rest = r.rest();
     }
-    if (ok) {
-      this.execList(then, ctx);
-      return IF_TAKEN;
+    let state: number;
+    if (name === 'elseif' && ifState !== IF_OPEN) {
+      state = ifState === IF_TAKEN ? IF_TAKEN : IF_NONE;
+    } else {
+      let ok: boolean;
+      try {
+        ok = evalCondition(this.vars(cond, ctx));
+      } catch (err) {
+        this.warn(`#${name} {${clip(cond)}}: ${err instanceof ExprError ? err.message : String(err)}`);
+        return IF_NONE;
+      }
+      if (ok) {
+        this.execList(then, ctx);
+        state = IF_TAKEN;
+      } else if (other !== null) {
+        this.execList(other, ctx);
+        state = IF_TAKEN;
+      } else state = IF_OPEN;
     }
-    if (other !== null) {
-      this.execList(other, ctx);
-      return IF_TAKEN;
-    }
-    return IF_OPEN;
+    return rest ? this.execList(rest, ctx, state) : state;
   }
 
   private command(name: string, r: ArgReader, ctx: Ctx): void {

@@ -139,12 +139,11 @@ export function splitWords(text: string): string[] {
  * Returns `body` itself when nothing was replaced or unescaped.
  */
 export function expandArgs(body: string, args: readonly string[]): string {
-  let i = body.indexOf('%');
-  if (i < 0) return body;
+  if (body.indexOf('%') < 0) return body;
   let out = '';
   let last = 0;
   const n = body.length;
-  for (; i < n; i++) {
+  for (let i = 0; i < n; i++) {
     const c = body.charCodeAt(i);
     if (c === 0x5c) {
       i++;
