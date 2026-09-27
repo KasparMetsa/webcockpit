@@ -60,9 +60,14 @@ None yet. Carried: per-character timers state survives sessions
 - [x] P1. Game data tables and the six trackers, system rules, UI
       lines, demo fixture. Notes in ADR 0017.
 - [x] P2. Timers pane and Options → Panes → Timers. Notes in ADR 0017.
-- [ ] Merge P1 + P2; bench still passes (§1.3).
-- [ ] Main-session verification.
-- [ ] Test guide ready.
+- [x] Merge P1 + P2; bench still passes (§1.3). The merge slowed the
+      replay burst (~1.3 → ~2.0 s); fixed to ~1.5 s (ADR 0017 "Burst
+      fix"). 500 rules + system rules 27 µs/line; max burst frame
+      42/36 ms (Chromium/Firefox).
+- [x] Main-session verification (781 unit, 124 e2e; timers demo
+      screenshot: spells, untracked detect magic, debuffs, stored,
+      blind, charms, `◆` lines in the UI pane).
+- [x] Test guide ready.
 - [ ] Owner test.
 
 ## Live checks for the owner
@@ -79,4 +84,30 @@ None yet. Carried: per-character timers state survives sessions
 
 ## Test guide
 
-(Written when the build is done.)
+**Start:** `cd ~/proj/webcockpit && npm run dev` (restart it if it was
+already running), then open http://localhost:5173/.
+
+**Offline demo (no login):**
+http://localhost:5173/?fixture=timers-demo.log (~60 s; `&speed=4` is
+quicker). Look at:
+
+1. **Timers pane:** `Spells:` with SANCTUARY, ARMOUR, SHIELD, BLESS
+   bars in blue; DETECT MAGIC dark (untracked, seen only in `stat`);
+   Debuffs in red (HUNGER full, TIREDNESS draining); Stored magenta
+   (two EARTHQUAKE); a `2.ORC` blind bar; Charmies rows
+   `Huge stone troll  0m ×` and `Enslaved shadow ×`. Wheel scrolls;
+   `↓ N more rows` / `↑ N rows above` (click returns to the top).
+2. **Charm `×`:** click it; the row goes away.
+3. **Corner `+`:** opens the herblore list; click `[+] Healing`; it
+   turns `[-]`; corner `×` goes back; a HEALING buff bar is there.
+4. **UI pane:** `◆ SPELL: sanctuary up.`, `◆ STORE: …`, `◆ BLIND: 2.orc
+   up.`, `◆ CHARM: …`, `◆ BUFF: second wind down.` etc.
+5. **Options:** ESC → Options → Panes → Timers: pick colours (or none
+   to hide a group), `◄ N ►` columns, Clock (countdown `4m`/`45s` on
+   the bars), Bar off, headers, compact. The pane changes at once.
+6. Light terminal background (Appearance): the pane stays readable.
+
+**Live (log in):** live checks 1–5 above. Please tell me in particular:
+does the pane look like Cockpit's, are durations and drops right, and
+does anything land in the wrong group or not at all (the exact game
+line helps).

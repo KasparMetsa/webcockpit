@@ -10,7 +10,7 @@ Current stage: **5 — Timers and trackers** (in progress).
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
-| 5 | Timers and trackers | In progress | `docs/stages/05-timers-and-trackers.md` |
+| 5 | Timers and trackers | Owner testing | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | — | — |
 | 7 | Sharing | — | — |
 | 8 | Hardening → v1 | — | — |
@@ -21,6 +21,21 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-27 — Stage 5 build
+
+- **Done:** stage file, ADR 0017. P0 timers settings, IndexedDB v4
+  `timers` store (per character, survives reloads), `TimersHub`, replays
+  re-emit recorded commands. P1 game data (47 affects, 36 spells, 6
+  herblores), six trackers behind one line router, `◆` UI lines,
+  `timers-demo.log`. P2 Timers pane and Options → Panes → Timers.
+  Merge slowed the replay burst; fixed (regex pre-checks, speed-0
+  command frames). 781 unit, 124 e2e; bench passes.
+- **Next:** owner tests (guide in the stage file), then stage 6.
+- **Open issues:** a reconnect during the few-ms state load can drop
+  that moment's lines; replays do not echo sent commands (stage 6);
+  replay burst still ~15 % slower than stage 4 (real tracker work).
+- **Commits:** da5b76d…(this commit).
 
 ### 2026-09-27 — Stage 4 build
 
