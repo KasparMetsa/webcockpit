@@ -155,3 +155,8 @@ Owner approved the draft with additions:
   (direct MMapper or something new based on it) is critical. The
   integration path must be understood early so nothing built is
   incompatible with MMapper.
+
+## Licensing (2026-09-27)
+
+Q: OK for WebCockpit to become open source under the GPL when mature and
+shared? A: Yes. Recorded as ADR 0001.
