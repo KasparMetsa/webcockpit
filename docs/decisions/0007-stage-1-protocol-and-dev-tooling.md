@@ -18,9 +18,15 @@ implementation.
 - **CHARSET:** the client requests `UTF-8;ISO-8859-1` and accepts
   `UTF-8` when the server asks. The decoder is Latin-1 until UTF-8 is
   agreed.
-- **Keep-alive:** GMCP `Core.Ping` after 30 s without outbound traffic.
-  Its round trip is the `Link:` readout. No pong within 10 s marks the
-  link as suspect; it is not closed automatically.
+- **Keep-alive:** GMCP `Core.Ping` every 10 s while logging in or
+  playing with GMCP enabled, regardless of other traffic, one ping
+  outstanding at a time (a ping unanswered for 60 s is given up so a lost
+  reply cannot stop the keep-alive). Its round trip is the `Link:`
+  readout. No pong within 10 s marks the link as suspect; it is not
+  closed automatically; the next pong clears it.
+  *Amended 2026-09-27:* originally the ping went out only after 30 s
+  without outbound traffic, so `Link:` stayed `—` during active play
+  (owner's first live test).
 - **Prompts:** a line ending in `IAC GA`, or wrapped in the XML `prompt`
   tag, is a prompt. Text after the last newline with no GA stays pending
   and is shown when more data or a GA arrives.

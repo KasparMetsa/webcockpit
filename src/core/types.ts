@@ -152,8 +152,8 @@ export interface BusEvents {
   'telnet.echo': { serverEchoes: boolean };
   /**
    * Keep-alive result (`Link:` readout). `ms` is the last `Core.Ping`
-   * round trip, or null before the first one. `suspect` is true when a pong
-   * is more than 10 s overdue.
+   * round trip (pinged every 10 s), or null before the first one. `suspect`
+   * is true when a ping has had no pong for more than 10 s.
    */
   'link.rtt': { ms: number | null; suspect: boolean };
   /** A client line for the output pane; the UI adds the `[SYSTEM]` prefix. */

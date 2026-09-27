@@ -42,9 +42,10 @@ In:
 - **Session state:** connecting / login / playing (after `Char.Name`) /
   disconnected (`Core.Goodbye` or socket close). While disconnected,
   Enter reconnects. "Leave page?" prompt while connected.
-- **Keep-alive and `Link:`:** GMCP `Core.Ping` after 30 s without
-  outbound traffic; RTT shown in the status line; missing pong within
-  10 s marks the link as suspect.
+- **Keep-alive and `Link:`:** GMCP `Core.Ping` every 10 s regardless
+  of other traffic (one outstanding at a time); RTT shown in the status
+  line; missing pong within 10 s marks the link as suspect (ADR 0007,
+  amended 2026-09-27).
 - **Raw run capture:** Inv §7.1 format, in IndexedDB chunks (ADR 0006),
   starting at `Char.Name`, sealed on disconnect; Web Lock per
   character; orphan sealing on start. A dev command downloads the

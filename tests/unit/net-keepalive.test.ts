@@ -46,7 +46,6 @@ function make() {
     sendPing: () => {
       if (!enabled) return false;
       pings++;
-      ka.noteOutbound(); // the ping itself is outbound traffic
       return true;
     },
   });
@@ -54,34 +53,41 @@ function make() {
 }
 
 describe('KeepAlive', () => {
-  it('pings after 30 s of outbound silence and measures RTT', () => {
+  it('pings every 10 s and measures RTT', () => {
     const k = make();
     k.ka.start();
     expect(k.rtts).toEqual([{ ms: null, suspect: false }]);
-    k.timers.advance(29_999);
+    k.timers.advance(9_999);
     expect(k.pings()).toBe(0);
     k.timers.advance(1);
     expect(k.pings()).toBe(1);
     k.timers.advance(42);
     k.ka.notePong();
     expect(k.rtts.at(-1)).toEqual({ ms: 42, suspect: false });
+    k.timers.advance(10_000 - 42);
+    expect(k.pings()).toBe(2);
+    k.timers.advance(7);
+    k.ka.notePong();
+    expect(k.rtts.at(-1)).toEqual({ ms: 7, suspect: false });
   });
 
-  it('resets the idle timer on any outbound bytes', () => {
+  it('keeps one ping outstanding at a time', () => {
     const k = make();
     k.ka.start();
-    k.timers.advance(20_000);
-    k.ka.noteOutbound();
-    k.timers.advance(20_000);
-    expect(k.pings()).toBe(0);
     k.timers.advance(10_000);
     expect(k.pings()).toBe(1);
+    k.timers.advance(30_000); // no reply: ticks at 20, 30, 40 s send nothing
+    expect(k.pings()).toBe(1);
+    k.ka.notePong();
+    expect(k.rtts.at(-1)).toEqual({ ms: 30_000, suspect: false });
+    k.timers.advance(10_000);
+    expect(k.pings()).toBe(2);
   });
 
   it('marks the link suspect after 10 s without a pong, and recovers', () => {
     const k = make();
     k.ka.start();
-    k.timers.advance(30_000);
+    k.timers.advance(10_000);
     k.timers.advance(9_999);
     expect(k.rtts.at(-1)!.suspect).toBe(false);
     k.timers.advance(1);
@@ -89,6 +95,20 @@ describe('KeepAlive', () => {
     k.timers.advance(5_000);
     k.ka.notePong();
     expect(k.rtts.at(-1)).toEqual({ ms: 15_000, suspect: false });
+  });
+
+  it('gives up a ping unanswered for 60 s and sends a new one', () => {
+    const k = make();
+    k.ka.start();
+    k.timers.advance(10_000); // ping 1
+    k.timers.advance(59_999);
+    expect(k.pings()).toBe(1);
+    k.timers.advance(1); // tick at 70 s: ping 1 is 60 s old
+    expect(k.pings()).toBe(2);
+    expect(k.rtts.at(-1)!.suspect).toBe(true);
+    k.timers.advance(80);
+    k.ka.notePong();
+    expect(k.rtts.at(-1)).toEqual({ ms: 80, suspect: false });
   });
 
   it('ignores unsolicited pongs and does nothing when stopped', () => {
@@ -107,22 +127,9 @@ describe('KeepAlive', () => {
     k.ka.start();
     k.timers.advance(60_000);
     expect(k.pings()).toBe(0);
+    expect(k.rtts.at(-1)!.suspect).toBe(false);
     k.setEnabled(true);
-    k.timers.advance(30_000);
+    k.timers.advance(10_000);
     expect(k.pings()).toBe(1);
-  });
-
-  it('matches replies to pings in order', () => {
-    const k = make();
-    k.ka.start();
-    k.timers.advance(30_000); // ping 1 at 30 000
-    k.timers.advance(30_000); // ping 2 at 60 000 (ping 1 overdue → suspect)
-    expect(k.pings()).toBe(2);
-    expect(k.rtts.at(-1)!.suspect).toBe(true);
-    k.ka.notePong(); // answers ping 1
-    expect(k.rtts.at(-1)).toEqual({ ms: 30_000, suspect: false });
-    k.timers.advance(100);
-    k.ka.notePong(); // answers ping 2
-    expect(k.rtts.at(-1)).toEqual({ ms: 100, suspect: false });
   });
 });
