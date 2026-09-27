@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **3 — Script engine and profile editor** (owner testing).
+Current stage: **4 — GMCP panes** (not started).
 
 ## Stages
 
@@ -8,8 +8,8 @@ Current stage: **3 — Script engine and profile editor** (owner testing).
 |---|---|---|---|
 | 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
 | 2 | Look and layout | Done | `docs/stages/02-look-and-layout.md` |
-| 3 | Script engine and profile editor | Owner testing | `docs/stages/03-script-engine-and-editor.md` |
-| 4 | GMCP panes | — | — |
+| 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
+| 4 | GMCP panes | Next | — |
 | 5 | Timers and trackers | — | — |
 | 6 | Runs | — | — |
 | 7 | Sharing | — | — |
@@ -37,6 +37,10 @@ Newest first.
   Chromium burst worst frame borderline (49.8 ms); the owner wants
   per-character state (timers, comm) to survive sessions (stages 4–5);
   Firefox e2e flaked once on a cold Vite dep cache.
+- **Owner test 1:** approved ("seems to work well"); echo of all sent
+  commands kept. Stage 3 closed. Next session: write
+  `docs/stages/04-…md` from spec §5, carry the two live checks and the
+  per-character persistence wish.
 - **Commits:** a95ac8c…(this commit).
 
 ### 2026-09-27 — Stage 2 build

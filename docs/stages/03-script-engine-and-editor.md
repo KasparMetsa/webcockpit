@@ -1,6 +1,7 @@
 # Stage 3 — Script engine and profile editor
 
-> Status: Owner testing (built 2026-09-27).
+> Status: Done 2026-09-27. Live checks 1–2 (idle timeout, auto-open on a
+> real disconnect) carried over to stage 4.
 > Source: spec §5 row 3, §1.2 (layers 5–6), §1.3 (key → send, 500
 > rules), §2.2 (`_send`), §2.6 (Profile), §2.7, §3, §4. Inv §1.2
 > (macro keys), §4.5, §5, §6. ADR 0005, ADR 0015.
@@ -92,7 +93,7 @@ this stage builds the system store they will use), `#list`,
       → ESC byte for byte; `#var`, `#showme` and aliases run in the
       cockpit).
 - [x] Test guide ready.
-- [ ] Owner test.
+- [x] Owner test (approved 2026-09-27).
 
 ## Live checks for the owner
 
@@ -167,4 +168,8 @@ type), not `b12d`. Some tt++ details were decided without a reference
 
 ## Owner feedback
 
-(After testing.)
+### 2026-09-27 — first test
+
+1. Tested; "seems to work well". Stage 3 approved.
+2. Echo of every sent command (alias expansions included): keep as is.
+3. Live checks 1–2 not reported; carried to stage 4.
