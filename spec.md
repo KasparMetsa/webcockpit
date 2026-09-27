@@ -41,7 +41,7 @@
                                              Display pipeline (subst/gag/highlight)
                                                          │
                                                   Game output pane
- Event bus consumers: panes, trackers, run recorder, GMCP inspector, (map, later)
+ Event bus consumers: panes, trackers, run recorder, (map, later)
 ```
 
 ### 1.2 Layers
@@ -245,8 +245,8 @@ Mapped to Inv §5.
 - **Lite view.**
   - Cockpit's 5 kinds: actions, aliases, highlights, macros and
     substitutes.
-  - Added: **gags, variables and tickers**, so every Goal 2 feature has a
-    form.
+  - All other settings (gags, variables, tickers, …) are edited in the
+    editor view.
 - **Editor view.** A text editor built on CodeMirror 6, with:
   - tt++ syntax highlighting, brace matching and auto-close;
   - undo and redo;
@@ -265,20 +265,7 @@ Mapped to Inv §5.
   - Every combination the browser lets through can be bound.
   - Reserved keys (Ctrl+W/T/N) are shown as unavailable.
 
-### 2.8 GMCP inspector (GMCP editor)
-
-New, intent Goal 5. *Interpretation to be confirmed by the owner, see
-§6.*
-
-- **Live list** of incoming and outgoing GMCP messages, filterable by
-  module, with the JSON pretty-printed.
-- **Module list** showing the negotiated modules. Extra modules can be
-  toggled; core modules are always on.
-- **Send box** for GMCP messages, for testing.
-- **Scripting hook.** Profiles can react to GMCP through `#event {GMCP
-  <Module.Name>}`, with `$gmcp` data available.
-
-### 2.9 Logging, runs and replay
+### 2.8 Logging, runs and replay
 
 Mapped to Inv §7.
 
@@ -300,7 +287,7 @@ Mapped to Inv §7.
 - **Retention.** Runs older than 14 days are deleted automatically,
   unless they have been saved.
 
-### 2.10 Map (after v1)
+### 2.9 Map (after v1)
 
 ADR 0003.
 
@@ -362,7 +349,7 @@ what feedback is wanted.
 | 1 | **Connect and play.** Transport, telnet, GMCP negotiation, XML mode, the line model, the fast output pane, the input pane (history, empty Enter, masking), keep-alive and `Link:` readout, raw run capture, and the benchmark. | Log in and play plain MUME; compare speed side by side with tt++. Confirm the XML mode and idle timeout facts. |
 | 2 | **Look and layout.** Visual system and tokens, bundled fonts, appearance settings, pane frame, default Cockpit layout, docking with toggles and per-pane colours, the start page with the profile picker (including import and export), and the ESC menu skeleton with reconnect. | Does it look and feel like Cockpit? Arrange panes. |
 | 3 | **Script engine and profile editor.** The tt++ subset, system/user stores, display pipeline, macros, lite and editor views, and lossless round-trip. | Paste your PvP profile's tt++ text into the editor view and play with it. |
-| 4 | **GMCP panes.** Character, Group, Comm, UI messages, Clock, and the GMCP inspector. | Group PvP with the panes. |
+| 4 | **GMCP panes.** Character, Group, Comm, UI messages and Clock. GMCP works under the hood with no user-facing GMCP tools. | Group PvP with the panes. |
 | 5 | **Timers and trackers.** The timers pane, the system trigger table (Inv §8.3), and the data tables for affects, spells and herbs. | Timers during real fights. |
 | 6 | **Runs.** Run events, History, the log player, Statistics, retention and backup export. | Review the day's sessions. |
 | 7 | **Sharing.** The export editor, the HTML replay, Spotlights and Credits. | Export a fight and share it. |
@@ -371,6 +358,4 @@ what feedback is wanted.
 
 ## 6. Open questions for the owner
 
-1. **GMCP editor.** Is §2.8 (inspector, module toggles, send box, GMCP
-   events in profiles) what you meant, or did you mean something else?
-2. **Stage order.** Are you happy with the order in §5?
+1. **Stage order.** Are you happy with the order in §5?

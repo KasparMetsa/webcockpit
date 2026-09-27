@@ -167,3 +167,11 @@ shared? A: Yes. Recorded as ADR 0001.
   open. Owner: ok. ADR 0003.
 - Valar contacted before sharing with other players (Play MUME README
   phishing warning). Owner: ok. intent.md updated.
+
+## Spec review round 1 (2026-09-27)
+
+- GMCP editor dropped. All GMCP handling is built in and works under the
+  hood, as in Cockpit. intent.md Goal 5 updated.
+- Lite view mirrors Cockpit's 5 kinds exactly (actions, aliases,
+  highlights, macros, substitutes). Everything else is edited in the
+  editor view.

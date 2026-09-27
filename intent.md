@@ -50,8 +50,9 @@ reference only.
 
    The default layout looks like Cockpit. Panes can be docked and
    arranged freely, toggled on and off, and customised like in Cockpit.
-5. **Full GMCP integration, plus a GMCP editor** (new compared to
-   Cockpit).
+5. **Full GMCP integration, under the hood** as in Cockpit. There are no
+   user-facing GMCP tools (the earlier GMCP editor idea was dropped
+   2026-09-27).
 6. **Configurable look:** font, colours and cursor, like foot in
    Cockpit's Windows setup.
 7. **Profile data in the browser,** with export and import of a profile
