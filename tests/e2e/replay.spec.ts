@@ -199,3 +199,111 @@ test('?replayhtml= builds the demo replay and opens it', async ({ page }) => {
   await expect(player(page).locator('.wc-output')).toContainText('Rivendell Stables');
   expect(errors).toEqual([]);
 });
+
+/** Seeks a replay page or the in-app player to its end; resolves when the text is there. */
+async function toEnd(page: Page, which: 'replay' | 'player'): Promise<void> {
+  await page.waitForFunction((w) => {
+    const g = window as unknown as {
+      __wcReplay?: { host: { engine: { duration: number } | null } };
+      __wc?: { shell: { playerHost: { engine: { duration: number } | null } | null } };
+    };
+    const e = w === 'replay' ? g.__wcReplay?.host.engine : g.__wc?.shell.playerHost?.engine;
+    return !!e && e.duration > 0;
+  }, which);
+  await page.evaluate((w) => {
+    const g = window as unknown as {
+      __wcReplay?: { host: { engine: { duration: number; seek(p: number): void } } };
+      __wc?: { shell: { playerHost: { engine: { duration: number; seek(p: number): void } } } };
+    };
+    const e = w === 'replay' ? g.__wcReplay!.host.engine : g.__wc!.shell.playerHost.engine;
+    e.seek(e.duration);
+  }, which);
+  await page.waitForFunction((w) => {
+    const g = window as unknown as {
+      __wcReplay?: { host: { engine: { seeking: boolean; position: number; duration: number } } };
+      __wc?: { shell: { playerHost: { engine: { seeking: boolean; position: number; duration: number } } } };
+    };
+    const e = w === 'replay' ? g.__wcReplay!.host.engine : g.__wc!.shell.playerHost.engine;
+    return !e.seeking && e.position >= e.duration;
+  }, which);
+  await page.waitForTimeout(300);
+}
+
+/** The game text rows: `<class marks> | <text>` (prompt, echoed, system, comment). */
+function outputRows(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.wc-output .wc-rows .wc-row')].map((r) => {
+      const c = r.classList;
+      const marks = ['wc-prompt', 'wc-echoed', 'wc-sys', 'wc-comment'].filter((k) => c.contains(k)).join(' ');
+      return `${marks} | ${r.textContent ?? ''}`;
+    }),
+  );
+}
+
+test('system lines: a top comment plays first; an excluded login line is not printed', async ({ page, browser }, info) => {
+  await page.goto('/');
+  await page.waitForFunction(() => (window as unknown as { __wc?: unknown }).__wc !== undefined);
+  const { withComment, withExclusion } = await page.evaluate(async () => {
+    const w = window as unknown as {
+      __wc: {
+        runs(): Promise<{
+          restore(b: Blob): Promise<unknown>;
+          listSessions(now: number): Promise<Array<{ id: string; runs: Array<{ runId: string }> }>>;
+          chainLog(ids: string[]): Promise<Array<{ text: string }>>;
+        }>;
+        replayHtml(o?: unknown): Promise<string>;
+      };
+    };
+    const lib = await w.__wc.runs();
+    await lib.restore(await (await fetch('/__fixtures/runs-demo.jsonl.gz')).blob());
+    const s = (await lib.listSessions(Date.now() * 1000)).find((x) => x.runs.length > 1)!;
+    const text = (await lib.chainLog(s.runs.map((r) => r.runId)))[0]!.text;
+    // The login line's anchor (run 1's Char.Name) and the first game line after it.
+    const login = Number(/^(\d{16}) \x1bGMCP Char\.Name /m.exec(text)![1]);
+    const next = [...text.matchAll(/^(\d{16}) (?![\x1b>])/gm)].map((m) => Number(m[1])).find((t) => t > login)!;
+    return {
+      withComment: await w.__wc.replayHtml({ session: s.id, doc: { comments: [{ beforeUs: login, text: 'Before everything.' }] } }),
+      withExclusion: await w.__wc.replayHtml({ session: s.id, doc: { excludes: [[login, next]] } }),
+    };
+  });
+
+  const a = await openFile(browser, withComment, info.outputPath('comment.html'));
+  await toEnd(a.page, 'replay');
+  const ra = await outputRows(a.page);
+  expect(ra.slice(0, 3)).toEqual(['wc-comment | ## Before everything.', 'wc-sys | [SYSTEM] Rasta logged in.', ' | Reconnecting.']);
+  const logins = ra.filter((r) => r === 'wc-sys | [SYSTEM] Rasta logged in.').length;
+  expect(logins).toBeGreaterThan(0);
+  expect(a.errors).toEqual([]);
+  await a.page.context().close();
+
+  const b = await openFile(browser, withExclusion, info.outputPath('excluded.html'));
+  await toEnd(b.page, 'replay');
+  const rb = await outputRows(b.page);
+  expect(rb[0]).toBe(' | Reconnecting.');
+  expect(rb.filter((r) => r === 'wc-sys | [SYSTEM] Rasta logged in.').length).toBe(logins - 1);
+  // The panes still got the login state (Char.Name was kept).
+  await expect(player(b.page).locator('.wc-pane[data-pane="character"]')).toContainText('Rasta');
+  expect(b.errors).toEqual([]);
+  await b.page.context().close();
+});
+
+test('the HTML replay shows the game text and echoed commands as the log player does', async ({ page, browser }) => {
+  // The in-app log player on the demo session.
+  await page.setViewportSize({ width: 1400, height: 820 });
+  await page.goto('/?player=runs-demo.jsonl.gz');
+  await toEnd(page, 'player');
+  const inApp = await outputRows(page);
+  // The same session as an HTML replay (no edits).
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 820 } });
+  const r = await ctx.newPage();
+  await r.goto('/?replayhtml=runs-demo.jsonl.gz');
+  await expect.poll(() => r.url()).toMatch(/^blob:/);
+  await toEnd(r, 'replay');
+  const replay = await outputRows(r);
+  // Commands go after their prompt in both, and every row is the same.
+  const echoed = inApp.filter((x) => x.startsWith('wc-prompt wc-echoed | '));
+  expect(echoed.length).toBeGreaterThan(3);
+  expect(echoed).toContain('wc-prompt wc-echoed | *> kill bat');
+  expect(replay).toEqual(inApp);
+  await ctx.close();
+});
