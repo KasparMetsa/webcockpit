@@ -1,7 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { DB_NAME, openWebcockpitDb } from '../../src/core/db';
+import { DB_NAME, DB_VERSION, openWebcockpitDb } from '../../src/core/db';
 import { COMM_RETENTION_MS, CommArchive, type NewCommRecord } from '../../src/gmcp/comm-archive';
 import { lazyDb } from '../../src/panes/context';
 
@@ -79,7 +79,7 @@ describe('CommArchive', () => {
       r.onerror = () => reject(r.error);
     });
     const archive = await CommArchive.open(() => openWebcockpitDb(factory), { now: () => NOW });
-    expect(archive.db.version).toBe(3);
+    expect(archive.db.version).toBe(DB_VERSION);
     await archive.append(msg('Rasta', NOW, 'hi'));
     expect((await archive.loadRecent('Rasta')).map((r) => r.text)).toEqual(['hi']);
     const tx = archive.db.transaction('profiles', 'readonly');
