@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **6 — Runs** (in progress).
+Current stage: **6 — Runs** (owner testing).
 
 ## Stages
 
@@ -11,7 +11,7 @@ Current stage: **6 — Runs** (in progress).
 | 3 | Script engine and profile editor | Done | `docs/stages/03-script-engine-and-editor.md` |
 | 4 | GMCP panes | Done | `docs/stages/04-gmcp-panes.md` |
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
-| 6 | Runs | In progress | `docs/stages/06-runs.md` |
+| 6 | Runs | Owner testing | `docs/stages/06-runs.md` |
 | 7 | Sharing | — | — |
 | 8 | Hardening → v1 | — | — |
 | 9 | Map (after v1) | — | — |
@@ -21,6 +21,22 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-27 — Stage 6 build
+
+- **Done:** stage file, ADR 0018. P0 run events (kill fold, pkill,
+  death, level-up, achievement, group), `◆ KILL/PKILL/DEATH` lines, DB v5,
+  run library (stitch, save/rate, delete, 14-day sweep, gzip JSONL
+  backup/restore), stats model, `app.runs`, demo backup. P1 History,
+  Statistics (ESC + History), Exit with rating, recorder buffer race
+  fixed. P2 log player (replay clock, speeds, seek by rebuild, recorded
+  layout, strip/markers/control box, echo of replayed commands).
+  Sparklines smoothed (owner request). 874 unit, 138 e2e; bench passes.
+- **Next:** owner tests (guide in the stage file), then stage 7.
+- **Open issues:** Chromium burst max frame 48.9 ms (limit 50; stage 8);
+  output needs ~1 s to paint after a long seek; runs from stages 1–5
+  have no events.
+- **Commits:** c875710…(this commit).
 
 ### 2026-09-27 — Stage 5 build
 
