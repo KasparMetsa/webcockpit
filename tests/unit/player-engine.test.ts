@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { PlayerEngine, SPEEDS } from '../../src/player/engine';
 import { buildTimeline } from '../../src/player/timeline';
-import { BASE_US, FakeWall, RecordingTarget, twoRunChain } from './player-helpers';
+import { BASE_US, FakeWall, RecordingTarget, makeLog, meta, twoRunChain } from './player-helpers';
 
 function setup(speed?: number) {
   const wall = new FakeWall();
@@ -21,27 +21,28 @@ describe('PlayerEngine play', () => {
     const { wall, target, engine } = setup();
     engine.play();
     wall.flush();
-    // At 0: the run connects, Char.Name (with the GMCP announce); SIZE and VIEW 0.1 ms later.
-    expect(kinds(target)).toEqual(['connect', 'data']);
+    // At 00:00: the run connects; the lead-in (Char.Name with the GMCP
+    // announce, SIZE, VIEW) and the first line arrive at once, on their log times.
+    expect(kinds(target)).toEqual(['connect', 'data', 'size', 'view', 'data']);
+    expect(target.text()).toBe('{GMCP Char.Name {"name":"Rasta","fullname":"Rasta the Ranger"}}Hello.\r\n');
+    expect(target.clocks[0]!.nowUs()).toBe(BASE_US + 1e6);
     wall.advance(1);
-    expect(kinds(target)).toEqual(['connect', 'data', 'size', 'view']);
-    expect(target.text()).toBe('{GMCP Char.Name {"name":"Rasta","fullname":"Rasta the Ranger"}}');
-    wall.advance(998);
-    expect(target.text()).not.toContain('Hello.');
-    wall.advance(2);
     expect(target.text()).toContain('Hello.\r\nWorld.\r\n');
-    wall.advance(1500); // 2.5 s: the prompt with GA, then the command
+    wall.advance(998);
+    expect(target.text()).not.toContain('oO>');
+    wall.advance(2); // 1 s: the prompt with GA
     expect(target.text()).toContain('oO><GA>');
+    wall.advance(500); // 1.5 s: the command
     expect(target.calls.at(-1)).toMatchObject({ t: 'sent', text: 'look', clockUs: BASE_US + 2.5e6 });
-    expect(engine.position).toBeCloseTo(2501, 0);
+    expect(engine.position).toBeCloseTo(1501, 0);
     expect(engine.playing).toBe(true);
   });
 
   it('collapses a long gap to no wall time while the log time jumps', () => {
     const { wall, target, engine } = setup();
     engine.play();
-    wall.advance(3000);
-    // 3 s: `A room.` and, across the collapsed 60 s gap, `Much later.`
+    wall.advance(2000);
+    // 2 s: `A room.` and, across the collapsed 60 s gap, `Much later.`
     expect(target.text()).toContain('A room.\r\nMuch later.');
     const late = target.calls.find((c) => c.t === 'data' && c.text.includes('Much later.'));
     expect(late).toMatchObject({ clockUs: BASE_US + 63e6 });
@@ -54,12 +55,40 @@ describe('PlayerEngine play', () => {
     for (const s of SPEEDS) {
       const { wall, target, engine } = setup(s);
       engine.play();
-      wall.advance(2999 / s);
+      wall.advance(1999 / s);
       expect(target.text()).not.toContain('A room.');
       wall.advance(2 / s);
       expect(target.text()).toContain('A room.');
       engine.dispose();
     }
+  });
+
+  it('shows the first text of a recorded login at once (no wall time for the lead-in)', () => {
+    // As the recorder writes a run: login GMCP 8 s before Char.Name, then the view and the first text.
+    const text = makeLog(BASE_US, [
+      { at: 0, gmcp: 'Comm.Channel.List', json: [] },
+      { at: 8, gmcp: 'Char.Name', json: { name: 'Rasta' } },
+      { at: 8.00005, view: { appearance: { size: 14 } } },
+      { at: 8.00005, size: { cols: 200, rows: 60 } },
+      { at: 8.0001, out: 'change width all 500' },
+      { at: 8.0002, gmcp: 'Char.Vitals', json: { hp: 1 } },
+      { at: 8.4, in: 'Welcome to MUME!' },
+      { at: 9.4, in: 'Later.' },
+    ]);
+    const wall = new FakeWall();
+    const target = new RecordingTarget();
+    const engine = new PlayerEngine({ timeline: buildTimeline([{ meta: meta('Rasta/a', BASE_US), text }]), build: target.build, wall });
+    expect(engine.duration).toBeCloseTo(1000, 6);
+    engine.play();
+    wall.flush();
+    expect(wall.t).toBe(0);
+    expect(target.text()).toContain('Comm.Channel.List');
+    expect(target.text()).toContain('Welcome to MUME!');
+    expect(target.calls.filter((c) => c.t === 'view' || c.t === 'size')).toHaveLength(2);
+    expect(target.clocks[0]!.nowUs()).toBe(BASE_US + 8.4e6);
+    expect(engine.position).toBe(0);
+    wall.advance(1000);
+    expect(target.text()).toContain('Later.');
   });
 
   it('changes speed keeping the position', () => {
@@ -98,15 +127,16 @@ describe('PlayerEngine play', () => {
   it('pauses and resumes where it was', () => {
     const { wall, target, engine } = setup();
     engine.play();
-    wall.advance(1500);
+    wall.advance(500);
     engine.pause();
     const n = target.calls.length;
     wall.advance(60_000);
     expect(target.calls.length).toBe(n);
-    expect(engine.position).toBeCloseTo(1500, 3);
+    expect(engine.position).toBeCloseTo(500, 3);
     expect(target.clocks[0]!.nowUs()).toBeCloseTo(BASE_US + 1.5e6, -2);
+    expect(target.text()).not.toContain('oO>');
     engine.play();
-    wall.advance(1001);
+    wall.advance(501);
     expect(target.text()).toContain('oO>');
   });
 
@@ -160,7 +190,7 @@ describe('PlayerEngine seek', () => {
     const { wall, target, engine } = setup();
     engine.play();
     wall.advance(11_000);
-    engine.seek(2_000);
+    engine.seek(1_000);
     expect(target.builds[0]!.at(-1)).toEqual({ t: 'dispose' });
     wall.flush();
     expect(engine.buildCount).toBe(2);
@@ -185,7 +215,8 @@ describe('PlayerEngine seek', () => {
     engine.seek(500); // the new build has delivered nothing yet: a retarget
     wall.flush();
     expect(target.builds).toHaveLength(2);
-    expect(target.text()).not.toContain('Hello.');
+    expect(target.text()).toContain('Hello.');
+    expect(target.text()).not.toContain('oO>');
     engine.seek(0);
     wall.flush();
     expect(target.builds).toHaveLength(3);
@@ -229,7 +260,7 @@ describe('PlayerEngine seek', () => {
         };
       },
     });
-    engine.seek(3_000);
+    engine.seek(2_000);
     wall.flush();
     // Frames at 0, 1, 2, 3 (A room.) and 63 s: folds at +0.5 s each, the last still pending.
     expect(fired).toEqual([0.5e6, 1.5e6, 2.5e6, 3.5e6]);

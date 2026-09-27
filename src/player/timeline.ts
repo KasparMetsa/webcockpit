@@ -19,6 +19,18 @@
 // time (Inv §7.5): idle stretches and the pause between two runs of a
 // session play instantly, while the log time still jumps by the real gap.
 //
+// Lead-in (owner feedback 2026-09-28): each run's entries up to and
+// including its first visible one (an inbound line with some non-blank
+// text, or a command the output echoes) take no playback time either. The
+// recorder writes the GMCP of the login phase (Comm.Channel.List at
+// connect, then Char.Name after the password) with its receive times, and
+// the VIEW / SIZE / Char.Vitals records before the first text; played in
+// real time that is seconds of a blank screen. So a run starts showing
+// text at once: at 00:00 for the first run, and straight after the last
+// entry of the previous run for the others. Nothing is dropped: the
+// lead-in's entries are delivered at the same playback time, in order, on
+// their own log times.
+//
 // Mappings (all by binary search):
 //   countAt(p)        entries with play ≤ p (what has been shown at p)
 //   logUsAt(p)        log time at playback time p (moves with p inside a
@@ -27,6 +39,7 @@
 //   runAt(p)          the run playing at p
 
 import type { RunMeta } from '../capture/store';
+import { PLAYING_COMMANDS } from '../net/session';
 
 /** Gaps longer than this (µs) take no playback time (Inv §7.5). */
 export const GAP_COLLAPSE_US = 10_000_000;
@@ -72,6 +85,25 @@ function isDigit(c: number): boolean {
   return c >= 48 && c <= 57;
 }
 
+/** True when `text[b, e)` has a character other than blanks and SGR sequences. */
+export function hasInk(text: string, b: number, e: number): boolean {
+  for (let i = b; i < e; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 27 && text.charCodeAt(i + 1) === 91) {
+      // ESC [ … final byte (0x40–0x7E).
+      i += 2;
+      while (i < e) {
+        const f = text.charCodeAt(i);
+        if (f >= 0x40 && f <= 0x7e) break;
+        i++;
+      }
+      continue;
+    }
+    if (c !== 32 && c !== 9 && c !== 13 && c !== 160) return true;
+  }
+  return false;
+}
+
 /** Parses the runs of a chain (oldest first) into one timeline. */
 export function buildTimeline(chain: readonly ChainRun[]): Timeline {
   // Upper bound on entries: the newlines in every text (+1 each).
@@ -96,6 +128,8 @@ export function buildTimeline(chain: readonly ChainRun[]): Timeline {
     const { meta, text } = chain[r]!;
     const first = n;
     const len = text.length;
+    /** Still in the run's lead-in (nothing visible yet). */
+    let lead = true;
     let pos = 0;
     while (pos < len) {
       let nl = text.indexOf('\n', pos);
@@ -134,7 +168,12 @@ export function buildTimeline(chain: readonly ChainRun[]): Timeline {
         }
       }
       const t = Number(text.slice(s, s + TS_DIGITS));
-      if (lastTs >= 0) {
+      if (lead) {
+        // The lead-in and its first visible entry take no playback time.
+        if (k === ENTRY_IN ? hasInk(text, b, e) : k === ENTRY_OUT && b < e && !PLAYING_COMMANDS.includes(text.slice(b, e))) {
+          lead = false;
+        }
+      } else if (lastTs >= 0) {
         const d = t - lastTs;
         if (d > 0 && d <= GAP_COLLAPSE_US) clock += d / 1000;
       }

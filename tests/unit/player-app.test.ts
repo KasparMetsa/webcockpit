@@ -199,7 +199,7 @@ describe('PlayerHost', () => {
     expect(chrome.querySelector('.wc-player-header')!.textContent).toContain('Rasta (L42) · Run 1 of 2 · ');
     const marks = [...chrome.querySelectorAll<HTMLElement>('.wc-player-mark')];
     expect(marks.map((m) => m.textContent)).toEqual(['K►', 'L►']);
-    expect(marks.map((m) => Number(m.dataset.offset))).toEqual([3000, 11100]); // the extra VIEW adds 0.1 s before the collapsed gap
+    expect(marks.map((m) => Number(m.dataset.offset))).toEqual([2000, 9100]); // the extra VIEW adds 0.1 s before the collapsed gap
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(closed()).toBe(1);
     expect(root.querySelector('.wc-player')).toBeNull();
