@@ -35,6 +35,8 @@ const { LineAssembler } = await import('../src/text/assembler');
 const { ScriptEngine } = await import('../src/script/engine');
 const { makeRuleProfile, RULE_COUNT } = await import('./rules');
 const { GameState } = await import('../src/gmcp/state');
+const { RunEventDeriver } = await import('../src/runs/events');
+const { FakeScheduler } = await import('../src/script/engine/timers');
 const { biggestFixture, FIXTURES_ROOT } = await import('../tests/e2e/fixtures');
 type Line = import('../src/core/types').Line;
 
@@ -69,9 +71,15 @@ function perLine(profile: string | null, system = false): { us: number; shown: n
   // trackers (ADR 0017), as App installs them. The hub is not attached, so
   // its UI lines go nowhere.
   const game = system ? new GameState() : null;
-  if (game) {
+  // The run events' death-line rule (ADR 0018), with a run started so every
+  // line is looked at; folds wait on a scheduler that never runs.
+  const runs = system ? new RunEventDeriver({ scheduler: new FakeScheduler() }).attach(bus) : null;
+  if (game && runs) {
     game.installRules(e.system);
     game.timers.installRules(e.system);
+    runs.installRules(e.system);
+    bus.emit('conn.state', { state: 'playing', prev: 'login' });
+    runs.onGmcp('Char.Vitals', { xp: 1 }, 0);
   }
   if (profile) {
     const r = e.loadProfile(profile);
@@ -88,6 +96,7 @@ function perLine(profile: string | null, system = false): { us: number; shown: n
   times.sort((a, b) => a - b);
   e.dispose();
   game?.dispose();
+  runs?.dispose();
   return { us: (times[2]! / lines.length) * 1000, shown: shown / 6, sent: sent / 6 };
 }
 
@@ -117,7 +126,7 @@ console.log(
     `${full.shown} lines shown`,
 );
 const sys = perLine(null, true);
-console.log(`  system rules (game + timers): ${sys.us.toFixed(2)} µs per line (+${(sys.us - base.us).toFixed(2)})`);
+console.log(`  system rules (game + timers + runs): ${sys.us.toFixed(2)} µs per line (+${(sys.us - base.us).toFixed(2)})`);
 const both = perLine(profile, true);
 console.log(
   `  ${RULE_COUNT} rules + system: ${both.us.toFixed(2)} µs per line (budget 200 µs) ${both.us < 200 ? 'PASS' : 'FAIL'}`,
