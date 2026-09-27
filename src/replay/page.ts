@@ -126,6 +126,7 @@ export function openReplay(doc: Document, root: HTMLElement, payload: ReplayPayl
     { character: payload.character, level: payload.level },
     {
       edits: payloadEdits(payload),
+      ...(payload.hiddenSys?.length ? { hiddenSys: payload.hiddenSys } : {}),
       marks: (tl) => payload.markers.map((m) => ({ letter: m.kind, offset: playAtLogUs(tl, m.us) })),
       view: {
         header: () => replayHeader(payload),

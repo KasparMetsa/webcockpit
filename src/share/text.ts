@@ -7,6 +7,9 @@
 //     line of their own; empty Enters and the width commands sent on
 //     entering the game are not echoed (src/ui/output-pane.ts);
 //   - comments as their wrapped `## ` lines before their anchor;
+//   - the player's system lines (`[SYSTEM] Rasta logged in.`,
+//     src/share/system-lines.ts) that are not excluded, where the replay
+//     prints them;
 //   - a blank line between the runs of the chain;
 //   - excluded entries are not in it at all. GMCP and client records never
 //     are.
@@ -14,8 +17,9 @@
 import { isPromptLike } from '../net/replay-socket';
 import { PLAYING_COMMANDS } from '../net/session';
 import type { ChainRun } from '../player/timeline';
-import { captureEntries, stripAnsi } from './capture';
+import { stripAnsi } from './capture';
 import { type ExportDoc, commentLines, isExcluded } from './edits';
+import { SYS_PREFIX, playerEntries } from './system-lines';
 
 /** The text file of a session with its edits applied (lines end in `\n`). */
 export function buildTextExport(chain: readonly ChainRun[], doc: ExportDoc): string {
@@ -26,33 +30,39 @@ export function buildTextExport(chain: readonly ChainRun[], doc: ExportDoc): str
   let openPrompt = false;
   let runsWritten = 0;
 
-  for (const run of chain) {
-    let first = true;
-    for (const e of captureEntries(run.text)) {
-      if (e.kind !== 'in' && e.kind !== 'out') continue;
-      if (isExcluded(doc, e.ts)) continue;
-      if (e.kind === 'out' && (e.body === '' || PLAYING_COMMANDS.includes(e.body))) continue;
-      if (first) {
-        first = false;
-        if (runsWritten++ > 0) {
-          out.push('');
-          openPrompt = false;
-        }
-      }
-      while (ci < comments.length && comments[ci]!.beforeUs !== null && comments[ci]!.beforeUs! <= e.ts) {
-        out.push(...commentLines(comments[ci++]!.text));
+  let run = -1;
+  let first = true;
+  for (const e of playerEntries(chain)) {
+    if (e.run !== run) {
+      run = e.run;
+      first = true;
+    }
+    if (e.kind !== 'in' && e.kind !== 'out' && e.kind !== 'sys') continue;
+    if (isExcluded(doc, e.ts)) continue;
+    if (e.kind === 'out' && (e.body === '' || PLAYING_COMMANDS.includes(e.body))) continue;
+    if (first) {
+      first = false;
+      if (runsWritten++ > 0) {
+        out.push('');
         openPrompt = false;
       }
-      if (e.kind === 'in') {
-        out.push(stripAnsi(e.body));
-        openPrompt = isPromptLike(e.body);
-      } else if (openPrompt) {
-        const p = out[out.length - 1]!;
-        out[out.length - 1] = p === '' || /\s$/.test(p) ? p + e.body : p + ' ' + e.body;
-        openPrompt = false;
-      } else {
-        out.push(e.body);
-      }
+    }
+    while (ci < comments.length && comments[ci]!.beforeUs !== null && comments[ci]!.beforeUs! <= e.ts) {
+      out.push(...commentLines(comments[ci++]!.text));
+      openPrompt = false;
+    }
+    if (e.kind === 'sys') {
+      out.push(SYS_PREFIX + e.body);
+      openPrompt = false;
+    } else if (e.kind === 'in') {
+      out.push(stripAnsi(e.body));
+      openPrompt = isPromptLike(e.body);
+    } else if (openPrompt) {
+      const p = out[out.length - 1]!;
+      out[out.length - 1] = p === '' || /\s$/.test(p) ? p + e.body : p + ' ' + e.body;
+      openPrompt = false;
+    } else {
+      out.push(e.body);
     }
   }
   while (ci < comments.length) out.push(...commentLines(comments[ci++]!.text));

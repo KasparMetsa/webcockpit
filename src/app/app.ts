@@ -49,7 +49,8 @@
 // Player Apps (ADR 0018, `player: true`): the log player builds an App per
 // open (and per backward seek) and `dispose()`s it. Such an App never
 // captures, keeps nothing (no clock, pane database or UI ring storage),
-// prints no replay `[SYSTEM]` lines, stamps output rows with their time
+// prints no replay `[SYSTEM]` lines (only the login line, which an HTML
+// replay can mute per run: `quietLogin`), stamps output rows with their time
 // and runs on the player's clock (`now`, `scheduler`, `clockUs`).
 
 import { downloadRun } from '../capture/download';
@@ -200,6 +201,12 @@ export class App {
   private fileInput: HTMLInputElement | null = null;
   private viewJson = '';
   private readonly player: boolean;
+  /**
+   * Player Apps: the current run's login line is not printed (an HTML
+   * replay whose export excluded it, ADR 0019 "System lines"). Set by the
+   * player host before each run connects.
+   */
+  quietLogin = false;
   private readonly unsubs: Array<() => void> = [];
   private disposed = false;
 
@@ -442,7 +449,7 @@ export class App {
         if (!this.replaying) this.sys('Connected.');
         break;
       case 'playing':
-        this.sys(`${this.charName || 'Character'} logged in.`);
+        if (!(this.player && this.quietLogin)) this.sys(`${this.charName || 'Character'} logged in.`);
         break;
       case 'disconnected':
         void this.writeBack?.flush();

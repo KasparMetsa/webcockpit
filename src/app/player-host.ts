@@ -68,6 +68,8 @@ export interface PlayerOpenOptions {
   view?: Partial<Pick<PlayerViewOptions, 'header' | 'keys' | 'overlay' | 'startHidden' | 'stripHoverTime' | 'boxButtons' | 'onEsc'>>;
   /** Start playing at once (default true). */
   autoplay?: boolean;
+  /** Runs whose login system line is not printed (HTML replay `hiddenSys`, ADR 0019). */
+  hiddenSys?: readonly number[];
 }
 
 /** Paint gate: frame callbacks wait while it is closed. */
@@ -109,6 +111,7 @@ export class PlayerHost {
   private readonly ro: ResizeObserver | null = null;
   private fitKey = '';
   private closed = false;
+  private hiddenSys: ReadonlySet<number> = new Set();
 
   constructor(opts: PlayerHostOptions) {
     this.opts = opts;
@@ -156,6 +159,7 @@ export class PlayerHost {
    */
   openChain(chain: readonly ChainRun[], events: readonly RunEvent[], info: PlayerInfo, opts: PlayerOpenOptions = {}): void {
     const tl = buildTimeline(chain, opts.edits);
+    this.hiddenSys = new Set(opts.hiddenSys ?? []);
     const engine = new PlayerEngine({
       timeline: tl,
       build: (clock) => this.build(clock),
@@ -234,7 +238,10 @@ export class PlayerHost {
     const unsub = store.subscribe(() => this.relayout());
     this.relayout();
     return {
-      connect: (sock, run) => app.replayOn(sock, `run ${run + 1}`),
+      connect: (sock, run) => {
+        app.quietLogin = this.hiddenSys.has(run);
+        app.replayOn(sock, `run ${run + 1}`);
+      },
       view: (json) => {
         const v = parseView(json);
         if (v) store.update((d) => overlayView(d, v as Partial<ViewSnapshot>));

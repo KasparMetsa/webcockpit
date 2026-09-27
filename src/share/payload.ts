@@ -9,7 +9,12 @@
 // log resumes. Every range becomes a cut (the timeline plays a cut between
 // kept entries in at most 500 ms, one at either end of the log in 0).
 // Markers inside a range are dropped; comments anchored on a removed entry
-// move to the next kept visible entry (or to the end).
+// move to the next kept visible entry or shown system line (or to the end).
+//
+// System lines (src/share/system-lines.ts): the login lines the player
+// prints are rows in the export editor. One whose anchor is excluded is
+// listed in `hiddenSys` (by run: a run prints at most one), and the player
+// does not print it; its `Char.Name` GMCP is kept, so the panes are right.
 
 import type { RunMeta } from '../capture/store';
 import type { ChainRun, TimelineEdits } from '../player/timeline';
@@ -19,6 +24,7 @@ import { runStartUs } from '../runs/stitch';
 import type { Settings } from '../settings';
 import { captureEntries, isCommText, isVisible } from './capture';
 import { type ExcludeRange, type ExportDoc, commentHoldMs, isExcluded } from './edits';
+import { systemLines } from './system-lines';
 
 export const PAYLOAD_SCHEMA = 1;
 
@@ -44,6 +50,11 @@ export interface ReplayPayload {
   /** The excluded ranges, as `TimelineEdits.cuts`. */
   cuts: ExcludeRange[];
   markers: Array<{ us: number; kind: 'A' | 'D' | 'K' | 'L' }>;
+  /**
+   * Runs (indexes into `runs`) whose login system line the player does not
+   * print (it was excluded in the editor). Absent in older files: none.
+   */
+  hiddenSys?: number[];
 }
 
 /** The capture text of a run with the excluded content removed. */
@@ -66,9 +77,16 @@ export function buildReplayPayload(
 ): ReplayPayload {
   const runs = chain.map((r) => ({ meta: r.meta, text: editRunText(r.text, doc) }));
 
-  // Kept visible entries' times, for moving comments off removed entries.
+  // Kept visible entries' and shown system lines' times, for moving
+  // comments off removed entries.
   const kept: number[] = [];
   for (const r of runs) for (const e of captureEntries(r.text)) if (isVisible(e)) kept.push(e.ts);
+  const hiddenSys: number[] = [];
+  for (const l of systemLines(chain)) {
+    if (isExcluded(doc, l.ts)) hiddenSys.push(l.run);
+    else kept.push(l.ts);
+  }
+  kept.sort((a, b) => a - b);
   const nextKept = (us: number): number | null => {
     let lo = 0;
     let hi = kept.length;
@@ -103,6 +121,7 @@ export function buildReplayPayload(
     comments,
     cuts: doc.excludes.map((r) => [r[0], r[1]] as ExcludeRange),
     markers,
+    ...(hiddenSys.length > 0 ? { hiddenSys } : {}),
   };
 }
 
