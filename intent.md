@@ -81,12 +81,14 @@ reference only.
 ## Constraints
 
 - **No application server.** Static files only; the browser connects
-  directly to MUME's WebSocket endpoint. MMapper's browser client already
-  does this, so it is expected to work. This will be verified before the
-  spec. If MUME blocks us, the fallback is to contact MUME.
-- **Private hobby project.** MUME management is not involved at this
-  stage. The repository and deployment stay private until the owner
-  judges the client mature.
+  directly to MUME's WebSocket endpoint. Verified 2026-09-27 (ADR 0002).
+  If MUME later blocks us, the fallback is to contact MUME.
+- **Private hobby project.** MUME management is not involved during
+  development. The repository and deployment stay private until the
+  owner judges the client mature. The Valar are contacted before
+  WebCockpit is shared with other players (password-phishing concern
+  raised in Play MUME's README).
+- **Licence:** GPL when shared (ADR 0001).
 - **New code only.** Nothing is copied or ported from Cockpit.
 - **Build process:** Claude Code with subagents, in stages. Each stage
   ends with something the owner can test in the browser.
@@ -111,5 +113,4 @@ None blocking. The following are decided in `spec.md` or ADRs:
 - Storage layout.
 - Hosting while private.
 
-Researched before spec approval: how MMapper will be integrated (see
-Goal 9).
+MMapper integration path: decided in ADR 0003.

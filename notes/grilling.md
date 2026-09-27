@@ -160,3 +160,10 @@ Owner approved the draft with additions:
 
 Q: OK for WebCockpit to become open source under the GPL when mature and
 shared? A: Yes. Recorded as ADR 0001.
+
+## Research follow-up (2026-09-27)
+
+- Map path: own map pane as primary, patched MMapper in an iframe kept
+  open. Owner: ok. ADR 0003.
+- Valar contacted before sharing with other players (Play MUME README
+  phishing warning). Owner: ok. intent.md updated.
