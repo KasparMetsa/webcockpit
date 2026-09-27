@@ -146,11 +146,14 @@ export class Gmcp {
     return this.send('Core.Supports.Set', this.registry.supportsList());
   }
 
-  /** Handles one inbound GMCP payload (`Package.Name [json]`). */
-  handle(payload: string): void {
+  /**
+   * Handles one inbound GMCP payload (`Package.Name [json]`). `ts` is the
+   * receive time (µs) passed on in `gmcp.raw`.
+   */
+  handle(payload: string, ts?: number): void {
     const bus = this.o.bus;
     const m = parseGmcp(payload);
-    bus.emit('gmcp.raw', { pkg: m.pkg, json: m.json });
+    bus.emit('gmcp.raw', ts === undefined ? { pkg: m.pkg, json: m.json } : { pkg: m.pkg, json: m.json, ts });
     if (m.error !== undefined) {
       bus.emit('sys.message', { text: `GMCP ${m.pkg}: bad JSON (${m.error})` });
     }

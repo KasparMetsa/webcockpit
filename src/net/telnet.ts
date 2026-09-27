@@ -82,8 +82,11 @@ export interface TelnetOptions {
   sink: TextSink;
   /** Writes protocol or text bytes to the socket. */
   write: (bytes: Uint8Array) => void;
-  /** A complete GMCP message payload (`Package.Name [json]`), decoded. */
-  onGmcp?: (payload: string) => void;
+  /**
+   * A complete GMCP message payload (`Package.Name [json]`), decoded. `ts`
+   * is the receive time of the frame that completed it (µs).
+   */
+  onGmcp?: (payload: string, ts: number) => void;
   /** GMCP was enabled (server WILL GMCP, we already sent DO GMCP). */
   onGmcpEnabled?: () => void;
   /** Server ECHO state changed (true: server echoes, i.e. password mode). */
@@ -430,10 +433,10 @@ export class Telnet {
     this.o.write(out);
   }
 
-  private onSubneg(opt: number, data: Uint8Array, _ts: number): void {
+  private onSubneg(opt: number, data: Uint8Array, ts: number): void {
     switch (opt) {
       case OPT_GMCP:
-        if (this.him[OPT_GMCP]) this.o.onGmcp?.(this.decodeWhole(data));
+        if (this.him[OPT_GMCP]) this.o.onGmcp?.(this.decodeWhole(data), ts);
         break;
       case OPT_TTYPE:
         if (data[0] === TTYPE_SEND && this.us[OPT_TTYPE]) {

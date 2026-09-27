@@ -106,6 +106,94 @@ describe('Recorder', () => {
     expect(meta.sealed).toBe(false);
   });
 
+  it('records inbound GMCP as ESC GMCP records, with the pre-run messages first', async () => {
+    const t = setup();
+    const T = 1790449245000000;
+    t.bus.emit('conn.state', { state: 'connecting', prev: 'idle' });
+    t.bus.emit('conn.state', { state: 'login', prev: 'connecting' });
+    t.bus.emit('gmcp.raw', { pkg: 'Comm.Channel.List', json: '[{"name":"tells"}]', ts: T + 1 });
+    t.bus.emit('gmcp.raw', { pkg: 'Char.Name', json: '{"name":"Rasta"}', ts: T + 2 });
+    t.bus.emit('gmcp', { pkg: 'Char.Name', data: { name: 'Rasta' } });
+    t.bus.emit('conn.state', { state: 'playing', prev: 'login' });
+    t.bus.emit('gmcp.raw', { pkg: 'Core.Ping', json: '', ts: T + 3 });
+    t.bus.emit('gmcp.raw', { pkg: 'Group.Remove', json: '3', ts: T + 4 });
+    t.bus.emit('gmcp.raw', { pkg: 'Event.Moved', json: '', ts: T + 5 });
+    t.bus.emit('gmcp.raw', { pkg: 'Char.Vitals', json: '{\n"hp":1}', ts: T + 6 });
+    await t.rec.flush();
+    const text = await (await buildRunBlob((await t.rec.getStore())!, t.rec.runId!)).text();
+    expect(text).toBe(
+      '1790449245000001 \x1bGMCP Comm.Channel.List [{"name":"tells"}]\n' +
+        '1790449245000002 \x1bGMCP Char.Name {"name":"Rasta"}\n' +
+        '1790449245000004 \x1bGMCP Group.Remove 3\n' +
+        '1790449245000005 \x1bGMCP Event.Moved\n' +
+        '1790449245000006 \x1bGMCP Char.Vitals { "hp":1}\n',
+    );
+  });
+
+  it('records the view (settings, size) at start and debounced changes', async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setup();
+      t.bus.emit('view.settings', { json: '{"v":1}' });
+      t.bus.emit('view.size', { cols: 100, rows: 40 });
+      t.bus.emit('view.size', { cols: 120, rows: 40 });
+      t.bus.emit('conn.state', { state: 'login', prev: 'connecting' });
+      t.bus.emit('gmcp.raw', { pkg: 'Char.Name', json: '{"name":"Rasta"}', ts: 1790449245000002 });
+      t.bus.emit('gmcp', { pkg: 'Char.Name', data: { name: 'Rasta' } });
+      t.bus.emit('conn.state', { state: 'playing', prev: 'login' });
+      // Changes during the run: only the last one of a burst is written.
+      t.bus.emit('view.size', { cols: 90, rows: 30 });
+      t.bus.emit('view.size', { cols: 91, rows: 30 });
+      vi.advanceTimersByTime(600);
+      t.bus.emit('view.settings', { json: '{"v":2}' });
+      t.bus.emit('view.settings', { json: '{"v":1}' }); // back to what was written: nothing new
+      vi.advanceTimersByTime(600);
+      t.bus.emit('view.settings', { json: '{"v":3}' });
+      // Leaving playing writes the pending change before sealing.
+      t.bus.emit('conn.state', { state: 'disconnected', prev: 'playing' });
+      vi.useRealTimers();
+      await t.rec.idle();
+      const store = (await t.rec.getStore())!;
+      const runs = await store.listRuns();
+      const text = await (await buildRunBlob(store, runs[0]!.runId)).text();
+      const bodies = text
+        .trimEnd()
+        .split('\n')
+        .map((r) => r.slice(17));
+      expect(bodies).toEqual([
+        '\x1bGMCP Char.Name {"name":"Rasta"}',
+        '\x1bVIEW {"v":1}',
+        '\x1bSIZE {"cols":120,"rows":40}',
+        '\x1bSIZE {"cols":91,"rows":30}',
+        '\x1bVIEW {"v":3}',
+      ]);
+      expect(text.split('\n')[1]!.slice(0, 16)).toBe('1790449245000002');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never records a replay, even when it reaches playing', async () => {
+    const t = setup();
+    t.bus.emit('conn.state', { state: 'connecting', prev: 'idle', replay: true });
+    t.bus.emit('conn.state', { state: 'login', prev: 'connecting', replay: true });
+    t.bus.emit('gmcp.raw', { pkg: 'Char.Name', json: '{"name":"Rasta"}', ts: 5 });
+    t.bus.emit('gmcp', { pkg: 'Char.Name', data: { name: 'Rasta' } });
+    t.bus.emit('conn.state', { state: 'playing', prev: 'login', replay: true });
+    t.bus.emit('text.line', line('replayed', 10));
+    await t.rec.idle();
+    expect(t.rec.runId).toBeNull();
+    expect(await (await t.rec.getStore())!.listRuns()).toEqual([]);
+    // A live connection afterwards records, without the replay's GMCP.
+    t.bus.emit('conn.state', { state: 'disconnected', prev: 'playing', replay: true });
+    t.bus.emit('conn.state', { state: 'connecting', prev: 'disconnected' });
+    t.play();
+    t.bus.emit('text.line', line('live', 20));
+    await t.rec.flush();
+    const text = await (await buildRunBlob((await t.rec.getStore())!, t.rec.runId!)).text();
+    expect(text).toBe('0000000000000020 live\n');
+  });
+
   it('does not record before playing', async () => {
     const t = setup();
     t.bus.emit('conn.state', { state: 'login', prev: 'connecting' });
@@ -268,13 +356,14 @@ describe('capture timestamps (live path)', () => {
       const text = await (await buildRunBlob(store, rec.runId!)).text();
       const rows = text.trimEnd().split('\n');
       expect(rows.map((r) => r.slice(r.indexOf(' ') + 1))).toEqual([
+        '\x1bGMCP Char.Name {"name":"Rasta","fullname":"Rasta X"}',
         '> change width all 500',
         '> change width table terminal',
         'oO>',
       ]);
       const ts = rows.map((r) => Number(r.slice(0, r.indexOf(' '))));
       for (let i = 1; i < ts.length; i++) expect(ts[i]).toBeGreaterThanOrEqual(ts[i - 1]!);
-      // All three events came from the one frame and carry its time.
+      // All four events came from the one frame and carry its time.
       expect(new Set(ts).size).toBe(1);
       rec.dispose();
     } finally {

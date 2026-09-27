@@ -1,10 +1,16 @@
 // Replay socket (ADR 0007): feeds a Cockpit raw `.log` (Inv §7.1) through
 // the normal telnet and line layers, without a server.
 //
-// Log format, one event per line:
+// Log format, one event per line (src/capture/format.ts):
 //   <16-digit µs ts> <inbound line, ANSI SGR kept>
 //   <16-digit µs ts> > <outbound command>
+//   <16-digit µs ts> ESC <TYPE> <payload>          (client record, ADR 0016)
 // Outbound lines are skipped. Inbound lines become UTF-8 bytes + CR LF.
+// `ESC GMCP <pkg> [json]` records become `IAC SB GMCP <pkg> [json] IAC SE`
+// at their timestamps; the first one is preceded by `IAC WILL GMCP` so the
+// telnet layer accepts them (a recorded Char.Name then takes the session to
+// `playing`). Other record types (VIEW, SIZE …) are skipped. Cockpit logs
+// have no records and replay as before.
 // Lines that look like prompts (visible text, trimmed, ends in `>`, and
 // shorter than 80 chars) are sent without a newline and followed by
 // IAC GA, the way MUME sends prompts.
@@ -15,6 +21,10 @@
 
 import type { Socketish } from '../core/types';
 import { GA, IAC, OPT_GMCP, SB, SE, WILL } from './telnet';
+import type { IsReplay } from './session';
+
+/** `ESC GMCP ` at the start of a line body (format.ts `RECORD.gmcp`). */
+const GMCP_RECORD = '\x1bGMCP';
 
 export interface LogFrameOptions {
   /**
@@ -69,6 +79,7 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
   let clock = 0;
   let frameAt = 0;
   let lastTs = -1;
+  let gmcpAnnounced = false;
   let pos = 0;
   const n = logText.length;
 
@@ -96,8 +107,19 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
     if (logText.charCodeAt(bodyStart) === 62 && logText.charCodeAt(bodyStart + 1) === 32 && bodyStart + 1 < end) {
       continue;
     }
+    // Client record: ESC + upper-case letter. Only GMCP is replayed.
+    let gmcp = false;
+    if (logText.charCodeAt(bodyStart) === 27) {
+      const c = logText.charCodeAt(bodyStart + 1);
+      if (c >= 65 && c <= 90) {
+        if (!logText.startsWith(GMCP_RECORD, bodyStart)) continue;
+        const after = logText.charCodeAt(bodyStart + GMCP_RECORD.length);
+        if (after !== 32) continue; // needs a package name
+        gmcp = true;
+      }
+    }
     const ts = Number(logText.slice(start, start + TS_DIGITS));
-    const line = logText.slice(bodyStart, end);
+    const line = gmcp ? logText.slice(bodyStart + GMCP_RECORD.length + 1, end) : logText.slice(bodyStart, end);
 
     let gapMs = 0;
     const deltaUs = lastTs >= 0 ? Math.max(0, ts - lastTs) : 0;
@@ -110,11 +132,27 @@ export function* logToFrames(logText: string, opts: LogFrameOptions = {}): Gener
     if (len === 0) frameAt = clock;
     lastTs = ts;
 
-    const need = len + line.length * 3 + 2;
+    const need = len + line.length * 3 + 8;
     if (need > buf.length) {
       const nb = new Uint8Array(Math.max(need, buf.length * 2));
       nb.set(buf.subarray(0, len));
       buf = nb;
+    }
+    if (gmcp) {
+      // UTF-8 never contains 0xFF, so the payload needs no IAC escaping.
+      if (!gmcpAnnounced) {
+        gmcpAnnounced = true;
+        buf[len++] = IAC;
+        buf[len++] = WILL;
+        buf[len++] = OPT_GMCP;
+      }
+      buf[len++] = IAC;
+      buf[len++] = SB;
+      buf[len++] = OPT_GMCP;
+      len += enc.encodeInto(line, buf.subarray(len)).written;
+      buf[len++] = IAC;
+      buf[len++] = SE;
+      continue;
     }
     len += enc.encodeInto(line, buf.subarray(len)).written;
     if (isPromptLike(line)) {
@@ -161,13 +199,15 @@ const SLICE_MS = 8;
 /** Fallback when no animation frame comes (hidden tab, no DOM). */
 const YIELD_FALLBACK_MS = 50;
 
-export class ReplaySocket implements Socketish {
+export class ReplaySocket implements Socketish, IsReplay {
   onOpen: (() => void) | null = null;
   onData: ((bytes: Uint8Array) => void) | null = null;
   onClose: ((reason: string) => void) | null = null;
 
   /** Replay text is UTF-8; Session skips CHARSET negotiation. */
   readonly forceUtf8 = true as const;
+  /** Marks the connection as a replay (never captured; session.ts `IsReplay`). */
+  readonly replay = true as const;
 
   private readonly text: string;
   private readonly opts: ReplayOptions;

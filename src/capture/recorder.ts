@@ -12,13 +12,28 @@
 //   character whenever a new run for it starts.
 // - Every store operation runs on one promise chain, so start, flushes and
 //   seal are strictly ordered.
+// - Replays are never captured: a `conn.state` with `replay` never starts a
+//   run, even when recorded GMCP takes the replay to `playing`.
+//
+// Client records (format.ts, ADR 0016):
+// - GMCP: every inbound message (`gmcp.raw`) except Core.Ping replies, at
+//   its frame's receive time. Messages that arrive on the connection before
+//   the run starts (Comm.Channel.List, the Char.Name that starts it …) are
+//   kept, up to `PRE_RUN_GMCP_MAX`, and written first when the run starts.
+// - VIEW / SIZE: the latest `view.settings` / `view.size` are written when
+//   the run starts, and again `VIEW_DEBOUNCE_MS` after a change (the last
+//   value wins), and at the end of the run if a change is still pending.
 
 import type { Bus } from '../core/bus';
 import { type ConnState, nowUs } from '../core/types';
-import { formatInbound, formatOutbound, makeRunId } from './format';
+import { RECORD, formatGmcpRecord, formatInbound, formatOutbound, formatRecord, makeRunId } from './format';
 import { CaptureStore, type RunMeta } from './store';
 
 export const FLUSH_MS = 2000;
+/** GMCP lines kept from before the run starts on one connection. */
+export const PRE_RUN_GMCP_MAX = 64;
+/** Delay before a changed view (settings, size) is written. */
+export const VIEW_DEBOUNCE_MS = 500;
 
 /** Web Lock name for a character's run. */
 export function runLockName(character: string): string {
@@ -47,6 +62,8 @@ export interface RecorderOptions {
   win?: Window | null;
   /** Clock in µs (default `nowUs`). */
   now?: () => number;
+  /** Debounce of VIEW / SIZE records in ms (default 500). */
+  viewDebounceMs?: number;
 }
 
 export const STATUS = {
@@ -80,6 +97,17 @@ export class Recorder {
   private buf: string[] = [];
   private bufFirstUs = 0;
   private bufLastUs = 0;
+
+  /** The current connection is a replay (never recorded). */
+  private replay = false;
+  /** GMCP lines of this connection from before the run started. */
+  private preRun: { ts: number; line: string }[] = [];
+  /** Latest view payloads seen, and the ones written in this run. */
+  private viewJson = '';
+  private sizeJson = '';
+  private viewWritten = '';
+  private sizeWritten = '';
+  private viewTimer: ReturnType<typeof setTimeout> | null = null;
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private statusText = '';
@@ -121,8 +149,28 @@ export class Recorder {
       bus.on('conn.state', (s) => {
         const was = this.state;
         this.state = s.state;
+        this.replay = s.replay === true;
+        if (s.state === 'connecting') this.preRun = [];
         if (s.state === 'playing') this.maybeStart();
         else if (was === 'playing') this.stop();
+      }),
+      bus.on('gmcp.raw', (m) => {
+        if (m.pkg === 'Core.Ping' || this.replay) return;
+        const ts = m.ts ?? this.now();
+        const line = formatGmcpRecord(ts, m.pkg, m.json);
+        if (this.active) this.capture(ts, line);
+        else if (this.state === 'login' || this.state === 'connecting') {
+          this.preRun.push({ ts, line });
+          if (this.preRun.length > PRE_RUN_GMCP_MAX) this.preRun.shift();
+        }
+      }),
+      bus.on('view.settings', (v) => {
+        this.viewJson = v.json;
+        this.viewChanged();
+      }),
+      bus.on('view.size', (v) => {
+        this.sizeJson = JSON.stringify({ cols: v.cols, rows: v.rows });
+        this.viewChanged();
       }),
       bus.on('text.line', (line) => {
         if (this.active) this.capture(line.ts, formatInbound(line.ts, line.raw));
@@ -188,10 +236,21 @@ export class Recorder {
   // ------------------------------------------------------------- lifecycle
 
   private maybeStart(): void {
-    if (this.state !== 'playing' || !this.character || this.active || this.triedThisPlaying) return;
+    if (this.state !== 'playing' || this.replay || !this.character || this.active || this.triedThisPlaying) return;
     this.triedThisPlaying = true;
     this.active = true;
     this.buf = [];
+    // GMCP from before the start (it includes the Char.Name that started
+    // the run), then the view, at the start frame's time.
+    let ts = 0;
+    for (const p of this.preRun) {
+      this.capture(p.ts, p.line);
+      ts = p.ts;
+    }
+    this.preRun = [];
+    this.viewWritten = '';
+    this.sizeWritten = '';
+    this.writeView(ts || this.now());
     const character = this.character;
     const startedUs = this.now();
     const runId = makeRunId(character, new Date(startedUs / 1000));
@@ -251,6 +310,7 @@ export class Recorder {
   private stop(): void {
     this.triedThisPlaying = false;
     if (!this.active) return;
+    this.writeView(this.now());
     this.active = false;
     this.clearTimer();
     const endedUs = this.now();
@@ -271,6 +331,30 @@ export class Recorder {
   private clearTimer(): void {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
+    if (this.viewTimer !== null) clearTimeout(this.viewTimer);
+    this.viewTimer = null;
+  }
+
+  // ------------------------------------------------------------------ view
+
+  private viewChanged(): void {
+    if (!this.active || this.viewTimer !== null) return;
+    this.viewTimer = setTimeout(() => {
+      this.viewTimer = null;
+      if (this.active) this.writeView(this.now());
+    }, this.opts.viewDebounceMs ?? VIEW_DEBOUNCE_MS);
+  }
+
+  /** Writes the VIEW / SIZE records whose value differs from the last written. */
+  private writeView(ts: number): void {
+    if (this.viewJson && this.viewJson !== this.viewWritten) {
+      this.viewWritten = this.viewJson;
+      this.capture(ts, formatRecord(ts, RECORD.view, this.viewJson));
+    }
+    if (this.sizeJson && this.sizeJson !== this.sizeWritten) {
+      this.sizeWritten = this.sizeJson;
+      this.capture(ts, formatRecord(ts, RECORD.size, this.sizeJson));
+    }
   }
 
   private async writeChunk(): Promise<void> {

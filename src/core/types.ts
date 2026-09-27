@@ -138,8 +138,12 @@ export interface BusEvents {
   'text.display': { line: Line; source: Line; local?: boolean };
   /** The display copy of a `text.partial` (substitutes and highlights, no gags). */
   'text.displayPartial': { line: Line; source: Line };
-  /** GMCP message as received: package name as sent, JSON text ('' if none). */
-  'gmcp.raw': { pkg: string; json: string };
+  /**
+   * GMCP message as received: package name as sent, JSON text ('' if none).
+   * `ts` is the receive time (µs, the frame's time like `Line.ts`) when the
+   * message came through a Session; capture records it (ADR 0016).
+   */
+  'gmcp.raw': { pkg: string; json: string; ts?: number };
   /**
    * Parsed GMCP message. `pkg` is exactly as sent by the server (MUME mixes
    * case); consumers match case-insensitively themselves, e.g. by comparing
@@ -156,8 +160,12 @@ export interface BusEvents {
    * echo.
    */
   'cmd.sent': { text: string; ts: number; secret?: boolean; echo?: boolean };
-  /** Connection state change. `reason` explains a disconnect. */
-  'conn.state': { state: ConnState; prev: ConnState; reason?: string };
+  /**
+   * Connection state change. `reason` explains a disconnect. `replay` is
+   * set on every change of a replay connection (ReplaySocket): a replay can
+   * reach `playing` from recorded GMCP, but it is never captured.
+   */
+  'conn.state': { state: ConnState; prev: ConnState; reason?: string; replay?: true };
   /** Telnet ECHO: true when the server echoes (password mode, mask input). */
   'telnet.echo': { serverEchoes: boolean };
   /**
@@ -173,6 +181,57 @@ export interface BusEvents {
   'sys.message': { text: string };
   /** The first MUME XML tag after connect was seen (XML mode is on). */
   'xml.seen': void;
+  /**
+   * A line for the UI messages pane (Inv §2.4, ADR 0016). Any module may
+   * emit it; the UI pane renders the prefix from `kind`. See `UiMessage`.
+   */
+  'ui.message': UiMessage;
+  /**
+   * The screen settings (src/settings `viewSnapshot`: appearance, panes,
+   * layout, group, comm) as JSON. App emits it once at start and again
+   * whenever the snapshot changes; the recorder captures it so a log player
+   * can rebuild the screen (ADR 0016).
+   */
+  'view.settings': { json: string };
+  /** The cockpit size in cells changed (emitted by the cockpit's relayout). */
+  'view.size': { cols: number; rows: number };
+}
+
+// ---------------------------------------------------------------------------
+// UI messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Kind of a UI pane line and its prefix (Inv §2.4):
+ *
+ * - `system` → `● SYSTEM:` infrastructure (connect, login, profile saved).
+ * - `event`  → `▶ NAME:` a feature or script event; `name` is required
+ *   (e.g. `ACHIEVEMENT`).
+ * - `state`  → `◆ TAG:` character-state lifecycle; `tag` is required
+ *   (e.g. `SPELL`, `BLIND`).
+ * - `warn`   → `⚠ WARN:` a degraded path the player should see.
+ * - `error`  → `✖ ERROR:` a failure.
+ */
+export type UiMessageKind = 'system' | 'event' | 'state' | 'warn' | 'error';
+
+/**
+ * A piece of a UI message: plain text (bold bright white) or a dynamic
+ * value `{ value }` (bold yellow: names, numbers, files).
+ */
+export type UiMessagePart = string | { value: string };
+
+/**
+ * One UI pane line. The text is the parts joined as they are (put the
+ * spaces in the strings); every message is a sentence ending in `.`, e.g.
+ * `{ kind: 'system', parts: [{ value: 'Rasta' }, ' logged in.'] }`.
+ */
+export interface UiMessage {
+  kind: UiMessageKind;
+  /** The `▶ NAME:` label for `kind: 'event'` (upper case by convention). */
+  name?: string;
+  /** The `◆ TAG:` label for `kind: 'state'`. */
+  tag?: string;
+  parts: UiMessagePart[];
 }
 
 export type BusEventType = keyof BusEvents;

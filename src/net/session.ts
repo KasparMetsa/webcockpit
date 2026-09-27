@@ -50,6 +50,19 @@ function forcesUtf8(s: Socketish): boolean {
   return (s as Partial<ForcesUtf8>).forceUtf8 === true;
 }
 
+/**
+ * A socket that replays a recorded log (ReplaySocket). Every `conn.state`
+ * of its connection carries `replay: true`, so the recorder never captures
+ * it, even when recorded GMCP (`Char.Name`) takes it to `playing`.
+ */
+export interface IsReplay {
+  readonly replay: true;
+}
+
+function isReplay(s: Socketish): boolean {
+  return (s as Partial<IsReplay>).replay === true;
+}
+
 export interface SessionOptions {
   bus: Bus;
   /** Receives decoded text and GA marks (the line assembler). */
@@ -75,6 +88,8 @@ export class Session implements Sender {
   private st: ConnState = 'idle';
   /** Receive time of the inbound frame being parsed, or null. */
   private frameTs: number | null = null;
+  /** The current (or last) connection is a replay. */
+  private replayConn = false;
 
   constructor(opts: SessionOptions) {
     this.bus = opts.bus;
@@ -82,7 +97,7 @@ export class Session implements Sender {
     this.telnet = new Telnet({
       sink: opts.sink,
       write: this.writeRaw,
-      onGmcp: (payload) => this.gmcp.handle(payload),
+      onGmcp: (payload, ts) => this.gmcp.handle(payload, ts),
       onGmcpEnabled: () => this.gmcp.onEnabled(),
       onEcho: (serverEchoes) => this.bus.emit('telnet.echo', { serverEchoes }),
       ...(opts.ttype !== undefined ? { ttype: opts.ttype } : {}),
@@ -113,6 +128,11 @@ export class Session implements Sender {
     return this.open && this.telnet.serverEchoes;
   }
 
+  /** True when the current (or last) connection is a replay. */
+  get isReplay(): boolean {
+    return this.replayConn;
+  }
+
   /** True when the socket is open (state login or playing). */
   get isOpen(): boolean {
     return this.open;
@@ -129,7 +149,10 @@ export class Session implements Sender {
     this.st = next;
     if (next === 'login') this.keepalive.start();
     if (next === 'disconnected') this.keepalive.stop();
-    this.bus.emit('conn.state', reason === undefined ? { state: next, prev } : { state: next, prev, reason });
+    const ev: { state: ConnState; prev: ConnState; reason?: string; replay?: true } = { state: next, prev };
+    if (reason !== undefined) ev.reason = reason;
+    if (this.replayConn) ev.replay = true;
+    this.bus.emit('conn.state', ev);
     if (next === 'playing') {
       for (const c of PLAYING_COMMANDS) this.sendCommand(c, { echo: false });
     }
@@ -149,6 +172,7 @@ export class Session implements Sender {
     const sock = socket ?? this.socketFactory();
     this.socket = sock;
     this.open = false;
+    this.replayConn = isReplay(sock);
     this.telnet.reset();
     if (forcesUtf8(sock)) this.telnet.forceUtf8();
     sock.onOpen = () => {

@@ -88,6 +88,56 @@ describe('logToFrames', () => {
   });
 });
 
+describe('logToFrames with client records', () => {
+  const REC = [
+    '1790449245000000 ' + E + 'VIEW {"appearance":{}}',
+    '1790449245000001 ' + E + 'SIZE {"cols":120,"rows":40}',
+    '1790449245000002 ' + E + 'GMCP Char.Name {"name":"Rasta","fullname":"Rasta Fari"}',
+    '1790449245000003 You are hungry.',
+    '1790449245000004 ' + E + 'GMCP Group.Remove 3',
+    '1790449245000005 ' + E + 'GMCP Event.Moved',
+    '1790449245000006 ' + E + 'GMCPX not a gmcp record',
+    '1790449245000007 ' + E + 'GMCP',
+    '1790449245000008 ' + E + '[31mred line' + E + '[0m',
+    '',
+  ].join('\n');
+
+  it('turns GMCP records into subnegotiations after one WILL GMCP and skips other records', () => {
+    const gmcp: string[] = [];
+    const sink = new RecSink();
+    let will = 0;
+    const t = new Telnet({ sink, write: () => {}, onGmcp: (p) => gmcp.push(p), onGmcpEnabled: () => will++ });
+    t.forceUtf8();
+    for (const f of logToFrames(REC, { speed: 0 })) t.receive(f.bytes, 0);
+    expect(will).toBe(1);
+    expect(gmcp).toEqual(['Char.Name {"name":"Rasta","fullname":"Rasta Fari"}', 'Group.Remove 3', 'Event.Moved']);
+    expect(sink.out).toBe('You are hungry.\r\n' + E + '[31mred line' + E + '[0m\r\n');
+  });
+
+  it('keeps record timing like other lines', () => {
+    const frames = [...logToFrames(REC, { speed: 1, groupUs: 0 })];
+    expect(frames.length).toBeGreaterThan(3);
+    for (let i = 1; i < frames.length; i++) expect(frames[i]!.atMs).toBeGreaterThanOrEqual(frames[i - 1]!.atMs);
+  });
+
+  it('a recorded Char.Name takes a replay to playing; every state carries replay', async () => {
+    const bus = new Bus();
+    const states: BusEvents['conn.state'][] = [];
+    const raw: BusEvents['gmcp.raw'][] = [];
+    bus.on('conn.state', (p) => states.push(p));
+    bus.on('gmcp.raw', (p) => raw.push(p));
+    const s = new Session({ bus, sink: new RecSink() });
+    const done = new Promise<void>((res) => bus.on('conn.state', (p) => p.state === 'disconnected' && res()));
+    s.connect(new ReplaySocket(REC, { speed: 0 }));
+    await done;
+    expect(states.map((x) => x.state)).toEqual(['connecting', 'login', 'playing', 'disconnected']);
+    expect(states.every((x) => x.replay === true)).toBe(true);
+    expect(s.isReplay).toBe(true);
+    expect(raw.map((r) => r.pkg)).toEqual(['Char.Name', 'Group.Remove', 'Event.Moved']);
+    expect(typeof raw[0]!.ts).toBe('number');
+  });
+});
+
 describe('ReplaySocket through Session', () => {
   it('replays to the sink, reaches playing with charName, and finishes', async () => {
     const bus = new Bus();
