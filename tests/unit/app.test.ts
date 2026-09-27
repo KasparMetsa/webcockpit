@@ -5,6 +5,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { App } from '../../src/app/app';
+import { formatStatus } from '../../src/app/status';
 import type { LockManagerLike } from '../../src/capture/recorder';
 import { CaptureStore } from '../../src/capture/store';
 import { DEFAULT_GMCP_MODULES } from '../../src/net/gmcp';
@@ -96,14 +97,15 @@ describe('App wiring against MUME opening bytes', () => {
     const after = t.sentText(sock).slice(before.length);
     expect(after).toContain('change width all 500\r\n');
     expect(after).toContain('change width table terminal\r\n');
-    expect(app.status.text).toContain('playing · Rasta');
+    expect(formatStatus(app.status.get())).toContain('playing · Rasta');
+    expect(app.el.dataset.status).toContain('playing · Rasta');
     expect(t.outputText()).toContain('[SYSTEM] Rasta logged in.');
     // Housekeeping commands are not echoed.
     expect(t.outputText().join('\n')).not.toContain('change width');
 
     await app.recorder.idle();
     expect(app.recorder.runId).toMatch(/^Rasta\//);
-    expect(app.status.text).toContain('capture: recording');
+    expect(app.status.get().capture).toBe('capture: recording');
 
     // A normal command is echoed, kept in history and captured.
     enter(app, 'look');
@@ -158,11 +160,11 @@ describe('App wiring against MUME opening bytes', () => {
     expect(app.input.getHistory()).toEqual(['#blah', '#HELP']);
   });
 
-  it('shows replay in the status line and does not capture a replay', async () => {
+  it('reports replay in the status and does not capture a replay', async () => {
     const t = setup();
     const { app } = t;
     app.startReplay('1790366274272195 \x1b[32mMain Passageway\x1b[0m\n1790366274272700 ![ S>\n', 'x.log', 0);
-    expect(app.status.text.startsWith(' replay')).toBe(true);
+    expect(formatStatus(app.status.get()).startsWith('replay')).toBe(true);
     await new Promise((r) => setTimeout(r, 50));
     expect(app.session.state).toBe('disconnected');
     const out = t.outputText();

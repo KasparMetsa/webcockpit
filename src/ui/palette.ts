@@ -1,14 +1,16 @@
 // Colour palette for the output pane (Inv §1.1, spec §2.3).
 //
-// - 0–15: Cockpit's "DOS palette". These are also exposed as CSS custom
-//   properties (`--wc-c0` … `--wc-c15`, see ui.css) and rendered with
-//   classes (`wc-f<n>` / `wc-b<n>`), so a theme can change them without
-//   touching the renderer.
+// - 0–15: the user's ANSI palette (default: Cockpit's "DOS palette",
+//   src/theme/presets.ts). Rendered with classes (`wc-f<n>` / `wc-b<n>`)
+//   that read the CSS custom properties `--ansi-0` … `--ansi-15`, which
+//   src/theme/apply.ts sets from the settings, so a palette change never
+//   touches the renderer or the rows already on screen.
 // - 16–255: the standard xterm 6×6×6 cube and 24-step grey ramp. Rendered
 //   as inline style (rare in MUME output).
 // - Truecolor (`TRUECOLOR | 0xRRGGBB`): inline style.
 
 import { type Color, isTrueColor } from '../core/types';
+import { DOS_PALETTE } from '../theme/presets';
 
 /**
  * Whether SGR bold turns colours 0–7 into their bright variant (8–15).
@@ -16,16 +18,6 @@ import { type Color, isTrueColor } from '../core/types';
  * weight only. Flip this single constant to change that.
  */
 export const BOLD_BRIGHTENS = false;
-
-/** Default foreground and background (Inv §1.1). */
-export const DEFAULT_FG = '#C0C0C0';
-export const DEFAULT_BG = '#000000';
-
-/** The DOS palette, indices 0–15 (normal 0–7, bright 8–15). */
-export const DOS_PALETTE: readonly string[] = [
-  '#000000', '#800000', '#008000', '#808000', '#000080', '#800080', '#008080', '#C0C0C0',
-  '#808080', '#FF0000', '#00FF00', '#FFFF00', '#0000FF', '#FF00FF', '#00FFFF', '#FFFFFF',
-];
 
 const CUBE_STEPS = [0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff];
 

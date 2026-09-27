@@ -1,0 +1,142 @@
+// @vitest-environment happy-dom
+import { describe, expect, it } from 'vitest';
+import { PANE_IDS } from '../../src/layout/types';
+import { defaultSettings, migrateSettings } from '../../src/settings';
+import { applyPaneTheme, applyTheme, paneTokens, rootTokens, shadeVar } from '../../src/theme/apply';
+import { CellMetrics, cellHeight, nominalCell } from '../../src/theme/cells';
+import { hslToHex, paneShades } from '../../src/theme/color';
+import { FONTS, fontPx } from '../../src/theme/fonts';
+
+describe('root tokens', () => {
+  it('covers the Inv §10.9 names', () => {
+    const t = rootTokens(defaultSettings());
+    expect(t['--term-fg']).toBe('#c0c0c0');
+    expect(t['--term-bg']).toBe('#000000');
+    for (let i = 0; i < 16; i++) expect(t[`--ansi-${i}`]).toMatch(/^#[0-9a-f]{6}$/);
+    expect(t['--ansi-1']).toBe('#800000');
+    expect(t['--c-title']).toBe('#00d7d7');
+    expect(t['--c-accent']).toBe('#ffaf00');
+    expect(t['--c-sel-bg']).toBe('#bcbcbc');
+    expect(t['--c-line-hl']).toBe('#1f1f1f');
+    expect(t['--star-bright']).toBe('#74e8e8');
+    expect(t['--ui-warn']).toBe('#ffb300');
+    expect(t['--pane-bg-red']).toBe('#1a0e0e');
+    expect(t['--pane-border-red']).toBe('#2e2222');
+    expect(t['--pane-bg-none']).toBe('#000000');
+    expect(t['--pane-border-none']).toBe('#292929');
+    expect(t['--font-mono']).toBe('"DejaVu Sans Mono", monospace');
+    expect(t['--pad']).toBe('0px');
+  });
+
+  it('applies to <html> with cursor and light attributes', () => {
+    const root = document.createElement('div');
+    const s = migrateSettings({
+      appearance: { bg: '#f4ecd8', cursorStyle: 'underline', cursorBlink: false, padding: 6, ansi: ['#010203'] },
+    });
+    applyTheme(s, root);
+    expect(root.style.getPropertyValue('--term-bg')).toBe('#f4ecd8');
+    expect(root.style.getPropertyValue('--ansi-0')).toBe('#010203');
+    expect(root.style.getPropertyValue('--pad')).toBe('6px');
+    expect(root.dataset.cursor).toBe('underline');
+    expect(root.dataset.cursorBlink).toBe('off');
+    expect(root.hasAttribute('data-light')).toBe(true);
+    applyTheme(defaultSettings(), root);
+    expect(root.hasAttribute('data-light')).toBe(false);
+    expect(root.dataset.cursor).toBe('beam');
+  });
+});
+
+describe('pane tokens', () => {
+  it('sets bg, border, seven shades and data-light, recomputed every call', () => {
+    const s = defaultSettings();
+    const t = paneTokens(s, 'timers');
+    expect(t['--pane-bg']).toBe('#1a0e0e');
+    expect(t['--pane-border']).toBe('#2e2222');
+    expect(Object.keys(t)).toHaveLength(9);
+    expect(t['--pane-shade-pane-bg']).toBe(paneShades('red', '#000000').paneBg);
+    expect(t['--pane-shade-dim']).toBe(hslToHex(2, 60, 27));
+    expect(shadeVar('paneBg')).toBe('--pane-shade-pane-bg');
+
+    const el = document.createElement('div');
+    applyPaneTheme(el, s, 'character');
+    expect(el.style.getPropertyValue('--pane-border')).toBe('#292929');
+    expect(el.hasAttribute('data-light')).toBe(false);
+    const paper = migrateSettings({ appearance: { bg: '#f4ecd8' } });
+    applyPaneTheme(el, paper, 'character');
+    expect(el.hasAttribute('data-light')).toBe(true);
+    expect(el.style.getPropertyValue('--pane-bg')).toBe('#f4ecd8');
+    applyPaneTheme(el, paper, 'timers');
+    expect(el.hasAttribute('data-light')).toBe(false);
+    for (const id of PANE_IDS) expect(Object.keys(paneTokens(s, id))).toHaveLength(9);
+  });
+});
+
+describe('cell metrics', () => {
+  it('snaps the font size to whole-pixel cells', () => {
+    expect(fontPx('dejavu', 15) * FONTS.dejavu.advanceEm).toBeCloseTo(9, 3);
+    expect(fontPx('dejavu', 16) * FONTS.dejavu.advanceEm).toBeCloseTo(10, 3);
+    expect(fontPx('jetbrains', 15)).toBe(15);
+    expect(fontPx('jetbrains', 20)).toBe(20);
+    expect(fontPx('jetbrains', 16)).toBe(16.6667);
+    for (let size = 6; size <= 32; size++) {
+      for (const f of ['dejavu', 'jetbrains'] as const) {
+        const px = fontPx(f, size);
+        expect(Math.abs(px - size)).toBeLessThanOrEqual(0.5 / FONTS[f].advanceEm + 1e-3);
+      }
+    }
+  });
+
+  it('cell height is the block ink height rounded down', () => {
+    const a = defaultSettings().appearance;
+    expect(cellHeight(a)).toBe(17); // 14.9489 px × 2433/2048 = 17.76
+    expect(cellHeight({ ...a, font: 'jetbrains' })).toBe(19); // 15 × 1.32 = 19.8
+    expect(nominalCell({ ...a, size: 16 })).toEqual({ w: 10, h: 19, px: 16.6099, ls: 0 });
+  });
+
+  it('publishes custom properties, re-measures after font load, notifies changes', async () => {
+    const root = document.createElement('div');
+    let loaded = false;
+    let release!: () => void;
+    const m = new CellMetrics({
+      root,
+      measure: (a) => ({ ...nominalCell(a), w: loaded ? nominalCell(a).w : 7.5 }),
+      loadFont: () =>
+        new Promise<void>((r) => {
+          release = () => {
+            loaded = true;
+            r();
+          };
+        }),
+    });
+    const seen: number[] = [];
+    m.subscribe((c) => seen.push(c.w));
+    const a = defaultSettings().appearance;
+    const p = m.update(a);
+    expect(root.style.getPropertyValue('--cell-w')).toBe('7.5px');
+    expect(root.style.getPropertyValue('--cell-h')).toBe('17px');
+    expect(root.style.getPropertyValue('--font-size')).toBe('14.9489px');
+    release();
+    await p;
+    expect(m.get()).toEqual({ w: 9, h: 17, px: 14.9489, ls: 0 });
+    expect(root.style.getPropertyValue('--cell-w')).toBe('9px');
+    expect(seen).toEqual([7.5, 9]);
+  });
+
+  it('a newer update supersedes a pending one', async () => {
+    const root = document.createElement('div');
+    const waits: Array<() => void> = [];
+    const m = new CellMetrics({
+      root,
+      measure: nominalCell,
+      loadFont: () => new Promise<void>((r) => waits.push(r)),
+    });
+    const a = defaultSettings().appearance;
+    const p1 = m.update({ ...a, size: 20 });
+    const p2 = m.update({ ...a, size: 10 });
+    waits[1]!();
+    await p2;
+    waits[0]!();
+    await p1;
+    expect(m.get().px).toBe(fontPx('dejavu', 10));
+  });
+});

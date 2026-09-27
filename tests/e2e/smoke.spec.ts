@@ -12,7 +12,7 @@ function watchErrors(page: Page): string[] {
 }
 
 const rows = (page: Page) => page.locator('.wc-rows .wc-row');
-const status = (page: Page) => page.locator('.wc-status');
+const app = (page: Page) => page.locator('.wc-app');
 const field = (page: Page) => page.locator('.wc-input-field');
 
 async function replayDone(page: Page, speed = 0): Promise<void> {
@@ -25,7 +25,7 @@ test('offline page loads, is cross-origin isolated and does not connect', async 
   await page.goto('/?replay');
   await expect(page.locator('.wc-app')).toBeVisible();
   await expect(rows(page).first()).toHaveText(/Offline replay mode/);
-  await expect(status(page)).toHaveText(/^\s*idle/);
+  await expect(app(page)).toHaveAttribute('data-status', /^idle/);
   expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
   await expect(field(page)).toBeFocused();
   expect(errors).toEqual([]);
@@ -60,10 +60,10 @@ test.describe('fixture replay', () => {
     expect(errors).toEqual([]);
   });
 
-  test('status line reads replay while replaying', async ({ page }) => {
+  test('status reads replay while replaying', async ({ page }) => {
     await page.goto(`/?fixture=${encodeURIComponent(fixture!.rel)}&speed=1`);
-    await expect(status(page)).toHaveText(/^\s*replay/);
-    await expect(status(page)).toHaveText(/capture: idle/);
+    await expect(app(page)).toHaveAttribute('data-status', /^replay/);
+    await expect(app(page)).toHaveAttribute('data-status', /capture: idle/);
   });
 
   test('input: recall state and history', async ({ page }) => {

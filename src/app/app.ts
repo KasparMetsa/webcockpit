@@ -1,17 +1,20 @@
-// Stage-1 application shell (spec §2.1, §2.2, stage file "Temporary
-// chrome"): wires the layers together and owns the built-in commands.
+// Application shell (spec §2.1, §2.2): wires the layers together and owns
+// the built-in commands.
 //
 //   socket → Session (telnet, GMCP, keep-alive) → LineAssembler → bus
-//   bus → OutputPane, StatusLine, Recorder
+//   bus → OutputPane, AppStatus, Recorder
 //   InputPane → built-in commands | Session.sendCommand
+//
+// `app.status` is the read-only status observable (connection, character,
+// Link, capture, XML) for the ESC menu header. Its text form is also kept
+// in `data-status` on the app element for the browser tests.
 //
 // Live vs replay
 // --------------
 // A replay (`#replay`, `?fixture=`) runs through the same Session with a
 // ReplaySocket. It is never captured: the replay socket is started without
 // a character name, so the session stays in `login` and the Recorder (which
-// starts only at `playing`) never records. The status line shows `replay`
-// instead of `login` meanwhile.
+// starts only at `playing`) never records. `status.replay` is true meanwhile.
 //
 // After a replay, or when the page was opened in an offline mode (`?replay`,
 // `?fixture=`, `?bench`), Enter on a closed connection does not connect to
@@ -25,8 +28,9 @@ import { ReplaySocket } from '../net/replay-socket';
 import { REASON_USER_RECONNECT, Session } from '../net/session';
 import { LineAssembler } from '../text/assembler';
 import { InputPane } from '../ui/input-pane';
+import type { CellMetrics } from '../theme/cells';
 import { OutputPane } from '../ui/output-pane';
-import { StatusLine } from '../ui/status-line';
+import { AppStatus, type AppStatusView, formatStatus } from './status';
 
 /** Reason used when a live or replay connection is closed to start a replay. */
 export const REASON_REPLAY_START = 'replay started';
@@ -57,12 +61,20 @@ export interface AppOptions {
   requestFrame?: (cb: () => void) => void;
   /** Start without a live connection path on Enter (`?replay`, `?fixture=`). */
   offline?: boolean;
+  /**
+   * Cell metrics (src/theme/cells.ts). The output pane measures NAWS with
+   * them and the input caret moves by their width. Default: each pane
+   * measures its own font.
+   */
+  cells?: CellMetrics;
 }
 
 export class App {
   readonly bus = new Bus();
   readonly el: HTMLDivElement;
-  readonly status: StatusLine;
+  /** Read-only status observable (connection, character, Link, capture, XML). */
+  readonly status: AppStatusView;
+  private readonly statusImpl: AppStatus;
   readonly assembler: LineAssembler;
   readonly session: Session;
   readonly output: OutputPane;
@@ -86,7 +98,13 @@ export class App {
     this.el.className = 'wc-app';
     opts.root.appendChild(this.el);
 
-    this.status = new StatusLine(bus, this.el);
+    this.statusImpl = new AppStatus(bus);
+    this.status = this.statusImpl;
+    this.el.dataset.status = formatStatus(this.status.get());
+    this.status.subscribe((st) => {
+      this.el.dataset.status = formatStatus(st);
+    });
+    const cells = opts.cells;
     this.assembler = new LineAssembler(bus);
     this.session = new Session({
       bus,
@@ -97,17 +115,23 @@ export class App {
       onResize: (cols, rows) => this.session.setWindowSize(cols, rows),
       onFocusInput: () => this.input.focus(),
       ...(opts.requestFrame ? { requestFrame: opts.requestFrame } : {}),
+      ...(cells ? { cellSize: () => cells.get() } : {}),
     });
     this.input = new InputPane(bus, this.el, {
       sender: this.session,
       output: this.output,
       onCommand: (text) => this.onCommand(text),
+      ...(cells ? { cellWidth: () => cells.get().w } : {}),
+    });
+    cells?.subscribe(() => {
+      this.output.remeasure();
+      this.input.scheduleCaret();
     });
     const recOpts = opts.recorder ?? {};
     this.recorder = new Recorder(bus, {
       ...recOpts,
       onStatus: (s) => {
-        this.status.setCapture(s);
+        this.statusImpl.set({ capture: s });
         recOpts.onStatus?.(s);
       },
     });
@@ -143,7 +167,7 @@ export class App {
     }
     this.replaying = false;
     this.offline = false;
-    this.status.setReplay(false);
+    this.statusImpl.set({ replay: false });
     this.session.connect();
   }
 
@@ -156,7 +180,7 @@ export class App {
     this.replaying = true;
     this.offline = true;
     this.replayLabel = `${label} (speed ${speed === 0 ? 'max' : speed})`;
-    this.status.setReplay(true);
+    this.statusImpl.set({ replay: true });
     this.session.connect(new ReplaySocket(logText, { speed }));
   }
 
@@ -181,7 +205,7 @@ export class App {
 
   private onDisconnected(reason: string): void {
     if (this.replaying) {
-      this.status.setReplay(false);
+      this.statusImpl.set({ replay: false });
       if (reason === REASON_REPLAY_START) return;
       if (reason === REASON_REPLAY_STOP) return this.sys('Replay stopped.');
       this.sys(reason === REASON_REPLAY_DONE ? 'Replay finished.' : `Replay stopped: ${reason}`);
@@ -228,7 +252,7 @@ export class App {
         if (this.replaying && this.isConnected) this.session.disconnect(REASON_REPLAY_STOP);
         this.replaying = false;
         this.offline = false;
-        this.status.setReplay(false);
+        this.statusImpl.set({ replay: false });
         this.session.reconnect();
         return;
       case '#runlog':

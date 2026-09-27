@@ -1,61 +1,57 @@
-/* WebCockpit stage-1 UI: output pane, input pane, status line.
+/* WebCockpit UI: page, output pane, input pane.
  * Import once from the app entry: `import './ui/ui.css'`.
- * All colours are tokens on :root so a theme (stage 2) can override them.
- * No smooth scrolling and no animation anywhere (intent Goal 1). */
+ * Every colour, the font and the cell size are custom properties on :root,
+ * set from the settings by src/theme/apply.ts and src/theme/cells.ts
+ * (names after Inv §10.9). Rows and the input are exactly one cell high
+ * (line-height = --cell-h) so box and block glyphs tile.
+ * No smooth scrolling; the only animations are the caret blink here and
+ * the banner stars (intent Goal 1, Inv §10.8). */
 
 :root {
-  --wc-fg: #c0c0c0;
-  --wc-bg: #000000;
-  --wc-font: "DejaVu Sans Mono", monospace;
-  --wc-font-size: 15px;
-  /* Integer pixel line height keeps the cell grid crisp. */
-  --wc-line-height: 18px;
-
-  /* TUI roles (Inv §10). */
-  --wc-hint: #585858;
-  --wc-yellow: #ffd75f;
-  --wc-err: #ff5f5f;
-  --wc-sys: var(--wc-yellow);
-
-  /* DOS palette (Inv §1.1). Keep in sync with DOS_PALETTE in palette.ts. */
-  --wc-c0: #000000;
-  --wc-c1: #800000;
-  --wc-c2: #008000;
-  --wc-c3: #808000;
-  --wc-c4: #000080;
-  --wc-c5: #800080;
-  --wc-c6: #008080;
-  --wc-c7: #c0c0c0;
-  --wc-c8: #808080;
-  --wc-c9: #ff0000;
-  --wc-c10: #00ff00;
-  --wc-c11: #ffff00;
-  --wc-c12: #0000ff;
-  --wc-c13: #ff00ff;
-  --wc-c14: #00ffff;
-  --wc-c15: #ffffff;
+  /* Fallbacks until src/theme applies the settings. */
+  --cell-h: 17px;
+  --cell-w: 9px;
+  --font-mono: "DejaVu Sans Mono", monospace;
+  --font-size: 15px;
+  --pad: 0px;
+  --cell-ls: 0px;
 }
 
 html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--wc-bg);
-  color: var(--wc-fg);
+  background: var(--term-bg, #000000);
+  color: var(--term-fg, #c0c0c0);
   scroll-behavior: auto;
 }
 
-/* Convenience stage-1 frame: status line, output, input stacked. */
+body {
+  box-sizing: border-box;
+  padding: var(--pad);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
+  font-variant-ligatures: none;
+  /* Corrects the advance to exactly --cell-w (src/theme/cells.ts). */
+  letter-spacing: var(--cell-ls);
+}
+
+#app {
+  height: 100%;
+}
+
+/* The cockpit: output over input (stage 2 package B adds the docks). */
 .wc-app {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background: var(--wc-bg);
-  color: var(--wc-fg);
-  font-family: var(--wc-font);
-  font-size: var(--wc-font-size);
-  line-height: var(--wc-line-height);
+  background: var(--term-bg);
+  color: var(--term-fg);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
 }
 
 /* ------------------------------------------------------------------ output */
@@ -66,9 +62,9 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  font-family: var(--wc-font);
-  font-size: var(--wc-font-size);
-  line-height: var(--wc-line-height);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
 }
 
 .wc-scroller {
@@ -89,15 +85,15 @@ body {
 .wc-row {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  min-height: var(--wc-line-height);
+  min-height: var(--cell-h);
 }
 
 .wc-sys {
-  color: var(--wc-sys);
+  color: var(--c-yellow);
 }
 
 .wc-echo {
-  color: var(--wc-fg);
+  color: var(--term-fg);
 }
 
 .wc-measure {
@@ -114,11 +110,11 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: var(--wc-line-height);
+  height: var(--cell-h);
   white-space: pre;
   overflow: hidden;
-  background: var(--wc-hint);
-  color: var(--wc-bg);
+  background: var(--c-hint);
+  color: var(--term-bg);
   pointer-events: none;
 }
 
@@ -129,46 +125,46 @@ body {
 .wc-output ::selection,
 .wc-input ::selection,
 .wc-input-field::selection {
-  background: var(--wc-fg);
-  color: var(--wc-bg);
+  background: var(--term-fg);
+  color: var(--term-bg);
 }
 
 /* Style runs. Palette 0–15 via classes; 16–255 and truecolor inline. */
-.wc-f0 { color: var(--wc-c0); }
-.wc-f1 { color: var(--wc-c1); }
-.wc-f2 { color: var(--wc-c2); }
-.wc-f3 { color: var(--wc-c3); }
-.wc-f4 { color: var(--wc-c4); }
-.wc-f5 { color: var(--wc-c5); }
-.wc-f6 { color: var(--wc-c6); }
-.wc-f7 { color: var(--wc-c7); }
-.wc-f8 { color: var(--wc-c8); }
-.wc-f9 { color: var(--wc-c9); }
-.wc-f10 { color: var(--wc-c10); }
-.wc-f11 { color: var(--wc-c11); }
-.wc-f12 { color: var(--wc-c12); }
-.wc-f13 { color: var(--wc-c13); }
-.wc-f14 { color: var(--wc-c14); }
-.wc-f15 { color: var(--wc-c15); }
-.wc-b0 { background: var(--wc-c0); }
-.wc-b1 { background: var(--wc-c1); }
-.wc-b2 { background: var(--wc-c2); }
-.wc-b3 { background: var(--wc-c3); }
-.wc-b4 { background: var(--wc-c4); }
-.wc-b5 { background: var(--wc-c5); }
-.wc-b6 { background: var(--wc-c6); }
-.wc-b7 { background: var(--wc-c7); }
-.wc-b8 { background: var(--wc-c8); }
-.wc-b9 { background: var(--wc-c9); }
-.wc-b10 { background: var(--wc-c10); }
-.wc-b11 { background: var(--wc-c11); }
-.wc-b12 { background: var(--wc-c12); }
-.wc-b13 { background: var(--wc-c13); }
-.wc-b14 { background: var(--wc-c14); }
-.wc-b15 { background: var(--wc-c15); }
+.wc-f0 { color: var(--ansi-0); }
+.wc-f1 { color: var(--ansi-1); }
+.wc-f2 { color: var(--ansi-2); }
+.wc-f3 { color: var(--ansi-3); }
+.wc-f4 { color: var(--ansi-4); }
+.wc-f5 { color: var(--ansi-5); }
+.wc-f6 { color: var(--ansi-6); }
+.wc-f7 { color: var(--ansi-7); }
+.wc-f8 { color: var(--ansi-8); }
+.wc-f9 { color: var(--ansi-9); }
+.wc-f10 { color: var(--ansi-10); }
+.wc-f11 { color: var(--ansi-11); }
+.wc-f12 { color: var(--ansi-12); }
+.wc-f13 { color: var(--ansi-13); }
+.wc-f14 { color: var(--ansi-14); }
+.wc-f15 { color: var(--ansi-15); }
+.wc-b0 { background: var(--ansi-0); }
+.wc-b1 { background: var(--ansi-1); }
+.wc-b2 { background: var(--ansi-2); }
+.wc-b3 { background: var(--ansi-3); }
+.wc-b4 { background: var(--ansi-4); }
+.wc-b5 { background: var(--ansi-5); }
+.wc-b6 { background: var(--ansi-6); }
+.wc-b7 { background: var(--ansi-7); }
+.wc-b8 { background: var(--ansi-8); }
+.wc-b9 { background: var(--ansi-9); }
+.wc-b10 { background: var(--ansi-10); }
+.wc-b11 { background: var(--ansi-11); }
+.wc-b12 { background: var(--ansi-12); }
+.wc-b13 { background: var(--ansi-13); }
+.wc-b14 { background: var(--ansi-14); }
+.wc-b15 { background: var(--ansi-15); }
 /* Inverse with a default colour: default bg as fg / default fg as bg. */
-.wc-fd { color: var(--wc-bg); }
-.wc-bd { background: var(--wc-fg); }
+.wc-fd { color: var(--term-bg); }
+.wc-bd { background: var(--term-fg); }
 .wc-bold { font-weight: bold; }
 .wc-ital { font-style: italic; }
 .wc-ul { text-decoration: underline; }
@@ -180,16 +176,16 @@ body {
 .wc-input {
   display: flex;
   flex: 0 0 auto;
-  height: var(--wc-line-height);
-  font-family: var(--wc-font);
-  font-size: var(--wc-font-size);
-  line-height: var(--wc-line-height);
+  height: var(--cell-h);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--cell-h);
   white-space: pre;
 }
 
 .wc-input-prompt {
-  flex: 0 0 2ch;
-  width: 2ch;
+  flex: 0 0 calc(2 * var(--cell-w));
+  width: calc(2 * var(--cell-w));
 }
 
 .wc-input-wrap {
@@ -201,17 +197,19 @@ body {
 .wc-input-field {
   box-sizing: border-box;
   width: 100%;
-  height: var(--wc-line-height);
+  height: var(--cell-h);
   margin: 0;
   padding: 0;
   border: 0;
   outline: none;
   border-radius: 0;
   background: transparent;
-  color: var(--wc-fg);
-  caret-color: var(--wc-fg);
+  color: var(--term-fg);
+  /* The native caret cannot be a block or underline: .wc-caret replaces it. */
+  caret-color: transparent;
   font: inherit;
-  line-height: var(--wc-line-height);
+  letter-spacing: inherit;
+  line-height: var(--cell-h);
 }
 
 /* Password mode: the real text is transparent, bullets are drawn over it. */
@@ -227,28 +225,80 @@ body {
   overflow: hidden;
   white-space: pre;
   pointer-events: none;
-  color: var(--wc-fg);
+  color: var(--term-fg);
 }
 
 .wc-input-mask[hidden] {
   display: none;
 }
 
-/* Reserved for the clock strip (stage 2): gutter + 5 cols + icon. */
+/* Reserved for the clock strip (stage 4): gutter + 5 cols + icon. */
 .wc-input-clock {
-  flex: 0 0 7ch;
-  width: 7ch;
+  flex: 0 0 calc(7 * var(--cell-w));
+  width: calc(7 * var(--cell-w));
 }
 
-/* ------------------------------------------------------------ status line */
-
-.wc-status {
-  flex: 0 0 auto;
-  height: var(--wc-line-height);
+/* Custom caret (src/ui/input-pane.ts). Positioned by JS with a translateX
+ * of column × --cell-w − scrollLeft; the style comes from <html>
+ * data-cursor / data-cursor-blink (src/theme/apply.ts). Block shows the
+ * character under it in the background colour; blurred, a block is hollow
+ * and beam/underline are hidden. */
+.wc-caret {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--cell-w);
+  height: var(--cell-h);
   overflow: hidden;
   white-space: pre;
-  color: var(--wc-hint);
-  font-family: var(--wc-font);
-  font-size: var(--wc-font-size);
-  line-height: var(--wc-line-height);
+  pointer-events: none;
+  background: var(--term-fg);
+  color: var(--term-bg);
+}
+
+.wc-caret[hidden] {
+  display: none;
+}
+
+:root:not([data-cursor="block"]) .wc-caret {
+  color: transparent;
+}
+
+:root:not([data-cursor="block"]):not([data-cursor="underline"]) .wc-caret {
+  width: max(1px, round(down, calc(var(--font-size) / 8), 1px));
+}
+
+:root[data-cursor="underline"] .wc-caret {
+  top: calc(var(--cell-h) - max(1px, round(down, calc(var(--font-size) / 8), 1px)));
+  height: max(1px, round(down, calc(var(--font-size) / 8), 1px));
+}
+
+.wc-caret.wc-blurred {
+  background: transparent;
+  color: var(--term-fg);
+  box-shadow: inset 0 0 0 1px var(--term-fg);
+}
+
+:root:not([data-cursor="block"]) .wc-caret.wc-blurred {
+  display: none;
+}
+
+/* Blink: steps, not a fade. Two identical keyframe sets so switching the
+ * name (on every caret move) restarts the cycle with the caret visible. */
+:root[data-cursor-blink="on"] .wc-caret:not(.wc-blurred) {
+  animation: wc-caret-a 1s steps(1, end) infinite;
+}
+
+:root[data-cursor-blink="on"] .wc-caret.wc-caret-b:not(.wc-blurred) {
+  animation-name: wc-caret-b;
+}
+
+@keyframes wc-caret-a {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes wc-caret-b {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
 }

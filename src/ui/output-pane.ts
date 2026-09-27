@@ -68,6 +68,11 @@ export interface OutputPaneOptions {
   requestFrame?: (cb: () => void) => void;
   /** Clipboard writer; injectable for tests. */
   writeClipboard?: (text: string) => Promise<void>;
+  /**
+   * The cell size in px (src/theme/cells.ts). Default: measured from the
+   * pane's own font. Call `remeasure()` when it changes.
+   */
+  cellSize?: () => { w: number; h: number };
 }
 
 export class OutputPane {
@@ -86,6 +91,7 @@ export class OutputPane {
   private readonly writeClipboard: (text: string) => Promise<void>;
   private readonly onFocusInput: (() => void) | undefined;
   private readonly onResize: ((cols: number, rows: number) => void) | undefined;
+  private readonly cellSizeFn: (() => { w: number; h: number }) | undefined;
 
   private queue: Op[] = [];
   private head = 0;
@@ -119,6 +125,7 @@ export class OutputPane {
       opts.writeClipboard ?? ((text) => navigator.clipboard.writeText(text));
     this.onFocusInput = opts.onFocusInput;
     this.onResize = opts.onResize;
+    this.cellSizeFn = opts.cellSize;
 
     const doc = root.ownerDocument;
     this.el = doc.createElement('div');
@@ -435,8 +442,14 @@ export class OutputPane {
   // ------------------------------------------------------------------ cells
 
   private cellSize(): { w: number; h: number } {
+    if (this.cellSizeFn) return this.cellSizeFn();
     const r = this.measurer.getBoundingClientRect();
     return { w: r.width / 10, h: r.height };
+  }
+
+  /** Re-measures after a font or cell size change; reports a new size (NAWS). */
+  remeasure(): void {
+    this.handleResize();
   }
 
   /** The pane size in character cells (0×0 when not laid out). */

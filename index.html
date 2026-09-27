@@ -5,10 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebCockpit</title>
     <style>
-      html, body { margin: 0; height: 100%; background: #000000; color: #C0C0C0; }
-      body { font: 15px "DejaVu Sans Mono", monospace; }
+      html, body { margin: 0; height: 100%; background: var(--term-bg, #000000); color: var(--term-fg, #c0c0c0); }
       #app { height: 100%; }
     </style>
+    <script>
+      // First paint in the saved colours (src/settings/store.ts MIRROR_KEY);
+      // src/main.ts applies the full theme.
+      try {
+        if (!/[?&]safe(=|&|$)/.test(location.search)) {
+          var a = JSON.parse(localStorage.getItem('webcockpit.appearance') || '{}');
+          var hex = /^#[0-9a-f]{6}$/i, st = document.documentElement.style;
+          if (hex.test(a.bg)) st.setProperty('--term-bg', a.bg);
+          if (hex.test(a.fg)) st.setProperty('--term-fg', a.fg);
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

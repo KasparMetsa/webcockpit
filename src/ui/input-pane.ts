@@ -14,6 +14,13 @@
 //   it. Chrome and Firefox close the tab on Ctrl+W before the page gets the
 //   key in a normal tab; it only works in an installed-app/popup window.
 //   Alt+Backspace does the same and always works.
+// - Custom caret (ADR 0010, ADR 0011): the native caret is transparent and
+//   a `.wc-caret` element is drawn at column × cell width − scrollLeft, so
+//   it can be a block, beam or underline (CSS reads <html data-cursor>).
+//   Its position is updated in an animation frame after input, selection
+//   and focus changes, never synchronously in a key handler, so the
+//   Enter → send path does no extra work. It is hidden while a range is
+//   selected (like the native caret) and hollow/hidden while blurred.
 
 import type { Bus } from '../core/bus';
 import type { Sender } from '../core/types';
@@ -34,6 +41,10 @@ export interface InputPaneOptions {
   onCommand?: (text: string) => boolean;
   /** ESC when the output is not scrolled (the menu, stage 2). */
   onEscape?: () => void;
+  /** Cell width in px for the caret (default: measured from the pane). */
+  cellWidth?: () => number;
+  /** Frame scheduler for caret updates (default requestAnimationFrame). */
+  requestFrame?: (cb: () => void) => void;
 }
 
 const BULLET = '•';
@@ -84,7 +95,15 @@ export class InputPane {
   readonly el: HTMLDivElement;
   readonly input: HTMLInputElement;
   private readonly mask: HTMLSpanElement;
+  /** The custom caret element. */
+  readonly caretEl: HTMLSpanElement;
   private readonly doc: Document;
+  private readonly requestFrame: (cb: () => void) => void;
+  private caretScheduled = false;
+  private caretX = NaN;
+  private caretText = '';
+  private caretPhase = false;
+  private measurer: HTMLSpanElement | null = null;
   private readonly opts: InputPaneOptions;
 
   /** History, oldest first. In memory only (Inv §1.2). */
@@ -103,6 +122,13 @@ export class InputPane {
   constructor(bus: Bus, root: HTMLElement, opts: InputPaneOptions) {
     this.opts = opts;
     this.doc = root.ownerDocument;
+    this.requestFrame =
+      opts.requestFrame ??
+      ((cb) => {
+        const win = this.doc.defaultView;
+        if (win?.requestAnimationFrame) win.requestAnimationFrame(() => cb());
+        else setTimeout(cb, 16);
+      });
     const doc = this.doc;
 
     this.el = doc.createElement('div');
@@ -125,7 +151,11 @@ export class InputPane {
     this.mask = doc.createElement('span');
     this.mask.className = 'wc-input-mask';
     this.mask.hidden = true;
-    wrap.append(this.input, this.mask);
+    this.caretEl = doc.createElement('span');
+    this.caretEl.className = 'wc-caret';
+    this.caretEl.setAttribute('aria-hidden', 'true');
+    this.caretEl.hidden = true;
+    wrap.append(this.input, this.mask, this.caretEl);
     const clock = doc.createElement('span');
     clock.className = 'wc-input-clock';
     this.el.append(prompt, wrap, clock);
@@ -135,6 +165,11 @@ export class InputPane {
     this.input.addEventListener('paste', this.onPaste);
     this.input.addEventListener('copy', this.onCopyCut);
     this.input.addEventListener('cut', this.onCopyCut);
+    this.input.addEventListener('focus', this.scheduleCaret);
+    this.input.addEventListener('blur', this.scheduleCaret);
+    this.input.addEventListener('scroll', this.scheduleCaret);
+    this.input.addEventListener('select', this.scheduleCaret);
+    doc.addEventListener('selectionchange', this.onSelectionChange);
     doc.addEventListener('keydown', this.onKeyDown, true);
     doc.addEventListener('mouseup', this.onDocMouseUp);
     doc.defaultView?.addEventListener('focus', this.onWindowFocus);
@@ -177,6 +212,7 @@ export class InputPane {
       this.endBrowsing();
     }
     this.updateMask();
+    this.scheduleCaret();
   }
 
   isPasswordMode(): boolean {
@@ -197,6 +233,7 @@ export class InputPane {
     for (const u of this.unsubs) u();
     this.setLeaveGuard(false);
     this.doc.removeEventListener('keydown', this.onKeyDown, true);
+    this.doc.removeEventListener('selectionchange', this.onSelectionChange);
     this.doc.removeEventListener('mouseup', this.onDocMouseUp);
     this.doc.defaultView?.removeEventListener('focus', this.onWindowFocus);
     this.el.remove();
@@ -238,6 +275,7 @@ export class InputPane {
   private show(text: string): void {
     this.input.value = text;
     this.input.setSelectionRange(0, text.length);
+    this.scheduleCaret();
   }
 
   /** Up: one older history entry (Inv §1.2). */
@@ -307,6 +345,9 @@ export class InputPane {
       this.input.focus({ preventScroll: true });
     }
     if (this.handleKey(e)) e.preventDefault();
+    // After the key's work (and any send); the default action moves the
+    // selection later and fires selectionchange, which schedules again.
+    this.scheduleCaret();
   };
 
   /** Handles a key; returns true when it consumed it. */
@@ -431,6 +472,7 @@ export class InputPane {
   private afterEdit(): void {
     this.endBrowsing();
     this.updateMask();
+    this.scheduleCaret();
   }
 
   private readonly onInput = (): void => {
@@ -468,6 +510,76 @@ export class InputPane {
   private readonly onWindowFocus = (): void => {
     this.focus();
   };
+
+  // ------------------------------------------------------------------ caret
+
+  private readonly onSelectionChange = (): void => {
+    if (this.doc.activeElement === this.input) this.scheduleCaret();
+  };
+
+  /** Updates the caret in the next animation frame (coalesced). */
+  readonly scheduleCaret = (): void => {
+    if (this.caretScheduled) return;
+    this.caretScheduled = true;
+    this.requestFrame(() => {
+      this.caretScheduled = false;
+      this.updateCaret();
+    });
+  };
+
+  private cellWidth(): number {
+    const w = this.opts.cellWidth?.();
+    if (w && w > 0) return w;
+    // Fallback: measure the pane's own font once per call site.
+    if (!this.measurer) {
+      this.measurer = this.doc.createElement('span');
+      this.measurer.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;left:0;top:0';
+      this.measurer.textContent = 'MMMMMMMMMM';
+      this.el.appendChild(this.measurer);
+    }
+    return this.measurer.getBoundingClientRect().width / 10;
+  }
+
+  /**
+   * Positions the caret now: hidden while a range is selected, hollow
+   * (block) or hidden (beam/underline) while the input is blurred.
+   */
+  updateCaret(): void {
+    const i = this.input;
+    const c = this.caretEl;
+    const start = i.selectionStart ?? 0;
+    const end = i.selectionEnd ?? 0;
+    const scroll = i.scrollLeft;
+    if (this.password) this.mask.style.transform = scroll ? `translateX(${-scroll}px)` : '';
+    if (start !== end) {
+      c.hidden = true;
+      return;
+    }
+    const v = i.value;
+    // Columns count code points, so a surrogate pair is one cell.
+    const before = v.slice(0, start);
+    let col = before.length;
+    for (let k = 0; k < before.length; k++) {
+      const cc = before.charCodeAt(k);
+      if (cc >= 0xd800 && cc <= 0xdbff) col--;
+    }
+    const x = col * this.cellWidth() - scroll;
+    const cp = v.codePointAt(start);
+    const ch = cp === undefined ? ' ' : this.password ? BULLET : String.fromCodePoint(cp);
+    c.classList.toggle('wc-blurred', this.doc.activeElement !== i);
+    if (x !== this.caretX) {
+      this.caretX = x;
+      c.style.transform = `translateX(${x}px)`;
+      // Restart the blink so the caret is visible right after it moves.
+      this.caretPhase = !this.caretPhase;
+      c.classList.toggle('wc-caret-b', this.caretPhase);
+    }
+    if (ch !== this.caretText) {
+      this.caretText = ch;
+      c.textContent = ch;
+    }
+    c.hidden = false;
+  }
 
   private readonly onBeforeUnload = (e: BeforeUnloadEvent): void => {
     e.preventDefault();

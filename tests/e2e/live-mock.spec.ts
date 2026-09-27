@@ -26,9 +26,9 @@ test('connects, logs in, and masks the password', async ({ page }) => {
   const sentText = () => Buffer.concat(received).toString('latin1');
 
   await page.goto('/');
-  const status = page.locator('.wc-status');
+  const status = page.locator('.wc-app');
   const rows = page.locator('.wc-rows .wc-row');
-  await expect(status).toHaveText(/^\s*login/);
+  await expect(status).toHaveAttribute('data-status', /^login/);
   await expect(rows.filter({ hasText: '[SYSTEM] Connected.' })).toHaveCount(1);
   await expect(page.locator('.wc-partial')).toHaveText(/By what name/);
   expect(protocols).toEqual(['binary']);
@@ -57,15 +57,15 @@ test('reaches playing on Char.Name and sends the width commands', async ({ page 
   });
   const sentText = () => Buffer.concat(received).toString('latin1');
   await page.goto('/');
-  await expect(page.locator('.wc-status')).toHaveText(/^\s*login/);
+  await expect(page.locator('.wc-app')).toHaveAttribute('data-status', /^login/);
   await expect.poll(sentText).toContain('Core.Hello');
   server!.send(gmcp('Char.Name {"name":"Tester","fullname":"Tester the Mock"}'));
-  await expect(page.locator('.wc-status')).toHaveText(/^\s*playing · Tester/);
+  await expect(page.locator('.wc-app')).toHaveAttribute('data-status', /^playing · Tester/);
   await expect(page.locator('.wc-rows .wc-row').filter({ hasText: '[SYSTEM] Tester logged in.' })).toHaveCount(1);
   await expect.poll(sentText).toContain('change width all 500\r\n');
 
   await page.keyboard.type('#disconnect');
   await page.keyboard.press('Enter');
-  await expect(page.locator('.wc-status')).toHaveText(/^\s*disconnected/);
+  await expect(page.locator('.wc-app')).toHaveAttribute('data-status', /^disconnected/);
   await expect(page.locator('.wc-rows .wc-row').last()).toHaveText('[SYSTEM] Press Enter to reconnect.');
 });

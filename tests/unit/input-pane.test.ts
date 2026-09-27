@@ -10,7 +10,7 @@ import {
   wordEndAfter,
   wordStartBefore,
 } from '../../src/ui/input-pane';
-import { StatusLine, formatLink } from '../../src/ui/status-line';
+import { AppStatus, formatLink, formatStatus } from '../../src/app/status';
 
 function setup(onCommand?: (t: string) => boolean) {
   document.body.innerHTML = '';
@@ -297,21 +297,134 @@ describe('InputPane keys', () => {
   });
 });
 
-describe('StatusLine', () => {
-  it('shows state, name, link, xml and capture', () => {
-    document.body.innerHTML = '';
+describe('AppStatus', () => {
+  it('tracks state, name, link, xml and capture', () => {
     const bus = new Bus();
-    const s = new StatusLine(bus, document.body);
-    expect(s.text).toBe(' idle · Link: — · XML: off');
+    const s = new AppStatus(bus);
+    const seen: string[] = [];
+    s.subscribe((st) => seen.push(st.conn));
+    expect(formatStatus(s.get())).toBe('idle · Link: — · XML: off');
     bus.emit('conn.state', { state: 'playing', prev: 'login' });
     bus.emit('gmcp', { pkg: 'Char.Name', data: { name: 'Rasta', fullname: 'Rasta Fari' } });
     bus.emit('link.rtt', { ms: 38.4, last: 38.4, suspect: false });
     bus.emit('xml.seen', undefined);
-    s.setCapture('capture: recording');
-    expect(s.text).toBe(' playing · Rasta · Link: 38ms · XML: on · capture: recording');
+    bus.emit('xml.seen', undefined);
+    s.set({ capture: 'capture: recording' });
+    expect(s.get()).toMatchObject({ conn: 'playing', character: 'Rasta', linkMs: 38.4, xml: true });
+    expect(formatStatus(s.get())).toBe('playing · Rasta · Link: 38ms · XML: on · capture: recording');
+    expect(seen).toHaveLength(5);
     bus.emit('conn.state', { state: 'connecting', prev: 'disconnected' });
-    expect(s.text).toContain('XML: off');
+    expect(s.get()).toMatchObject({ xml: false, linkMs: null });
+    s.set({ replay: true });
+    expect(formatStatus(s.get()).startsWith('replay ·')).toBe(true);
+    expect(Object.isFrozen(s.get())).toBe(true);
     expect(formatLink(40, true)).toBe('Link: 40ms?');
     expect(formatLink(null, true)).toBe('Link: —');
+  });
+});
+
+describe('InputPane custom caret', () => {
+  function caretSetup() {
+    document.body.innerHTML = '';
+    const bus = new Bus();
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const sent: string[] = [];
+    const frames: Array<() => void> = [];
+    const sender: Sender = { sendCommand: (text) => sent.push(text), sendGmcp: () => {} };
+    const pane = new InputPane(bus, root, {
+      sender,
+      cellWidth: () => 10,
+      requestFrame: (cb) => frames.push(cb),
+    });
+    pane.focus();
+    const i = pane.input;
+    const c = pane.caretEl;
+    const run = () => {
+      while (frames.length) frames.shift()!();
+    };
+    const type = (s: string) => {
+      i.value = s;
+      i.setSelectionRange(s.length, s.length);
+      i.dispatchEvent(new Event('input'));
+    };
+    return { bus, pane, i, c, frames, run, type, sent };
+  }
+
+  it('sits at column × cell width and shows the character under it', () => {
+    const t = caretSetup();
+    t.type('look');
+    t.run();
+    expect(t.c.hidden).toBe(false);
+    expect(t.c.style.transform).toBe('translateX(40px)');
+    expect(t.c.textContent).toBe(' ');
+    t.i.setSelectionRange(1, 1);
+    t.pane.scheduleCaret();
+    t.run();
+    expect(t.c.style.transform).toBe('translateX(10px)');
+    expect(t.c.textContent).toBe('o');
+  });
+
+  it('follows horizontal scroll and counts a surrogate pair as one cell', () => {
+    const t = caretSetup();
+    t.type('a😀b');
+    Object.defineProperty(t.i, 'scrollLeft', { configurable: true, get: () => 5 });
+    t.pane.updateCaret();
+    expect(t.c.style.transform).toBe('translateX(25px)');
+  });
+
+  it('hides for a selection, is hollow when blurred', () => {
+    const t = caretSetup();
+    t.type('look');
+    t.i.setSelectionRange(0, 4);
+    t.pane.updateCaret();
+    expect(t.c.hidden).toBe(true);
+    t.i.setSelectionRange(4, 4);
+    t.pane.updateCaret();
+    expect(t.c.hidden).toBe(false);
+    expect(t.c.classList.contains('wc-blurred')).toBe(false);
+    t.i.blur();
+    t.run();
+    expect(t.c.classList.contains('wc-blurred')).toBe(true);
+    t.pane.focus();
+    t.run();
+    expect(t.c.classList.contains('wc-blurred')).toBe(false);
+  });
+
+  it('shows a bullet under the caret while masked', () => {
+    const t = caretSetup();
+    t.pane.setPasswordMode(true);
+    t.type('secret');
+    t.i.setSelectionRange(2, 2);
+    t.pane.updateCaret();
+    expect(t.c.textContent).toBe('•');
+    expect(t.c.style.transform).toBe('translateX(20px)');
+  });
+
+  it('restarts the blink when it moves', () => {
+    const t = caretSetup();
+    t.type('a');
+    t.run();
+    const phase = t.c.classList.contains('wc-caret-b');
+    t.type('ab');
+    t.run();
+    expect(t.c.classList.contains('wc-caret-b')).toBe(!phase);
+  });
+
+  it('does no caret work on the Enter → send path', () => {
+    const t = caretSetup();
+    t.type('look');
+    t.run();
+    const before = t.c.style.transform;
+    const spy = vi.spyOn(t.pane, 'updateCaret');
+    t.i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(t.sent).toEqual(['look']);
+    expect(spy).not.toHaveBeenCalled();
+    expect(t.c.style.transform).toBe(before);
+    expect(t.frames.length).toBe(1);
+    t.run();
+    expect(spy).toHaveBeenCalledTimes(1);
+    // Recall state: the whole line is selected, so the caret hides.
+    expect(t.c.hidden).toBe(true);
   });
 });
