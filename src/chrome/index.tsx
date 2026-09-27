@@ -5,6 +5,7 @@
 //
 //   const chrome = await import('../chrome');
 //   const start = chrome.mountStartPage(host, services, { onEnter });
+//   start.hide(); …; start.show({ keep: true });   // back where it was
 //   const menu = chrome.mountEscMenu(host, services, { status, close, reconnect, exit });
 //   menu.open({ preselect: 'reconnect' });
 
@@ -28,9 +29,19 @@ export interface StartPageOptions {
   onEnter: () => void;
 }
 
+export interface StartPageShowOptions {
+  /**
+   * Show the frame stack as it was when hidden (the log player returning
+   * to History, ADR 0018) instead of a fresh one on the main frame. The
+   * frames were never unmounted, so they keep their state (cursor, filter,
+   * sort, scroll); the top frame gets its keys and focus back.
+   */
+  keep?: boolean;
+}
+
 export interface StartPageHandle {
-  /** Shows the start page on its main frame (a fresh frame stack). */
-  show(): void;
+  /** Shows the start page: on its main frame (a fresh frame stack), or as it was with `keep`. */
+  show(opts?: StartPageShowOptions): void;
   hide(): void;
   readonly visible: boolean;
   dispose(): void;
@@ -104,9 +115,9 @@ export function mountStartPage(host: HTMLElement, services: ChromeServices, opts
       host,
     );
   return {
-    show() {
+    show(o = {}) {
       visible = true;
-      epoch++;
+      if (!o.keep) epoch++;
       draw();
     },
     hide() {

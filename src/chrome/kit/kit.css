@@ -76,6 +76,43 @@
 .wc-c-ok { color: var(--c-ok); font-weight: bold; }
 .wc-c-quote { color: var(--c-quote); font-style: italic; }
 .wc-c-quote-attr { color: var(--c-quote-attr); }
+.wc-c-header { color: var(--c-header); font-weight: bold; }
+
+/* Statistics / History data colours (Inv §7.3, presets.ts STATS_COLORS). */
+.wc-st-value { color: var(--st-value); }
+.wc-st-label { color: var(--st-label); }
+.wc-st-gained { color: var(--st-gained); }
+.wc-st-loss { color: var(--st-loss); }
+.wc-st-tp { color: var(--st-tp); }
+.wc-st-track { color: var(--st-track); }
+.wc-st-thumb { color: var(--st-thumb); }
+.wc-st-total { color: var(--st-total); font-weight: bold; }
+.wc-st-arrow { color: var(--st-arrow); }
+.wc-st-hint { color: var(--st-hint); }
+.wc-st-pvp { color: var(--st-pvp); }
+.wc-st-ally { color: var(--st-ally); }
+.wc-st-star { color: var(--st-star); }
+
+/* Statistics tables: the title labels sort, the scrollbar cells jump. */
+.wc-stat-sort,
+.wc-stat-bar {
+  cursor: pointer;
+}
+
+.wc-stat-sort:hover {
+  color: var(--c-hover);
+}
+
+/* Star pickers (Rate, Exit). */
+.wc-star-btn {
+  cursor: pointer;
+}
+
+/* History filter pill arrows. */
+.wc-pill-arrow {
+  color: var(--c-body);
+  cursor: pointer;
+}
 
 /* Menu rows: `<< label >>`. */
 .wc-mrow {
@@ -144,6 +181,14 @@
 .wc-btn.is-sel-focus:hover {
   color: var(--c-sel-fg);
   background: var(--c-focus-bg);
+}
+
+.wc-btn.is-dim:not(.is-sel):not(.is-sel-focus) {
+  color: var(--c-hint);
+}
+
+.wc-btn.is-dim:not(.is-sel):not(.is-sel-focus):hover {
+  color: var(--c-body);
 }
 
 .wc-btn.is-disabled,

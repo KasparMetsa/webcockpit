@@ -224,6 +224,7 @@ export class Shell {
       profiles: this.profiles,
       version: CLIENT_VERSION,
       onProfileSaved: (name) => this.appRef?.ui('system', `Profile {${uiValue(name)}} saved.`),
+      runs: () => this.runLibrary(),
     };
   }
 
@@ -256,6 +257,7 @@ export class Shell {
       exit: () => void this.exitSession(),
       liveApply: (text) => app.applyProfile(text),
       flushWriteBack: () => app.flushWriteBack(),
+      runs: app.runs,
     });
     return this.menu;
   }
