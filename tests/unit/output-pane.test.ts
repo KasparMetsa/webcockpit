@@ -231,15 +231,28 @@ describe('OutputPane command echo', () => {
     expect(t.rows()).toEqual(['You are hungry.', 'eat bread']);
   });
 
-  it('skips empty, secret, echo:false and replayed commands', () => {
+  it('skips empty, secret, echo:false and replayed width commands', () => {
     const t = setup();
     t.bus.emit('text.line', line('oO>', true));
-    t.bus.emit('cmd.sent', { text: 'from a replayed log', ts: 0, replay: true });
+    t.bus.emit('cmd.sent', { text: 'change width all 500', ts: 0, replay: true });
+    t.bus.emit('cmd.sent', { text: '', ts: 0, replay: true });
     t.bus.emit('cmd.sent', { text: '', ts: 0 });
     t.bus.emit('cmd.sent', { text: '', ts: 0, secret: true });
     t.bus.emit('cmd.sent', { text: 'change width all 500', ts: 0, echo: false } as never);
     t.runFrames();
     expect(t.rows()).toEqual(['oO>']);
+  });
+});
+
+describe('OutputPane replayed commands (ADR 0018)', () => {
+  it('echoes a replayed command as a live one', () => {
+    const t = setup();
+    t.bus.emit('text.line', line('oO>', true));
+    t.bus.emit('cmd.sent', { text: 'kill orc', ts: 0, replay: true });
+    t.bus.emit('text.line', line('You are hungry.'));
+    t.bus.emit('cmd.sent', { text: 'eat bread', ts: 0, replay: true });
+    t.runFrames();
+    expect(t.rows()).toEqual(['oO> kill orc', 'You are hungry.', 'eat bread']);
   });
 });
 

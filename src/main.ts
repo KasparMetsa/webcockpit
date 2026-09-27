@@ -5,6 +5,12 @@
 //   ?fixture=<rel>&speed=n  dev server only: replay a fixture log from
 //                           $WEBCOCKPIT_FIXTURES (see vite.config.ts)
 //   ?bench                  offline, exposes window.__wcBench (bench/)
+//   ?player=<rel>[&session=<id>]
+//                           dev server only: restore a runs backup fixture
+//                           (e.g. runs-demo.jsonl.gz) into IndexedDB if its
+//                           runs are missing, then open the log player on
+//                           the session `id` (default: the newest session
+//                           with more than one run, else the newest)
 //   ?safe                   default appearance, not saved until changed
 //                           (a way back from a setting that breaks the page)
 //
@@ -63,9 +69,13 @@ if (import.meta.env.DEV) {
     cells,
     shell,
     runs: () => shell.runLibrary(),
+    openPlayer: (id) => openPlayerSession(id),
+    openPlayerLogs: (rels, character) => openPlayerLogs(rels, character),
   };
 }
 await shell.boot();
+const playerFixture = import.meta.env.DEV ? params.get('player') : null;
+if (playerFixture !== null) void openPlayerFixture(playerFixture, params.get('session'));
 
 const app = shell.app;
 if (app) {
@@ -91,6 +101,54 @@ async function loadFixture(app: App, rel: string, speed: number): Promise<void> 
   }
 }
 
+/** Dev: opens the log player on the stored session `id` (or the default pick). */
+async function openPlayerSession(id?: string | null): Promise<boolean> {
+  const lib = await shell.runLibrary();
+  const list = await lib.listSessions(Date.now() * 1000);
+  const s = id ? list.find((x) => x.id === id) : (list.find((x) => x.runs.length > 1) ?? list[0]);
+  if (!s) return false;
+  await shell.openPlayer(s);
+  return shell.playerHost !== null;
+}
+
+/** Dev (`?player=`): restores a backup fixture, then opens a session from it. */
+async function openPlayerFixture(rel: string, id: string | null): Promise<void> {
+  try {
+    const res = await fetch(`/__fixtures/${rel.split('/').map(encodeURIComponent).join('/')}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await (await shell.runLibrary()).restore(await res.blob());
+    if (!(await openPlayerSession(id))) console.warn(`WebCockpit: no session to play in ${rel}`);
+  } catch (err) {
+    console.error(`WebCockpit: player fixture ${rel} could not be opened`, err);
+  }
+}
+
+/**
+ * Dev: opens the player on raw `.log` fixtures (one run each, e.g. the
+ * Cockpit logs under $WEBCOCKPIT_FIXTURES) without storing them. Returns
+ * the load and parse time in ms.
+ */
+async function openPlayerLogs(rels: string[], character = 'Replay'): Promise<number> {
+  const t0 = performance.now();
+  const texts = await Promise.all(
+    rels.map(async (rel) => {
+      const res = await fetch(`/__fixtures/${rel.split('/').map(encodeURIComponent).join('/')}`);
+      if (!res.ok) throw new Error(`${rel}: HTTP ${res.status}`);
+      return res.text();
+    }),
+  );
+  const chain = texts.map((text, i) => {
+    const m = /^(\d{16}) /.exec(text);
+    const us = m ? Number(m[1]) : Date.now() * 1000;
+    return {
+      meta: { runId: `${character}/${i}`, character, startedUs: us, endedUs: null, sealed: true, bytes: text.length, lines: 0 },
+      text,
+    };
+  });
+  await shell.openPlayerChain(chain, [], { character });
+  return performance.now() - t0;
+}
+
 declare global {
   interface Window {
     /** Dev server only: handles for the browser tests and the console. */
@@ -101,6 +159,10 @@ declare global {
       shell: Shell;
       /** The run library (e2e: `restore` a backup such as the runs demo). */
       runs: () => Promise<import('./runs/library').RunLibrary>;
+      /** Opens the log player on a stored session (default pick without `id`); true when open. */
+      openPlayer: (id?: string | null) => Promise<boolean>;
+      /** Opens the log player on raw `.log` fixtures (not stored); resolves to the load time, ms. */
+      openPlayerLogs: (rels: string[], character?: string) => Promise<number>;
     };
   }
 }

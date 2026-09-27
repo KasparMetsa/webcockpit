@@ -45,6 +45,12 @@
 // After a replay, or when the page was opened in an offline mode (`?replay`,
 // `?fixture=`, `?bench`), Enter on a closed connection does not connect to
 // MUME; `#connect` does. After a live disconnect, Enter reconnects.
+//
+// Player Apps (ADR 0018, `player: true`): the log player builds an App per
+// open (and per backward seek) and `dispose()`s it. Such an App never
+// captures, keeps nothing (no clock, pane database or UI ring storage),
+// prints no replay `[SYSTEM]` lines, stamps output rows with their time
+// and runs on the player's clock (`now`, `scheduler`, `clockUs`).
 
 import { downloadRun } from '../capture/download';
 import { Recorder, type RecorderOptions, STATUS as CAPTURE_STATUS } from '../capture/recorder';
@@ -146,6 +152,10 @@ export interface AppOptions {
   clockStorage?: Storage | null;
   /** Wall clock in ms for the game state and the clock strip (tests). */
   now?: () => number;
+  /** Receive-time clock in µs for lines and sent commands (default `nowUs`). */
+  clockUs?: () => number;
+  /** A log player App (see the file header). */
+  player?: boolean;
 }
 
 export class App {
@@ -189,11 +199,15 @@ export class App {
   private charName = '';
   private fileInput: HTMLInputElement | null = null;
   private viewJson = '';
+  private readonly player: boolean;
+  private readonly unsubs: Array<() => void> = [];
+  private disposed = false;
 
   constructor(opts: AppOptions) {
     const doc = opts.root.ownerDocument;
     const bus = this.bus;
     this.offline = opts.offline ?? false;
+    const player = (this.player = opts.player ?? false);
 
     this.el = doc.createElement('div');
     this.el.className = 'wc-app';
@@ -209,14 +223,16 @@ export class App {
     attachUiMessages(bus);
     this.status = this.statusImpl;
     this.el.dataset.status = formatStatus(this.status.get());
-    this.status.subscribe((st) => {
-      this.el.dataset.status = formatStatus(st);
-    });
+    this.unsubs.push(
+      this.status.subscribe((st) => {
+        this.el.dataset.status = formatStatus(st);
+      }),
+    );
     const cells = opts.cells;
-    const openDb = lazyDb(opts.paneDb);
+    const openDb = lazyDb(player ? null : opts.paneDb);
     this.game = new GameState({
       now,
-      storage: opts.clockStorage === undefined ? defaultLocalStorage() : opts.clockStorage,
+      storage: player ? null : opts.clockStorage === undefined ? defaultLocalStorage() : opts.clockStorage,
       timers: {
         openDb,
         win: doc.defaultView,
@@ -228,6 +244,7 @@ export class App {
       bus,
       sink: this.assembler,
       ...(opts.socketFactory ? { socketFactory: opts.socketFactory } : {}),
+      ...(opts.clockUs ? { clockUs: opts.clockUs } : {}),
       onMssp: (vars) => this.game.mssp(vars),
     });
     // Before the panes and the script engine: models are current when
@@ -236,11 +253,14 @@ export class App {
     this.settings = opts.settings ?? new SettingsStore({ factory: null, storage: null, win: null });
     this.profiles = opts.profiles ?? null;
     // Before the cockpit, so the recorder sees its first `view.size`.
-    const recOpts = opts.recorder ?? {};
+    const recOpts: RecorderOptions = player
+      ? { openStore: () => Promise.reject(new Error('player: no capture')), locks: null, win: null }
+      : (opts.recorder ?? {});
     this.recorder = new Recorder(bus, {
       events: this.runEvents,
       ...recOpts,
       onStatus: (s) => {
+        if (player) return;
         this.statusImpl.set({ capture: s });
         const warn = CAPTURE_WARNINGS[s];
         if (warn) this.bus.emit('ui.message', uiMsg('warn', warn));
@@ -249,7 +269,7 @@ export class App {
       },
     });
     this.announceView();
-    this.settings.subscribe(() => this.announceView());
+    this.unsubs.push(this.settings.subscribe(() => this.announceView()));
     const cellSource = cells ?? new CellMetrics({ doc });
     const paneContext = createPaneContext({
       doc,
@@ -262,6 +282,7 @@ export class App {
       openDb,
       now,
       game: this.game,
+      ...(player ? { localStorage: null, sessionStorage: null } : {}),
     });
     this.cockpit = new Cockpit({
       root: this.el,
@@ -275,6 +296,7 @@ export class App {
       onFocusInput: () => this.input.focus(),
       ...(opts.requestFrame ? { requestFrame: opts.requestFrame } : {}),
       ...(cells ? { cellSize: () => cells.get() } : {}),
+      ...(player ? { stampRows: true } : {}),
     });
     this.input = new InputPane(bus, this.cockpit.inputEl, {
       sender: this.session,
@@ -285,10 +307,14 @@ export class App {
       ...(cells ? { cellWidth: () => cells.get().w } : {}),
     });
     this.clockStrip = new ClockStrip(this.input.clockEl, { game: this.game, settings: this.settings, now });
-    cells?.subscribe(() => {
-      this.output.remeasure();
-      this.input.scheduleCaret();
-    });
+    if (cells) {
+      this.unsubs.push(
+        cells.subscribe(() => {
+          this.output.remeasure();
+          this.input.scheduleCaret();
+        }),
+      );
+    }
     // After the recorder: capture sees a line before the commands its
     // actions send.
     this.script = new ScriptEngine({
@@ -312,7 +338,11 @@ export class App {
           },
         })
       : null;
-    doc.defaultView?.addEventListener('pagehide', () => void this.writeBack?.flush());
+    const win = doc.defaultView;
+    if (win) {
+      win.addEventListener('pagehide', this.onPageHide);
+      this.unsubs.push(() => win.removeEventListener('pagehide', this.onPageHide));
+    }
     if (this.profiles) void this.loadSelectedProfile(false);
 
     bus.on('gmcp', (m) => {
@@ -321,6 +351,35 @@ export class App {
       if (typeof n === 'string' && n) this.charName = n;
     });
     bus.on('conn.state', this.onState);
+  }
+
+  private readonly onPageHide = (): void => void this.writeBack?.flush();
+
+  /**
+   * Tears the App down: the connection (silently), every listener, timer
+   * and pane, and its DOM. The log player builds and disposes Apps
+   * repeatedly (ADR 0018). The App is not used afterwards.
+   */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.loadToken++;
+    this.session.dispose();
+    for (const u of this.unsubs.splice(0)) u();
+    void this.writeBack?.flush();
+    this.script.dispose();
+    this.runEvents.dispose();
+    this.game.dispose();
+    this.recorder.dispose();
+    this.statusImpl.dispose();
+    this.clockStrip.dispose();
+    this.input.dispose();
+    this.output.dispose();
+    this.cockpit.dispose();
+    this.fileInput?.remove();
+    this.fileInput = null;
+    this.bus.clear();
+    this.el.remove();
   }
 
   /** True while the replay socket is the connection. */
@@ -355,12 +414,20 @@ export class App {
    * capped at 2 s, 0 = as fast as possible. Any connection is closed first.
    */
   startReplay(logText: string, label: string, speed = 1): void {
+    this.replayOn(new ReplaySocket(logText, { speed }), `${label} (speed ${speed === 0 ? 'max' : speed})`);
+  }
+
+  /**
+   * Connects a replay socket (session.ts `IsReplay`; the log player's
+   * PlayerSocket, one per run of the chain). Any connection is closed first.
+   */
+  replayOn(socket: Socketish, label: string): void {
     if (this.isConnected) this.session.disconnect(REASON_REPLAY_START);
     this.replaying = true;
     this.offline = true;
-    this.replayLabel = `${label} (speed ${speed === 0 ? 'max' : speed})`;
+    this.replayLabel = label;
     this.statusImpl.set({ replay: true });
-    this.session.connect(new ReplaySocket(logText, { speed }));
+    this.session.connect(socket);
   }
 
   private readonly onState = (s: BusEvents['conn.state']): void => {
@@ -368,7 +435,7 @@ export class App {
     switch (s.state) {
       case 'connecting':
         this.assembler.reset();
-        this.sys(this.replaying ? `Replaying ${this.replayLabel}...` : 'Connecting to MUME...');
+        if (!this.player) this.sys(this.replaying ? `Replaying ${this.replayLabel}...` : 'Connecting to MUME...');
         if (!this.replaying && this.profiles) void this.loadSelectedProfile(true);
         break;
       case 'login':
@@ -387,7 +454,7 @@ export class App {
   private onDisconnected(reason: string): void {
     if (this.replaying) {
       this.statusImpl.set({ replay: false });
-      if (reason === REASON_REPLAY_START) return;
+      if (reason === REASON_REPLAY_START || this.player) return;
       if (reason === REASON_REPLAY_STOP) return this.sys('Replay stopped.');
       this.sys(reason === REASON_REPLAY_DONE ? 'Replay finished.' : `Replay stopped: ${reason}`);
       this.sys('#connect plays live, #replay loads another log.');

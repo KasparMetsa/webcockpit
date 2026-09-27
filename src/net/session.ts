@@ -81,6 +81,11 @@ export interface SessionOptions {
   ttype?: string;
   /** A new MSSP table from the server (game time for the clock, ADR 0016). */
   onMssp?: (vars: ReadonlyMap<string, string[]>) => void;
+  /**
+   * Receive-time clock in µs for frames and `cmd.sent` (default `nowUs`).
+   * The log player passes its log-time clock (src/player/clock.ts).
+   */
+  clockUs?: () => number;
 }
 
 export class Session implements Sender {
@@ -97,9 +102,11 @@ export class Session implements Sender {
   private frameTs: number | null = null;
   /** The current (or last) connection is a replay. */
   private replayConn = false;
+  private readonly clockUs: () => number;
 
   constructor(opts: SessionOptions) {
     this.bus = opts.bus;
+    this.clockUs = opts.clockUs ?? nowUs;
     this.socketFactory = opts.socketFactory ?? (() => new WebSocketTransport());
     this.telnet = new Telnet({
       sink: opts.sink,
@@ -191,7 +198,7 @@ export class Session implements Sender {
     sock.onData = (bytes) => {
       if (this.socket !== sock) return;
       this.bus.emit('net.bytesIn', bytes);
-      const ts = nowUs();
+      const ts = this.clockUs();
       this.frameTs = ts;
       try {
         this.telnet.receive(bytes, ts);
@@ -202,7 +209,7 @@ export class Session implements Sender {
     if (this.replayConn) {
       (sock as unknown as IsReplay).onSent = (text) => {
         if (this.socket !== sock) return;
-        this.bus.emit('cmd.sent', { text, ts: nowUs(), replay: true });
+        this.bus.emit('cmd.sent', { text, ts: this.clockUs(), replay: true });
       };
     }
     sock.onClose = (reason) => {
@@ -223,6 +230,15 @@ export class Session implements Sender {
     if (had || this.st === 'connecting' || this.st === 'login' || this.st === 'playing') {
       this.dropped(reason);
     }
+  }
+
+  /**
+   * Detaches the socket without emitting anything and stops the keep-alive
+   * (App.dispose). The session is not used afterwards.
+   */
+  dispose(): void {
+    this.detach();
+    this.keepalive.stop();
   }
 
   /**
@@ -290,7 +306,7 @@ export class Session implements Sender {
   sendCommand(text: string, opts?: { secret?: boolean; echo?: boolean }): void {
     const secret = opts?.secret === true || this.passwordMode;
     if (!this.writeRaw(this.telnet.encodeText(text + '\r\n'))) return;
-    const ts = this.frameTs ?? nowUs();
+    const ts = this.frameTs ?? this.clockUs();
     const ev: { text: string; ts: number; secret?: boolean; echo?: boolean } = {
       text: secret ? '' : text,
       ts,

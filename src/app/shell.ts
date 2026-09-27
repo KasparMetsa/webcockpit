@@ -26,9 +26,20 @@
 // Runs (ADR 0018): the shell owns one RunLibrary (`runLibrary()`, opened on
 // first use) and runs the retention sweep once, when the start page first
 // shows (Web Lock `webcockpit-sweep`, so one tab sweeps; errors are silent).
+//
+// Log player (ADR 0018): `openPlayer(session)` (History's RUN LOG, via
+// ChromeServices) loads the chain, hides the start page without touching
+// its frame stack and shows the player (src/app/player-host.ts, a chunk of
+// its own); its ESC closes it and shows the start page as it was
+// (`show({ keep: true })`). Only from the start page, never over the
+// cockpit.
 
 import type { BenchProbe } from './bench-hook';
 import type { ChromeServices, EscMenuHandle, StartPageHandle } from '../chrome';
+import type { PlayerHost, PlayerInfo } from './player-host';
+import type { Session } from '../runs/stitch';
+import type { RunEvent } from '../runs/events';
+import type { ChainRun } from '../player/timeline';
 import type { ApplyResult } from '../editor';
 import type { ConnState } from '../core/types';
 import { CLIENT_VERSION } from '../net/gmcp';
@@ -80,6 +91,8 @@ export class Shell {
   private connIsReplay = false;
   private libraryP: Promise<RunLibrary> | null = null;
   private swept = false;
+  private player: PlayerHost | null = null;
+  private playerOpening = false;
 
   constructor(opts: ShellOptions) {
     this.opts = opts;
@@ -160,6 +173,56 @@ export class Shell {
     return this.menu?.isOpen ?? false;
   }
 
+  // ----------------------------------------------------------- log player
+
+  /** The open log player (tests, the dev hook). */
+  get playerHost(): PlayerHost | null {
+    return this.player;
+  }
+
+  /** Opens the log player on `session` (from the start page only). */
+  openPlayer(session: Session): Promise<void> {
+    return this.startPlayer(async (host) => host.open(session, await this.runLibrary()));
+  }
+
+  /** Opens the log player on logs that are not stored (dev hook, measurements). */
+  openPlayerChain(chain: readonly ChainRun[], events: readonly RunEvent[], info: PlayerInfo): Promise<void> {
+    return this.startPlayer((host) => host.openChain(chain, events, info));
+  }
+
+  private async startPlayer(load: (host: PlayerHost) => Promise<void> | void): Promise<void> {
+    if (this.inCockpit || this.player || this.playerOpening) return;
+    this.playerOpening = true;
+    try {
+      const { PlayerHost } = await import('./player-host');
+      if (this.inCockpit) return;
+      const host = new PlayerHost({
+        root: this.opts.root,
+        settings: this.opts.settings,
+        onClose: () => this.closePlayer(),
+      });
+      host.el.style.display = 'none';
+      this.player = host;
+      await load(host);
+      if (this.player !== host) return;
+      this.start?.hide();
+      this.startHost.style.display = 'none';
+      host.el.style.display = '';
+    } catch (err) {
+      console.error('WebCockpit: the log player could not open', err);
+      this.player?.dispose();
+      this.player = null;
+    } finally {
+      this.playerOpening = false;
+    }
+  }
+
+  private closePlayer(): void {
+    this.player = null;
+    this.startHost.style.display = '';
+    this.start?.show({ keep: true });
+  }
+
   // ------------------------------------------------------------------ views
 
   private showStart(): void {
@@ -225,6 +288,7 @@ export class Shell {
       version: CLIENT_VERSION,
       onProfileSaved: (name) => this.appRef?.ui('system', `Profile {${uiValue(name)}} saved.`),
       runs: () => this.runLibrary(),
+      openPlayer: (session) => void this.openPlayer(session),
     };
   }
 

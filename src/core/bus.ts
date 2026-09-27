@@ -50,6 +50,19 @@ export class Bus {
     }
   }
 
+  /** Drops every handler (App.dispose); handlers of an emit in progress are not called again. */
+  clear(): void {
+    for (const list of this.handlers.values()) for (const e of list) e.active = false;
+    this.handlers.clear();
+  }
+
+  /** Number of handlers of every type (for tests and diagnostics). */
+  total(): number {
+    let n = 0;
+    for (const list of this.handlers.values()) n += list.length;
+    return n;
+  }
+
   /** Number of handlers for `type` (for tests and diagnostics). */
   count(type: BusEventType): number {
     return this.handlers.get(type)?.length ?? 0;
