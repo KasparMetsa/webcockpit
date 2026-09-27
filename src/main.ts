@@ -1,6 +1,6 @@
 // Entry point. URL parameters:
 //
-//   (none)                  connect to MUME at once (as Cockpit does)
+//   (none)                  the start page; Enter MUME connects (src/app/shell.ts)
 //   ?replay                 offline: no connection; use #replay to load a log
 //   ?fixture=<rel>&speed=n  dev server only: replay a fixture log from
 //                           $WEBCOCKPIT_FIXTURES (see vite.config.ts)
@@ -9,13 +9,15 @@
 //                           (a way back from a setting that breaks the page)
 //
 // Start-up order: settings from the localStorage mirror → theme and font
-// preload → settings from IndexedDB (≤ 1 s) → theme again → App. The cell
-// metrics are re-measured once the web font has loaded.
+// preload → settings from IndexedDB (≤ 1 s) → theme again → Shell (start
+// page, or the cockpit in the offline modes). The cell metrics are
+// re-measured once the web font has loaded.
 
 import './theme/fonts.css';
 import './ui/ui.css';
-import { App } from './app/app';
+import type { App } from './app/app';
 import type { BenchProbe } from './app/bench-hook';
+import { Shell } from './app/shell';
 import { SettingsStore } from './settings';
 import { appearanceChanged, applyTheme } from './theme/apply';
 import { CellMetrics } from './theme/cells';
@@ -50,26 +52,32 @@ if (benchMode) {
 
 const root = document.getElementById('app') ?? document.body;
 root.textContent = '';
-const app = new App({
-  root,
-  offline,
-  cells,
-  ...(probe ? { requestFrame: probe.requestFrame } : {}),
-});
-if (import.meta.env.DEV) window.__wc = { app, settings, cells };
-probe?.attach(app);
-app.input.focus();
+const shell = new Shell({ root, settings, cells, offline, probe });
+if (import.meta.env.DEV) {
+  window.__wc = {
+    // The cockpit is built on Enter MUME (at once in the offline modes).
+    get app() {
+      return shell.app!;
+    },
+    settings,
+    cells,
+    shell,
+  };
+}
+await shell.boot();
 
-if (fixture !== null) {
-  const speed = Number(params.get('speed') ?? '1');
-  void loadFixture(fixture, Number.isFinite(speed) && speed >= 0 ? speed : 1);
-} else if (!offline) {
-  app.connectLive();
-} else if (!benchMode) {
-  app.bus.emit('sys.message', { text: 'Offline replay mode. Type #replay to load a Cockpit .log.' });
+const app = shell.app;
+if (app) {
+  probe?.attach(app);
+  if (fixture !== null) {
+    const speed = Number(params.get('speed') ?? '1');
+    void loadFixture(app, fixture, Number.isFinite(speed) && speed >= 0 ? speed : 1);
+  } else if (!benchMode) {
+    app.bus.emit('sys.message', { text: 'Offline replay mode. Type #replay to load a Cockpit .log.' });
+  }
 }
 
-async function loadFixture(rel: string, speed: number): Promise<void> {
+async function loadFixture(app: App, rel: string, speed: number): Promise<void> {
   const path = rel.split('/').map(encodeURIComponent).join('/');
   try {
     const res = await fetch(`/__fixtures/${path}`);
@@ -85,6 +93,6 @@ async function loadFixture(rel: string, speed: number): Promise<void> {
 declare global {
   interface Window {
     /** Dev server only: handles for the browser tests and the console. */
-    __wc?: { app: App; settings: SettingsStore; cells: CellMetrics };
+    __wc?: { readonly app: App; settings: SettingsStore; cells: CellMetrics; shell: Shell };
   }
 }

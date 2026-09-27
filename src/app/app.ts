@@ -67,6 +67,8 @@ export interface AppOptions {
    * measures its own font.
    */
   cells?: CellMetrics;
+  /** ESC in the input when the output is not scrolled: open the ESC menu (src/app/shell.ts). */
+  onEscape?: () => void;
 }
 
 export class App {
@@ -121,6 +123,7 @@ export class App {
       sender: this.session,
       output: this.output,
       onCommand: (text) => this.onCommand(text),
+      ...(opts.onEscape ? { onEscape: opts.onEscape } : {}),
       ...(cells ? { cellWidth: () => cells.get().w } : {}),
     });
     cells?.subscribe(() => {
