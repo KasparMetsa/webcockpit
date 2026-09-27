@@ -1,6 +1,6 @@
 # Stage 1 — Connect and play
 
-> Status: Owner testing. Started 2026-09-27.
+> Status: Done 2026-09-27. Live check 5 carried over to stage 2.
 > Source: spec §5 row 1, §1.1–1.4, §2.1, §2.2, §2.8 (capture only), §4.
 
 ## Goal
@@ -87,7 +87,7 @@ autosuggest, clock strip, run events and screens.
 - [x] Benchmark and Playwright smoke tests.
 - [x] Main-session verification in a browser against replay.
 - [x] Test guide ready.
-- [ ] Owner live test.
+- [x] Owner live test (check 5 carried over to stage 2).
 
 ## Live checks for the owner
 

@@ -1,13 +1,13 @@
 # Progress
 
-Current stage: **1 — Connect and play** (owner testing).
+Current stage: **2 — Look and layout** (not started).
 
 ## Stages
 
 | # | Stage | Status | Stage file |
 |---|---|---|---|
-| 1 | Connect and play | Owner testing | `docs/stages/01-connect-and-play.md` |
-| 2 | Look and layout | — | — |
+| 1 | Connect and play | Done | `docs/stages/01-connect-and-play.md` |
+| 2 | Look and layout | Next | — |
 | 3 | Script engine and profile editor | — | — |
 | 4 | GMCP panes | — | — |
 | 5 | Timers and trackers | — | — |
@@ -30,10 +30,10 @@ Newest first.
   raw capture in IndexedDB; replay mode; browser benchmark (all §1.3
   budgets pass in Chromium and Firefox, `bench/results/latest.md`).
   193 unit tests, 16 e2e tests.
-- **Next:** owner runs the test guide in `docs/stages/01-connect-and-play.md`
-  and answers the six live checks; then fix feedback and start stage 2.
-- **Open issues:** live checks 1–6 (XML was seen before login in a quick
-  check); Ctrl+W cannot be intercepted in a normal tab.
+- **Next:** start stage 2. Write `docs/stages/02-look-and-layout.md` from
+  spec §5 and carry over live check 5 (idle timeout ≥ 5 min).
+- **Open issues:** idle-timeout check not done (carried to stage 2);
+  Ctrl+W cannot be intercepted in a normal tab.
 - **Owner live test 1:** speed and echo OK, XML confirmed on, `#runlog`
   OK. Fixed after: `Core.Ping` every 10 s so `Link:` shows during play;
   monotonic capture timestamps; `Link:` shows the 60 s minimum (MUME
