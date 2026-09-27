@@ -1,0 +1,15 @@
+#nop WebCockpit profile (tt++ syntax).
+#nop Aliases, actions, highlights, macros and variables go here.
+#nop Macro keys use readable names: Numpad0-Numpad9, NumpadAdd, F5, Ctrl+A.
+#nop The numpad keys below need NumLock on.
+
+#macro {Numpad8} {north}
+#macro {Numpad2} {south}
+#macro {Numpad4} {west}
+#macro {Numpad6} {east}
+#macro {Numpad9} {up}
+#macro {Numpad3} {down}
+#macro {Numpad5} {exits}
+#macro {Numpad0} {flee}
+#macro {NumpadAdd} {open exit}
+#macro {NumpadSubtract} {close exit}

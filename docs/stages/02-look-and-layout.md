@@ -84,9 +84,10 @@ macros (stage 3), rating, History/Statistics/Spotlights/Credits screens
       gate. Unit + e2e tests. (ADR 0012; APIs: `src/layout/allocate.ts`,
       `src/layout/model.ts`, `src/layout/cockpit.ts`, `src/panes/*`,
       `app.cockpit`.)
-- [ ] C. Chrome: TUI kit (Preact), banner, start page, profiles store and
+- [x] C. Chrome: TUI kit (Preact), banner, start page, profiles store and
       frame, Options (Panes grid, Appearance), About, ESC menu, app flow
-      start page ↔ cockpit. Unit + e2e tests.
+      start page ↔ cockpit. Unit + e2e tests. (ADR 0013; cold start
+      264 ms median on throttled broadband.)
 - [ ] Benchmarks still pass (§1.3), cold start < 1 s.
 - [ ] Main-session verification in a browser.
 - [ ] Test guide ready.

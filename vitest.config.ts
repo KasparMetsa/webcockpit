@@ -5,8 +5,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 export default defineConfig({
   define: { __WC_VERSION__: JSON.stringify(pkg.version) },
+  oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
   test: {
-    include: ['tests/unit/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
     environment: 'node',
     // UI tests opt in per file with: // @vitest-environment happy-dom
   },

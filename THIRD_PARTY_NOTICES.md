@@ -15,3 +15,10 @@ third-party material, each under its own GPL-compatible licence.
 
 Sources, versions and the conversion are recorded in
 `public/fonts/README.md`.
+
+## JavaScript libraries (bundled into the build)
+
+- **Preact** 10.29.8 — MIT License, Copyright (c) 2015-present Jason
+  Miller. Used for the start page, ESC menu and Options chrome
+  (`src/chrome/`), loaded as a separate chunk. Licence text:
+  `node_modules/preact/LICENSE` (MIT, GPL-compatible).

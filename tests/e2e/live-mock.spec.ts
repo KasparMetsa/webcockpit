@@ -1,7 +1,7 @@
-// The live connection path (`/` auto-connects) against a mocked MUME
+// The live connection path (`/` → Enter MUME) against a mocked MUME
 // WebSocket: Playwright intercepts wss://mume.org/ws-play/, so nothing
 // reaches the real server.
-import { expect, test } from '@playwright/test';
+import { type Page, expect, test } from '@playwright/test';
 
 const IAC = 255;
 const WILL = 251;
@@ -15,6 +15,13 @@ const bytes = (...parts: (number[] | string)[]): Buffer =>
   Buffer.concat(parts.map((p) => (typeof p === 'string' ? Buffer.from(p, 'utf8') : Buffer.from(p))));
 const gmcp = (payload: string) => bytes([IAC, SB, GMCP], payload, [IAC, SE]);
 
+/** Opens the start page and enters MUME (Enter MUME is pre-selected). */
+async function enterMume(page: Page): Promise<void> {
+  await page.goto('/');
+  await expect(page.locator('.wc-start .wc-mrow.is-sel')).toHaveText('<< Enter MUME >>');
+  await page.keyboard.press('Enter');
+}
+
 test('connects, logs in, and masks the password', async ({ page }) => {
   const received: Buffer[] = [];
   let protocols: string[] = [];
@@ -25,7 +32,7 @@ test('connects, logs in, and masks the password', async ({ page }) => {
   });
   const sentText = () => Buffer.concat(received).toString('latin1');
 
-  await page.goto('/');
+  await enterMume(page);
   const status = page.locator('.wc-app');
   const rows = page.locator('.wc-rows .wc-row');
   await expect(status).toHaveAttribute('data-status', /^login/);
@@ -56,7 +63,7 @@ test('reaches playing on Char.Name and sends the width commands', async ({ page 
     ws.send(bytes([IAC, WILL, GMCP]));
   });
   const sentText = () => Buffer.concat(received).toString('latin1');
-  await page.goto('/');
+  await enterMume(page);
   await expect(page.locator('.wc-app')).toHaveAttribute('data-status', /^login/);
   await expect.poll(sentText).toContain('Core.Hello');
   server!.send(gmcp('Char.Name {"name":"Tester","fullname":"Tester the Mock"}'));

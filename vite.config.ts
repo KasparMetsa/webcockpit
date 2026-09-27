@@ -97,6 +97,8 @@ function fixturesPlugin(): Plugin {
 
 export default defineConfig({
   define: { __WC_VERSION__: JSON.stringify(pkg.version) },
+  // Preact JSX for the chrome (src/chrome, ADR 0013).
+  oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
   plugins: [fixturesPlugin()],
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
