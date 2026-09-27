@@ -362,3 +362,39 @@ an expiry (bars, countdowns, charm minutes); none otherwise. Leaving
 **Test note.** `playwright.config.ts` reuses any server on 5173; with
 parallel worktrees that can be another branch's. P2 ran its e2e with a
 private copy of the config on another port.
+
+### Burst fix (2026-09-27)
+
+After the merge the browser burst (93 883 lines at speed 0) was ~0.5 s
+slower than stage 4 (A/B interleaved, same machine). Cause, by bisecting
+toggles in the browser and a synchronous Node pipeline
+(Session → assembler → engine → trackers): the burst's throughput is set
+by the replay's 8 ms slices, one per frame, while each frame's output
+flush and layout cost ~20 ms, so every ms of work per slice costs ~3–4 ms
+of wall time. Stage 5 added work to the slices:
+
+- **Frame splitting (largest).** `logToFrames` cut the 16 KB frame at
+  every recorded command: 176 frames became ~26 500, each with a copy,
+  a generator step, a clock read and a Session/telnet round, and slices
+  lost the overshoot of whole frames. Fix: at speed 0 the commands ride
+  in the frame (`sends`, byte offsets) and ReplaySocket delivers the
+  bytes in pieces with `onSent` between them; order is unchanged.
+  Speed > 0 keeps one frame per command at its time.
+- **The catch-all `%*`.** Every line ran `(.*)`, two substrings and an
+  args array. Fix: `CompiledPattern.whole` (a lone wildcard) takes the
+  line without the regex; `lead`/`tail` reject `^literal` / `literal$`
+  patterns with `startsWith`/`endsWith` (helps the clock and wimpy rules
+  too).
+- **Router and sent parsing.** Exact lines gated by length + first
+  character, prefix/suffix tables bucketed by first/last character;
+  cast/store parsing rejects on the first character.
+
+Not the cause: the Timers and UI pane renders (~40 ms per burst), the
+~500 `ui.message`s, saves (none in a replay). Node pipeline per burst:
+stage 4 ~90 ms, stage 5 merge ~180 ms, fixed ~130 ms; the rest is the
+trackers' real work (~0.3 µs per line) and the 14 000 replayed commands.
+Browser burst, 4 rounds interleaved (ms, Chromium / Firefox): stage 4
+1270–1400 / 1075–1090, merge 1870–2015 / 1590–1665, fixed 1515–1610 /
+1360–1505. Chromium's longest burst frame is 40–56 ms for all three on
+this machine today (flush/GC, not the replay slice); a slice cut inside
+a frame at a command was tried and dropped (no gain, ~60 ms slower).
