@@ -446,3 +446,65 @@ overlay: { el: infoBox, keepVisible: true }, startHidden: true } })`.
   gained an optional op field); the merge task runs it.
 - Comments in a run's lead-in hold at playback 0 before any text: fine for
   the replay, but P1/P2 may want to anchor such comments visibly.
+
+### P1 — export editor (2026-09-28)
+
+**Files.** New: `src/chrome/frames/export-editor.tsx` (the frame),
+`export-input.tsx` (comment / title entry), `export-model.ts` (pure: log
+arrays, items and row offsets, map, SGR colouring, cursor and comment-slot
+arithmetic), `export.css`, `src/chrome/kit/download.ts` (`downloadBlob`,
+History's backup download moved there), `src/replay/export.ts` (**stub**
+with P2's signature, throws `HTML replay not built yet`; keep P2's file at
+merge). Changed: `history.tsx` (EXPORT active with a log, not dimmed;
+pushes the editor on the History stack, so BACK / ESC return with its
+state intact). Tests: `tests/unit/chrome-export-model.test.ts`,
+`chrome-export.test.tsx`, `chrome-history.test.tsx` (EXPORT expectations),
+`tests/e2e/export.spec.ts`.
+
+**Choices.**
+- *Items, not lines, are cursor stops:* an entry (wrapped to several rows
+  when longer than the log width), a comment (all its `## ` rows) or the end
+  row. ↑↓ move one item, PgUp/PgDn one viewport of rows, the wheel 3 items.
+  The cursor is kept as `{entry}` / `{comment}` / `{end}` so it survives an
+  item rebuild; a new comment takes the cursor, a deleted one hands it to
+  what followed.
+- *Commands on rows of their own* as `> cmd` (`>` grey), not appended to the
+  prompt as the output pane echoes them: one row per entry keeps the
+  exclusion anchors exact. Empty Enters and the two width commands are not
+  shown (as in the output pane and the text export); the `N lines` count is
+  these visible entries.
+- *Hard wrap* at the log width (LOG width = cols − 29, 20…100 cells), so row
+  counts are arithmetic on the stored lengths; comments wrap at
+  `min(80, width)`.
+- *Speed:* the chain is read once into flat arrays (`ts`, `kind`, `raw`,
+  `len`); items + row offsets are rebuilt in one pass when the comments or
+  the width change; the excluded count and the map when the ranges change;
+  SGR is parsed only for the rows on screen. Measured in Chromium on a
+  100 000-line run: open ≈ 170 ms, a key ≈ 6–9 ms, a comment save ≈ 60 ms.
+- *Map:* 2 columns over the log height: content (`K/D/A/L` gold > `■`
+  comment > `█` excluded `#6f3030` > `│` track) and a thumb column. A
+  click puts the cursor on the item at that fraction, centred.
+- *Buttons:* EXCLUDE / STOP need an entry under the cursor; EDIT / DELETE a
+  comment; the rest are always enabled. Letter keys work in both zones.
+  Enter / Space act only in the button zone.
+- *Input frame* reads keys itself (no `<input>`, whose value sanitising
+  would drop pasted newlines instead of turning them into spaces); paste is
+  taken from the document `paste` event. The comment preview shows the
+  wrapped `## ` lines, `n / 600` and `Holds the replay for N s.`. The title
+  starts as the effective title; saving the default (or an empty field)
+  stores `''`.
+- *Feedback:* `Exported <file>` (gold) / `Export failed: …` (grey) on the
+  editor's flash row, which History shows too when BACK follows within 3 s.
+  HTML shows `Building the replay…` while `buildReplayHtml` runs. Save
+  errors flash `Could not save the edit: …`.
+
+**Deviations.** Info row file part is `→ <title>.<ext>` (no `~/`, it is a
+browser download). No `-2` suffix handling (the browser's job, Inv §7.7).
+
+**Open issues.**
+- The HTML path is only exercised against the stub (the e2e accepts either
+  `Exported …html` or `Export failed: …`); re-run `tests/e2e/export.spec.ts`
+  after merging P2.
+- Comments anchored inside an excluded range show where they were placed;
+  the payload moves them to the next kept entry (P0), so the replay can
+  show them a little later than the editor suggests.
