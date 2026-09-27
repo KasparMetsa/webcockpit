@@ -5,7 +5,7 @@
 //   .wc-cockpit
 //     .wc-game          the output pane (src/ui/output-pane.ts) goes in here
 //     .wc-pane × 5      pane shells (src/panes/pane.ts)
-//     .wc-input-slot    the input line (src/ui/input-pane.ts) goes in here
+//     .wc-input-slot    the input line (src/ui/input-pane.ts), under the game pane
 //     .wc-handles       invisible resize handles over the gaps and frames
 //     .wc-drop-bar      insertion bar while a pane is dragged to a dock
 //     .wc-drop-ghost    outline where a pane dragged over the game will float
@@ -24,7 +24,8 @@
 //   bar shows where it lands. Dropping on the screen edge of a dock that is
 //   not shown opens that dock at its default size.
 // - Floating panes (ADR 0014): drop a docked pane over the game area and it
-//   floats there at its size (an outline shows where). Drag a floating pane
+//   floats there at the standard size, 36 × 14 cells (an outline shows
+//   where). Drag a floating pane
 //   by its title row to move it; drop it on a screen-edge zone to dock it.
 //   Its edges and corners resize it. Pressing on it brings it to front.
 // - Drag the gap between the game pane and a dock to resize the dock, or
@@ -42,6 +43,8 @@ import {
   DOCK_GAP,
   GAME_MIN_COLS,
   GAME_MIN_ROWS,
+  FLOAT_STANDARD_H,
+  FLOAT_STANDARD_W,
   INPUT_ROWS,
   type LayoutResult,
   MIN_VIEW_COLS,
@@ -53,7 +56,6 @@ import {
   type DockBox,
   allocate,
   clampFloat,
-  defaultFloatSize,
   floatMin,
   isSideDock,
 } from './allocate';
@@ -489,12 +491,12 @@ export class Cockpit {
     if (d.kind === 'float') {
       const dx = Math.round((x - d.x0) / cell.w);
       const dy = Math.round((y - d.y0) / cell.h);
-      const rect = resizeRect(d.rect, d.edges, dx, dy, d.min, r.cols, r.rows - INPUT_ROWS);
+      const rect = resizeRect(d.rect, d.edges, dx, dy, d.min, r.cols, r.rows);
       this.setPreview(setFloatRect(d.base, d.id, rect));
       return;
     }
     if (d.kind === 'dock') {
-      const H = r.rows - INPUT_ROWS;
+      const H = r.rows;
       let size: number;
       let min: number;
       let max: number;
@@ -504,7 +506,7 @@ export class Cockpit {
         const row = Math.floor(y / cell.h);
         size = d.dock === 'bottom' ? H - DOCK_GAP - row : row;
         min = d.dock === 'bottom' ? BOTTOM_DOCK_MIN : TOP_DOCK_MIN;
-        max = H - DOCK_GAP - GAME_MIN_ROWS - (other ? other.rect.h + DOCK_GAP : 0);
+        max = H - INPUT_ROWS - DOCK_GAP - GAME_MIN_ROWS - (other ? other.rect.h + DOCK_GAP : 0);
       } else {
         const col = Math.floor(x / cell.w);
         size = d.dock === 'right' ? r.cols - DOCK_GAP - col : col;
@@ -613,7 +615,7 @@ export class Cockpit {
     const cell = this.cells.get();
     const cx = x / cell.w;
     const cy = y / cell.h;
-    const H = r.rows - INPUT_ROWS;
+    const H = r.rows;
     const T = Math.max(2, Math.round(cell.h / 4));
     const s = this.settings.get();
     const layout = s.layout;
@@ -680,11 +682,16 @@ export class Cockpit {
       }
     }
 
-    // Float at the pointer, at the size the pane shows now.
+    // Float at the pointer: a floating pane keeps its size, a docked one
+    // gets the standard size (ADR 0014 amendment). The pressed cell stays
+    // under the pointer as far as the new width allows.
     const box = r.panes.find((p) => p.id === id);
-    const size = box ? { w: box.rect.w, h: box.rect.h } : defaultFloatSize(id);
+    const keep = isFloating && box?.dock === 'float';
+    const size = keep ? { w: box.rect.w, h: box.rect.h } : { w: FLOAT_STANDARD_W, h: FLOAT_STANDARD_H };
+    const gx = Math.min(grab.x, size.w - 1);
+    const gy = Math.min(grab.y, size.h - 1);
     const rect = clampFloat(
-      { x: Math.floor(cx) - grab.x, y: Math.floor(cy) - grab.y, ...size },
+      { x: Math.floor(cx) - gx, y: Math.floor(cy) - gy, ...size },
       floatMin(id, s.panes[id].border),
       r.cols,
       H,

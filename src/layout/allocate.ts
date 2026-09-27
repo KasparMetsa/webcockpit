@@ -12,18 +12,21 @@
 //   |      |a |      (gap row)       |a |         |
 //   |      |p |        game          |p |         |
 //   |      |  +----------------------+  |         |
+//   |      |  | input line     clock |  |         |
+//   |      |  +----------------------+  |         |
 //   |      |  |      (gap row)       |  |         |
 //   |      |  |   bottom dock        |  |         |
 //   +------+--+----------------------+--+---------+
-//   | input line (full width, 1 row, clock strip at its right end) |
-//   +--------------------------------------------------------------+
 //
-// - Side docks run the full height above the input; the top and bottom
-//   docks span the game column only, between the side docks (ADR 0012,
-//   ADR 0014).
+// - The centre column is, top to bottom: top dock, game pane, input line
+//   (1 row, as wide as the game pane, clock strip at its right end),
+//   bottom dock. The side docks run the full window height, beside the
+//   input line and the bottom dock too (ADR 0012, ADR 0014 amendment).
 // - One gap cell separates the game column from each shown side dock, and
-//   one gap row separates the game pane from the top and bottom docks.
-//   Panes inside a dock touch (their frames separate them, as in Cockpit).
+//   one gap row separates the top dock from the game pane and the input
+//   line from the bottom dock. The input line sits directly under the game
+//   pane. Panes inside a dock touch (their frames separate them, as in
+//   Cockpit).
 // - Along a dock, panes get their `desired` content size if everything
 //   fits, the leftover going to the highest-priority pane; otherwise
 //   Character is reserved first and the rest scale between minimum and
@@ -32,10 +35,10 @@
 // - Narrow collapse: a side dock is hidden when the game pane would get
 //   fewer than GAME_MIN_COLS columns. The model is untouched, so the dock
 //   comes back as soon as the window is wide enough again.
-// - Floating panes (ADR 0014) lie over the game pane and the docks and do
-//   not change the docked allocation. Each is clamped into the area above
-//   the input line (shrunk if the window is smaller than it) on every
-//   layout; the model keeps the stored rectangle.
+// - Floating panes (ADR 0014) lie over everything else (the game pane, the
+//   input line and the docks) and do not change the docked allocation.
+//   Each is clamped into the window (shrunk if the window is smaller than
+//   it) on every layout; the model keeps the stored rectangle.
 // - Below MIN_VIEW_COLS × MIN_VIEW_ROWS the result is `tooSmall`.
 
 import { DEFAULT_PANE_DESIRED, DEFAULT_SIDE_DOCK_SIZE, type DockId, type LayoutModel, PANE_IDS, type PaneId } from './types';
@@ -48,7 +51,7 @@ export const MIN_VIEW_COLS = 60;
 export const MIN_VIEW_ROWS = 18;
 /** Cells a frame adds on each axis (top+bottom rows or left+right columns). */
 export const FRAME_CELLS = 2;
-/** Gap between the game column and a side dock, or the game pane and the top/bottom dock. */
+/** Gap between the game column and a side dock, the top dock and the game pane, or the input line and the bottom dock. */
 export const DOCK_GAP = 1;
 /** Narrowest side dock and lowest top/bottom dock (cells, frame included). */
 export const SIDE_DOCK_MIN = 10;
@@ -89,7 +92,15 @@ export function floatMin(id: PaneId, framed: boolean): { w: number; h: number } 
   return { w: MIN_COLS + f, h: MIN_ROWS[id] + f };
 }
 
-/** Size of a pane that starts floating without a shown rectangle to copy. */
+/**
+ * Outer size (frame included) a docked pane gets when it is dragged out to
+ * float (ADR 0014 amendment); clamped to the window. A floating pane that
+ * is moved keeps its size.
+ */
+export const FLOAT_STANDARD_W = 36;
+export const FLOAT_STANDARD_H = 14;
+
+/** Size of a pane that starts floating without a shown rectangle to copy (settings migration). */
 export function defaultFloatSize(id: PaneId): { w: number; h: number } {
   return { w: DEFAULT_SIDE_DOCK_SIZE, h: DEFAULT_PANE_DESIRED[id] + FRAME_CELLS };
 }
@@ -303,7 +314,6 @@ export function allocate(input: AllocateInput): LayoutResult {
     return res;
   }
 
-  const H = rows - INPUT_ROWS;
   const items: Record<DockId, AxisItem[]> = {
     left: axisItems(input, 'left'),
     right: axisItems(input, 'right'),
@@ -335,10 +345,11 @@ export function allocate(input: AllocateInput): LayoutResult {
   const gw = cols - gx - (showR ? rightW + DOCK_GAP : 0);
 
   // Top and bottom docks: they shrink to keep the game pane GAME_MIN_ROWS
-  // high. The bottom dock is sized first; if that leaves the top dock less
-  // than its minimum, the bottom dock gives up rows down to its own
-  // minimum. A dock that still gets less than its minimum is collapsed.
-  const avail = H - GAME_MIN_ROWS;
+  // high above the input row, which is never dropped. The bottom dock is
+  // sized first; if that leaves the top dock less than its minimum, the
+  // bottom dock gives up rows down to its own minimum. A dock that still
+  // gets less than its minimum is collapsed.
+  const avail = rows - INPUT_ROWS - GAME_MIN_ROWS;
   const size = (d: DockId): number => input.layout.docks[d].size;
   let bottomH = items.bottom.length > 0 ? Math.min(size('bottom'), avail - DOCK_GAP) : 0;
   if (bottomH < BOTTOM_DOCK_MIN) bottomH = 0;
@@ -361,7 +372,9 @@ export function allocate(input: AllocateInput): LayoutResult {
     }
   }
   const gy = topH > 0 ? topH + DOCK_GAP : 0;
-  res.game = { x: gx, y: gy, w: gw, h: H - gy - (bottomH > 0 ? bottomH + DOCK_GAP : 0) };
+  const below = bottomH > 0 ? bottomH + DOCK_GAP : 0;
+  res.game = { x: gx, y: gy, w: gw, h: rows - gy - INPUT_ROWS - below };
+  res.input = { x: gx, y: rows - below - INPUT_ROWS, w: gw, h: INPUT_ROWS };
 
   const place = (dock: DockId, rect: Rect): void => {
     const side = isSideDock(dock);
@@ -385,16 +398,16 @@ export function allocate(input: AllocateInput): LayoutResult {
       at += len;
     }
   };
-  if (showL) place('left', { x: 0, y: 0, w: leftW, h: H });
-  if (showR) place('right', { x: cols - rightW, y: 0, w: rightW, h: H });
+  if (showL) place('left', { x: 0, y: 0, w: leftW, h: rows });
+  if (showR) place('right', { x: cols - rightW, y: 0, w: rightW, h: rows });
   if (topH > 0) place('top', { x: gx, y: 0, w: gw, h: topH });
-  if (bottomH > 0) place('bottom', { x: gx, y: H - bottomH, w: gw, h: bottomH });
+  if (bottomH > 0) place('bottom', { x: gx, y: rows - bottomH, w: gw, h: bottomH });
 
   input.layout.floating.forEach((f, index) => {
     const t = input.panes[f.id];
     if (!t?.on) return;
     const framed = t.border;
-    const r = clampFloat(f, floatMin(f.id, framed), cols, H);
+    const r = clampFloat(f, floatMin(f.id, framed), cols, rows);
     const c: Rect = framed ? { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 } : { ...r };
     res.panes.push({ id: f.id, dock: 'float', index, rect: r, content: c, framed });
   });

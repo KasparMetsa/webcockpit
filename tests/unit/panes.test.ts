@@ -85,9 +85,11 @@ describe('Cockpit', () => {
     expect(c.el.dataset.cells).toBe('120x50');
     expect(c.gameEl.style.width).toBe('860px');
     expect(c.inputEl.style.top).toBe('980px');
+    expect(c.inputEl.style.left).toBe('0px');
+    expect(c.inputEl.style.width).toBe('860px'); // as wide as the game pane
     expect(c.pane('character').el.style.left).toBe('870px');
     expect(c.pane('character').rows).toBe(9);
-    expect(c.pane('ui').rows).toBe(6);
+    expect(c.pane('ui').rows).toBe(7); // the right column runs the full 50 rows
     expect(c.el.querySelectorAll('.wc-handle')).toHaveLength(5); // dock gap + 4 boundaries
   });
 
@@ -99,7 +101,7 @@ describe('Cockpit', () => {
     flush();
     expect(c.pane('ui').visible).toBe(false);
     expect(c.pane('group').visible).toBe(false);
-    expect(c.pane('character').rows).toBe(9 + 49 - 33); // leftover to Character without UI
+    expect(c.pane('character').rows).toBe(9 + 50 - 33); // leftover to Character without UI
   });
 
   it('shows the too-small state and makes the view inert', () => {
@@ -127,11 +129,13 @@ describe('Cockpit', () => {
     expect(c.dropTarget(5, 400, 'comm')).toMatchObject({ dock: 'left', index: 0, open: true });
     expect(c.dropTarget(400, 970, 'comm')).toMatchObject({ dock: 'bottom', open: true });
     expect(c.dropTarget(400, 10, 'comm')).toMatchObject({ kind: 'dock', dock: 'top', open: true });
-    // Over the game: float at the pointer at the pane's current size (Comm 33 × 12).
-    expect(c.dropTarget(400, 400, 'comm')).toEqual({ kind: 'float', rect: { x: 40, y: 20, w: 33, h: 12 } });
-    expect(c.dropTarget(400, 400, 'comm', { x: 5, y: 0 })).toEqual({ kind: 'float', rect: { x: 35, y: 20, w: 33, h: 12 } });
-    // Clamped into the area above the input line.
-    expect(c.dropTarget(1150, 985, 'comm')).toEqual({ kind: 'float', rect: { x: 87, y: 37, w: 33, h: 12 } });
+    // Over the game: a docked pane floats at the pointer at the standard size, 36 × 14.
+    expect(c.dropTarget(400, 400, 'comm')).toEqual({ kind: 'float', rect: { x: 40, y: 20, w: 36, h: 14 } });
+    expect(c.dropTarget(400, 400, 'comm', { x: 5, y: 0 })).toEqual({ kind: 'float', rect: { x: 35, y: 20, w: 36, h: 14 } });
+    // A grab offset past the standard width is cut to it.
+    expect(c.dropTarget(400, 400, 'comm', { x: 50, y: 0 })).toEqual({ kind: 'float', rect: { x: 5, y: 20, w: 36, h: 14 } });
+    // Clamped into the window (it may cover the input row).
+    expect(c.dropTarget(850, 900, 'comm')).toEqual({ kind: 'float', rect: { x: 84, y: 36, w: 36, h: 14 } });
   });
 
   it('places floating panes over the rest and docks them only from the screen edges', () => {
@@ -162,6 +166,8 @@ describe('Cockpit', () => {
     expect(c.dropTarget(5, 400, 'comm')).toMatchObject({ kind: 'dock', dock: 'left', open: true });
     // Its own place is no move.
     expect(c.dropTarget(800, 200, 'comm')).toBeNull();
+    // A floating pane that is moved keeps its size.
+    expect(c.dropTarget(400, 300, 'comm', { x: 2, y: 0 })).toEqual({ kind: 'float', rect: { x: 38, y: 15, w: 30, h: 12 } });
     // A smaller window clamps it; toggling it off and on keeps its rectangle.
     size.width = 800;
     c.scheduleRelayout();
