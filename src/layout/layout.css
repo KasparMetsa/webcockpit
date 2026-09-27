@@ -67,6 +67,30 @@
   opacity: 0.5;
 }
 
+/* Floating panes (ADR 0014): stacked by inline z-index from 10 up, over
+ * the game pane, the docks and their resize handles. The pane fill is
+ * opaque (the "None" tint is the terminal background), so nothing behind
+ * shows through. Resize handles along the edges and corners, above the
+ * title-row grip; hidden while the pane is docked. */
+.wc-float-handle {
+  position: absolute;
+  z-index: 2;
+  display: none;
+}
+
+.wc-pane[data-floating] > .wc-float-handle {
+  display: block;
+}
+
+.wc-float-handle[data-edge="n"] { left: 0; right: 0; top: 0; height: max(3px, calc(var(--cell-h) * 0.25)); cursor: ns-resize; }
+.wc-float-handle[data-edge="s"] { left: 0; right: 0; bottom: 0; height: max(4px, calc(var(--cell-h) * 0.4)); cursor: ns-resize; }
+.wc-float-handle[data-edge="w"] { top: 0; bottom: 0; left: 0; width: max(3px, calc(var(--cell-w) * 0.4)); cursor: ew-resize; }
+.wc-float-handle[data-edge="e"] { top: 0; bottom: 0; right: 0; width: max(3px, calc(var(--cell-w) * 0.4)); cursor: ew-resize; }
+.wc-float-handle[data-edge="nw"] { left: 0; top: 0; width: var(--cell-w); height: var(--cell-h); cursor: nwse-resize; }
+.wc-float-handle[data-edge="ne"] { right: 0; top: 0; width: var(--cell-w); height: var(--cell-h); cursor: nesw-resize; }
+.wc-float-handle[data-edge="sw"] { left: 0; bottom: 0; width: var(--cell-w); height: var(--cell-h); cursor: nesw-resize; }
+.wc-float-handle[data-edge="se"] { right: 0; bottom: 0; width: var(--cell-w); height: var(--cell-h); cursor: nwse-resize; }
+
 .wc-handles {
   position: absolute;
   inset: 0;
@@ -89,12 +113,22 @@
 
 .wc-drop-bar {
   position: absolute;
-  z-index: 3;
+  z-index: 100;
   pointer-events: none;
   background: var(--c-accent);
 }
 
-.wc-drop-bar[hidden] {
+/* Where a pane dropped over the game area will float. */
+.wc-drop-ghost {
+  position: absolute;
+  z-index: 100;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid var(--c-accent);
+}
+
+.wc-drop-bar[hidden],
+.wc-drop-ghost[hidden] {
   display: none;
 }
 
@@ -117,11 +151,31 @@
   cursor: row-resize !important;
 }
 
+.wc-cockpit[data-drag="n"], .wc-cockpit[data-drag="n"] *,
+.wc-cockpit[data-drag="s"], .wc-cockpit[data-drag="s"] * {
+  cursor: ns-resize !important;
+}
+
+.wc-cockpit[data-drag="e"], .wc-cockpit[data-drag="e"] *,
+.wc-cockpit[data-drag="w"], .wc-cockpit[data-drag="w"] * {
+  cursor: ew-resize !important;
+}
+
+.wc-cockpit[data-drag="nw"], .wc-cockpit[data-drag="nw"] *,
+.wc-cockpit[data-drag="se"], .wc-cockpit[data-drag="se"] * {
+  cursor: nwse-resize !important;
+}
+
+.wc-cockpit[data-drag="ne"], .wc-cockpit[data-drag="ne"] *,
+.wc-cockpit[data-drag="sw"], .wc-cockpit[data-drag="sw"] * {
+  cursor: nesw-resize !important;
+}
+
 /* Below 60 × 18 cells this replaces the view (Inv §2.1). */
 .wc-too-small {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 200;
   display: flex;
   align-items: center;
   justify-content: center;

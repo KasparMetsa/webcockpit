@@ -16,11 +16,16 @@ import { frameText } from './frame';
 
 export type PaneResizeListener = (cols: number, rows: number) => void;
 
+/** z-index of the backmost floating pane; the others stack above it. */
+export const FLOAT_Z = 10;
+
 /** Where and how the cockpit shows a pane (cells), or null when hidden. */
 export interface PanePlacement {
   rect: Rect;
   content: Rect;
   framed: boolean;
+  /** Set for a floating pane: its z-order (0 = backmost). */
+  floating?: number;
 }
 
 export class PaneShell {
@@ -108,6 +113,8 @@ export class PaneShell {
       this.frameEl.textContent = p.framed ? frameText(rect.w, rect.h, this.label) : '';
     }
     this.el.toggleAttribute('data-framed', p.framed);
+    this.el.toggleAttribute('data-floating', p.floating !== undefined);
+    st.zIndex = p.floating === undefined ? '' : String(FLOAT_Z + p.floating);
     this.el.hidden = false;
     this._visible = true;
     this.setSize(content.w, content.h);

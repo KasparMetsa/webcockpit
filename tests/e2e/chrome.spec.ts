@@ -225,6 +225,8 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
   await page.evaluate(() =>
     window.__wc!.settings.update((d) => {
       d.layout.docks.right.size = 40;
+      d.layout.docks.right.panes = d.layout.docks.right.panes.filter((p) => p.id !== 'comm');
+      d.layout.floating = [{ id: 'comm', x: 5, y: 5, w: 30, h: 10 }];
     }),
   );
   for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
@@ -232,6 +234,9 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
   await page.keyboard.press('Enter');
   await expect(startFlash(page)).toHaveText('Layout reset.');
   await expect.poll(async () => (await settings(page)).layout.docks.right.size).toBe(33);
+  // Every pane docked in the right column again.
+  expect((await settings(page)).layout.floating).toEqual([]);
+  expect((await settings(page)).layout.docks.right.panes.map((p) => p.id)).toEqual(['character', 'timers', 'group', 'comm', 'ui']);
   await page.evaluate(() => window.__wc!.settings.reset());
 });
 

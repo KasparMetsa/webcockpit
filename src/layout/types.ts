@@ -55,12 +55,28 @@ export interface DockState {
 }
 
 /**
- * The whole pane layout. Every `PaneId` appears in exactly one dock
- * (whether it is on or off: on/off is `Settings.panes[id].on`), so a pane
- * that is switched back on returns to where it was.
+ * A floating pane (ADR 0014): its outer rectangle in cells (frame
+ * included), relative to the cockpit's top-left cell. Allocation clamps
+ * what is shown into the window; the stored rectangle is kept.
+ */
+export interface FloatPane {
+  id: PaneId;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * The whole pane layout. Every `PaneId` appears exactly once, either in
+ * one dock or in `floating` (whether it is on or off: on/off is
+ * `Settings.panes[id].on`), so a pane that is switched back on returns to
+ * where it was.
  */
 export interface LayoutModel {
   docks: Record<DockId, DockState>;
+  /** Floating panes, bottom to top (the last one is in front). */
+  floating: FloatPane[];
 }
 
 /** Default desired content rows per pane (Cockpit's default heights). */
@@ -98,5 +114,6 @@ export function defaultLayout(): LayoutModel {
       top: { size: DEFAULT_TOP_DOCK_SIZE, panes: [] },
       bottom: { size: DEFAULT_BOTTOM_DOCK_SIZE, panes: [] },
     },
+    floating: [],
   };
 }

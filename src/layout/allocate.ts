@@ -32,9 +32,13 @@
 // - Narrow collapse: a side dock is hidden when the game pane would get
 //   fewer than GAME_MIN_COLS columns. The model is untouched, so the dock
 //   comes back as soon as the window is wide enough again.
+// - Floating panes (ADR 0014) lie over the game pane and the docks and do
+//   not change the docked allocation. Each is clamped into the area above
+//   the input line (shrunk if the window is smaller than it) on every
+//   layout; the model keeps the stored rectangle.
 // - Below MIN_VIEW_COLS × MIN_VIEW_ROWS the result is `tooSmall`.
 
-import { type DockId, type LayoutModel, PANE_IDS, type PaneId } from './types';
+import { DEFAULT_PANE_DESIRED, DEFAULT_SIDE_DOCK_SIZE, type DockId, type LayoutModel, PANE_IDS, type PaneId } from './types';
 
 /** Smallest game pane (Inv §2.1 MAIN_MIN; ADR 0010). */
 export const GAME_MIN_COLS = 30;
@@ -77,6 +81,29 @@ export const isSideDock = (d: DockId): boolean => d === 'left' || d === 'right';
 /** Minimum content size of `id` along the axis of `dock`. */
 export function minContent(id: PaneId, dock: DockId): number {
   return isSideDock(dock) ? MIN_ROWS[id] : MIN_COLS;
+}
+
+/** Smallest floating pane (outer cells): the frame plus the pane's minimum content. */
+export function floatMin(id: PaneId, framed: boolean): { w: number; h: number } {
+  const f = framed ? FRAME_CELLS : 0;
+  return { w: MIN_COLS + f, h: MIN_ROWS[id] + f };
+}
+
+/** Size of a pane that starts floating without a shown rectangle to copy. */
+export function defaultFloatSize(id: PaneId): { w: number; h: number } {
+  return { w: DEFAULT_SIDE_DOCK_SIZE, h: DEFAULT_PANE_DESIRED[id] + FRAME_CELLS };
+}
+
+/**
+ * The rectangle a floating pane shows at in a `cols` × `rows` area: at
+ * least `min`, at most the area, moved inside it.
+ */
+export function clampFloat(r: Rect, min: { w: number; h: number }, cols: number, rows: number): Rect {
+  const w = Math.max(1, Math.min(cols, Math.max(min.w, Math.round(r.w))));
+  const h = Math.max(1, Math.min(rows, Math.max(min.h, Math.round(r.h))));
+  const x = Math.max(0, Math.min(cols - w, Math.round(r.x)));
+  const y = Math.max(0, Math.min(rows - h, Math.round(r.y)));
+  return { x, y, w, h };
 }
 
 // ------------------------------------------------------------------ axis
@@ -201,8 +228,9 @@ export interface AllocateInput {
 
 export interface PaneBox {
   id: PaneId;
-  dock: DockId;
-  /** Index of the pane in the dock's model list. */
+  /** The dock, or `float` for a floating pane. */
+  dock: DockId | 'float';
+  /** Index of the pane in the dock's model list (or in `floating`: its z-order). */
   index: number;
   /** Outer rectangle (frame included). */
   rect: Rect;
@@ -231,7 +259,10 @@ export interface LayoutResult {
   docks: Partial<Record<DockId, DockBox>>;
   /** Docks with panes switched on that are hidden for lack of space. */
   collapsed: DockId[];
-  /** Shown panes, dock by dock (left, right, top, bottom), in stack order. */
+  /**
+   * Shown panes, dock by dock (left, right, top, bottom), in stack order,
+   * then the floating panes bottom to top.
+   */
   panes: PaneBox[];
   /** Panes switched on but not shown: dropped by allocation or in a collapsed dock. */
   hidden: PaneId[];
@@ -358,5 +389,14 @@ export function allocate(input: AllocateInput): LayoutResult {
   if (showR) place('right', { x: cols - rightW, y: 0, w: rightW, h: H });
   if (topH > 0) place('top', { x: gx, y: 0, w: gw, h: topH });
   if (bottomH > 0) place('bottom', { x: gx, y: H - bottomH, w: gw, h: bottomH });
+
+  input.layout.floating.forEach((f, index) => {
+    const t = input.panes[f.id];
+    if (!t?.on) return;
+    const framed = t.border;
+    const r = clampFloat(f, floatMin(f.id, framed), cols, H);
+    const c: Rect = framed ? { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 } : { ...r };
+    res.panes.push({ id: f.id, dock: 'float', index, rect: r, content: c, framed });
+  });
   return res;
 }

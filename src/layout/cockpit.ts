@@ -7,7 +7,8 @@
 //     .wc-pane × 5      pane shells (src/panes/pane.ts)
 //     .wc-input-slot    the input line (src/ui/input-pane.ts) goes in here
 //     .wc-handles       invisible resize handles over the gaps and frames
-//     .wc-drop-bar      insertion bar while a pane is dragged
+//     .wc-drop-bar      insertion bar while a pane is dragged to a dock
+//     .wc-drop-ghost    outline where a pane dragged over the game will float
 //     .wc-too-small     "Window too small" (below 60 × 18 cells)
 //
 // Relayout is one atomic pass per animation frame after a size change of
@@ -22,6 +23,10 @@
 //   the top content row) to a dock or a position in a dock. The insertion
 //   bar shows where it lands. Dropping on the screen edge of a dock that is
 //   not shown opens that dock at its default size.
+// - Floating panes (ADR 0014): drop a docked pane over the game area and it
+//   floats there at its size (an outline shows where). Drag a floating pane
+//   by its title row to move it; drop it on a screen-edge zone to dock it.
+//   Its edges and corners resize it. Pressing on it brings it to front.
 // - Drag the gap between the game pane and a dock to resize the dock, or
 //   the boundary between two panes (the lower part of the upper pane's last
 //   row, or the right part of the left pane's last column) to resize them.
@@ -45,10 +50,25 @@ import {
   type Rect,
   SIDE_DOCK_MIN,
   TOP_DOCK_MIN,
+  type DockBox,
   allocate,
+  clampFloat,
+  defaultFloatSize,
+  floatMin,
   isSideDock,
 } from './allocate';
-import { isNoopMove, movePane, setDesired, setDockSize, shiftBoundary } from './model';
+import {
+  findFloat,
+  floatPane,
+  isNoopMove,
+  movePane,
+  raisePane,
+  resizeRect,
+  setDesired,
+  setDockSize,
+  setFloatRect,
+  shiftBoundary,
+} from './model';
 import {
   type DockId,
   defaultDockSize,
@@ -74,14 +94,24 @@ export interface CockpitOptions {
   requestFrame?: (cb: () => void) => void;
 }
 
-/** Where a dragged pane would land. `bar` is in px relative to the cockpit. */
-export interface DropTarget {
-  dock: DockId;
-  index: number;
-  /** The dock is not shown now; the drop opens it at its default size. */
-  open: boolean;
-  bar: Rect;
-}
+/**
+ * Where a dragged pane would land: a place in a dock (`bar` is the
+ * insertion bar in px relative to the cockpit) or a floating rectangle
+ * (`rect`, outer cells).
+ */
+export type DropTarget =
+  | {
+      kind: 'dock';
+      dock: DockId;
+      index: number;
+      /** The dock is not shown now; the drop opens it at its default size. */
+      open: boolean;
+      bar: Rect;
+    }
+  | { kind: 'float'; rect: Rect };
+
+/** Resize handles of a floating pane, by the edges they move. */
+const FLOAT_EDGES = ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'] as const;
 
 /** Pointer travel (px) before a press on a title row becomes a drag. */
 const DRAG_THRESHOLD = 4;
@@ -89,7 +119,28 @@ const DRAG_THRESHOLD = 4;
 const EDGE_CELLS = 2;
 
 type Drag =
-  | { kind: 'move'; id: PaneId; pointerId: number; x0: number; y0: number; active: boolean; target: DropTarget | null }
+  | {
+      kind: 'move';
+      id: PaneId;
+      pointerId: number;
+      x0: number;
+      y0: number;
+      /** The pressed cell relative to the pane's top-left cell. */
+      grab: { x: number; y: number };
+      active: boolean;
+      target: DropTarget | null;
+    }
+  | {
+      kind: 'float';
+      id: PaneId;
+      edges: string;
+      pointerId: number;
+      x0: number;
+      y0: number;
+      rect: Rect;
+      min: { w: number; h: number };
+      base: LayoutModel;
+    }
   | { kind: 'dock'; dock: DockId; pointerId: number; base: LayoutModel }
   | {
       kind: 'panes';
@@ -109,6 +160,7 @@ export class Cockpit {
   readonly inputEl: HTMLDivElement;
   private readonly handlesEl: HTMLDivElement;
   private readonly barEl: HTMLDivElement;
+  private readonly ghostEl: HTMLDivElement;
   private readonly tooSmallEl: HTMLDivElement;
   private readonly shells = new Map<PaneId, PaneShell>();
   private readonly settings: SettingsStore;
@@ -148,6 +200,8 @@ export class Cockpit {
     this.handlesEl = div('wc-handles');
     this.barEl = div('wc-drop-bar');
     this.barEl.hidden = true;
+    this.ghostEl = div('wc-drop-ghost');
+    this.ghostEl.hidden = true;
     this.tooSmallEl = div('wc-too-small');
     this.tooSmallEl.hidden = true;
     this.el.append(this.gameEl);
@@ -156,10 +210,15 @@ export class Cockpit {
       const grip = div('wc-pane-grip');
       grip.dataset.grip = id;
       shell.el.append(grip);
+      for (const edge of FLOAT_EDGES) {
+        const h = div('wc-float-handle');
+        h.dataset.edge = edge;
+        shell.el.append(h);
+      }
       this.shells.set(id, shell);
       this.el.append(shell.el);
     }
-    this.el.append(this.inputEl, this.handlesEl, this.barEl, this.tooSmallEl);
+    this.el.append(this.inputEl, this.handlesEl, this.barEl, this.ghostEl, this.tooSmallEl);
     opts.root.appendChild(this.el);
 
     this.el.addEventListener('pointerdown', this.onPointerDown);
@@ -225,7 +284,10 @@ export class Cockpit {
     for (const [id, shell] of this.shells) {
       shell.applyTheme(s);
       const b = boxes.get(id);
-      shell.place(b ? { rect: b.rect, content: b.content, framed: b.framed } : null, cell);
+      shell.place(
+        b ? { rect: b.rect, content: b.content, framed: b.framed, floating: b.dock === 'float' ? b.index : undefined } : null,
+        cell,
+      );
     }
     this.renderHandles(r, cell);
   }
@@ -316,13 +378,38 @@ export class Cockpit {
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     this.swallowMouseDown = false;
-    if (e.button !== 0 || this.drag || !this.last || this.last.tooSmall) return;
+    if (this.drag || !this.last || this.last.tooSmall) return;
     const t = e.target as HTMLElement;
+    const floating = t.closest<HTMLElement>('.wc-pane[data-floating]');
+    if (floating) this.raise(floating.dataset.pane as PaneId);
+    if (e.button !== 0) return;
     const grip = t.closest<HTMLElement>('.wc-pane-grip');
+    const edge = t.closest<HTMLElement>('.wc-float-handle');
     const handle = t.closest<HTMLElement>('.wc-handle');
     const { x, y } = this.local(e);
-    if (grip) {
-      this.drag = { kind: 'move', id: grip.dataset.grip as PaneId, pointerId: e.pointerId, x0: x, y0: y, active: false, target: null };
+    const cell = this.cells.get();
+    const boxOf = (id: PaneId): PaneBox | undefined => this.last!.panes.find((p) => p.id === id);
+    if (edge && floating) {
+      const id = floating.dataset.pane as PaneId;
+      const b = boxOf(id);
+      if (!b) return;
+      this.drag = {
+        kind: 'float',
+        id,
+        edges: edge.dataset.edge!,
+        pointerId: e.pointerId,
+        x0: x,
+        y0: y,
+        rect: b.rect,
+        min: floatMin(id, b.framed),
+        base: this.settings.get().layout,
+      };
+      this.el.dataset.drag = edge.dataset.edge!;
+    } else if (grip) {
+      const id = grip.dataset.grip as PaneId;
+      const b = boxOf(id);
+      const grab = b ? { x: Math.floor(x / cell.w) - b.rect.x, y: Math.floor(y / cell.h) - b.rect.y } : { x: 0, y: 0 };
+      this.drag = { kind: 'move', id, pointerId: e.pointerId, x0: x, y0: y, grab, active: false, target: null };
     } else if (handle) {
       const dock = handle.dataset.dock as DockId;
       const base = this.settings.get().layout;
@@ -333,7 +420,6 @@ export class Cockpit {
         if (!a || !b) return;
         const side = isSideDock(dock);
         const size = (p: PaneBox): number => (side ? p.content.h : p.content.w);
-        const cell = this.cells.get();
         // A dock that is short of space is frozen at what it shows now, so
         // the boundary follows the pointer exactly (ADR 0012).
         let frozen = base;
@@ -396,8 +482,15 @@ export class Cockpit {
         this.el.dataset.drag = 'move';
         this.shells.get(d.id)!.el.toggleAttribute('data-dragging', true);
       }
-      d.target = this.dropTarget(x, y, d.id);
-      this.showBar(d.target);
+      d.target = this.dropTarget(x, y, d.id, d.grab);
+      this.showTarget(d.target);
+      return;
+    }
+    if (d.kind === 'float') {
+      const dx = Math.round((x - d.x0) / cell.w);
+      const dy = Math.round((y - d.y0) / cell.h);
+      const rect = resizeRect(d.rect, d.edges, dx, dy, d.min, r.cols, r.rows - INPUT_ROWS);
+      this.setPreview(setFloatRect(d.base, d.id, rect));
       return;
     }
     if (d.kind === 'dock') {
@@ -436,6 +529,10 @@ export class Cockpit {
       if (d.active && d.target) {
         const t = d.target;
         this.settings.update((draft) => {
+          if (t.kind === 'float') {
+            draft.layout = floatPane(draft.layout, d.id, t.rect);
+            return;
+          }
           let m = movePane(draft.layout, d.id, t.dock, t.index);
           if (t.open) m = setDockSize(m, t.dock, defaultDockSize(t.dock));
           draft.layout = m;
@@ -467,6 +564,7 @@ export class Cockpit {
     this.drag = null;
     this.preview = null;
     this.barEl.hidden = true;
+    this.ghostEl.hidden = true;
     delete this.el.dataset.drag;
     for (const s of this.shells.values()) s.el.removeAttribute('data-dragging');
     this.scheduleRelayout();
@@ -478,22 +576,38 @@ export class Cockpit {
     this.scheduleRelayout();
   }
 
-  private showBar(t: DropTarget | null): void {
-    if (!t) {
-      this.barEl.hidden = true;
-      return;
-    }
-    const st = this.barEl.style;
-    st.left = `${t.bar.x}px`;
-    st.top = `${t.bar.y}px`;
-    st.width = `${t.bar.w}px`;
-    st.height = `${t.bar.h}px`;
-    this.barEl.dataset.dock = t.dock;
-    this.barEl.hidden = false;
+  /** Brings a floating pane to the front (writes the settings if that changes the order). */
+  private raise(id: PaneId): void {
+    const layout = this.settings.get().layout;
+    const m = raisePane(layout, id);
+    if (m === layout) return;
+    this.settings.update((draft) => {
+      draft.layout = m;
+    });
   }
 
-  /** Where a pane dragged to (x, y) px would land, or null (drop cancels). */
-  dropTarget(x: number, y: number, id: PaneId): DropTarget | null {
+  private showTarget(t: DropTarget | null): void {
+    this.barEl.hidden = t?.kind !== 'dock';
+    this.ghostEl.hidden = t?.kind !== 'float';
+    if (t?.kind === 'dock') {
+      placePx(this.barEl, t.bar);
+      this.barEl.dataset.dock = t.dock;
+    } else if (t?.kind === 'float') {
+      placeEl(this.ghostEl, t.rect, this.cells.get());
+    }
+  }
+
+  /**
+   * Where pane `id` dragged to (x, y) px would land, or null (the drop
+   * changes nothing). `grab` is the pressed cell relative to the pane's
+   * top-left cell, so a floating pane keeps its offset under the pointer.
+   *
+   * A docked pane docks anywhere over a shown dock and on the screen edge of
+   * a hidden dock; a floating pane docks only from the 2-cell screen-edge
+   * zones (it may lie over a dock, and moving it there must not dock it).
+   * Anywhere else the pane floats.
+   */
+  dropTarget(x: number, y: number, id: PaneId, grab: { x: number; y: number } = { x: 0, y: 0 }): DropTarget | null {
     const r = this.last;
     if (!r || r.tooSmall) return null;
     const cell = this.cells.get();
@@ -501,7 +615,9 @@ export class Cockpit {
     const cy = y / cell.h;
     const H = r.rows - INPUT_ROWS;
     const T = Math.max(2, Math.round(cell.h / 4));
-    const layout = this.settings.get().layout;
+    const s = this.settings.get();
+    const layout = s.layout;
+    const isFloating = findFloat(layout, id) >= 0;
     const W = r.cols * cell.w;
     const clampBar = (b: Rect): Rect => {
       const bx = Math.max(0, Math.min(W - b.w, b.x));
@@ -509,9 +625,9 @@ export class Cockpit {
       return { ...b, x: bx, y: by };
     };
 
-    for (const dock of Object.values(r.docks)) {
+    // Before the first pane whose middle is past the pointer.
+    const insert = (dock: DockBox): DropTarget | null => {
       const d = dock.rect;
-      if (cx < d.x || cx >= d.x + d.w || cy < d.y || cy >= d.y + d.h) continue;
       const side = isSideDock(dock.id);
       const boxes = r.panes.filter((p) => p.dock === dock.id);
       const lastBox = boxes[boxes.length - 1]!;
@@ -529,31 +645,63 @@ export class Cockpit {
       const bar = side
         ? { x: d.x * cell.w, y: at * cell.h - T / 2, w: d.w * cell.w, h: T }
         : { x: at * cell.w - T / 2, y: d.y * cell.h, w: T, h: d.h * cell.h };
-      return { dock: dock.id, index, open: false, bar: clampBar(bar) };
+      return { kind: 'dock', dock: dock.id, index, open: false, bar: clampBar(bar) };
+    };
+
+    if (!isFloating) {
+      for (const dock of Object.values(r.docks)) {
+        const d = dock.rect;
+        if (cx >= d.x && cx < d.x + d.w && cy >= d.y && cy < d.y + d.h) return insert(dock);
+      }
     }
 
-    // Screen-edge zones of docks that are not shown (and not collapsed).
-    const open = (dock: DockId, bar: Rect): DropTarget => ({
-      dock,
-      index: layout.docks[dock].panes.length,
-      open: true,
-      bar,
-    });
+    // Screen-edge zones: a shown dock takes the pane at the pointer, a hidden
+    // one (not collapsed) opens at its default size.
     const E = EDGE_CELLS;
-    const hidden = (dock: DockId): boolean => !r.docks[dock] && !r.collapsed.includes(dock);
-    if (cy < H) {
-      if (hidden('left') && cx < E) return open('left', { x: 0, y: 0, w: 2 * T, h: H * cell.h });
-      if (hidden('right') && cx >= r.cols - E) return open('right', { x: W - 2 * T, y: 0, w: 2 * T, h: H * cell.h });
+    if (cy >= 0 && cy < H) {
       const inGameCol = cx >= r.game.x && cx < r.game.x + r.game.w;
-      if (hidden('top') && cy < E && inGameCol) {
-        return open('top', { x: r.game.x * cell.w, y: 0, w: r.game.w * cell.w, h: 2 * T });
-      }
-      if (hidden('bottom') && cy >= H - E && inGameCol) {
-        return open('bottom', { x: r.game.x * cell.w, y: H * cell.h - 2 * T, w: r.game.w * cell.w, h: 2 * T });
+      const zone: DockId | null =
+        cx < E ? 'left'
+        : cx >= r.cols - E ? 'right'
+        : cy < E && inGameCol ? 'top'
+        : cy >= H - E && inGameCol ? 'bottom'
+        : null;
+      const shown = zone ? r.docks[zone] : undefined;
+      if (shown) return insert(shown);
+      if (zone && !r.collapsed.includes(zone)) {
+        const g = r.game;
+        const bar: Record<DockId, Rect> = {
+          left: { x: 0, y: 0, w: 2 * T, h: H * cell.h },
+          right: { x: W - 2 * T, y: 0, w: 2 * T, h: H * cell.h },
+          top: { x: g.x * cell.w, y: 0, w: g.w * cell.w, h: 2 * T },
+          bottom: { x: g.x * cell.w, y: H * cell.h - 2 * T, w: g.w * cell.w, h: 2 * T },
+        };
+        return { kind: 'dock', dock: zone, index: layout.docks[zone].panes.length, open: true, bar: bar[zone] };
       }
     }
-    return null;
+
+    // Float at the pointer, at the size the pane shows now.
+    const box = r.panes.find((p) => p.id === id);
+    const size = box ? { w: box.rect.w, h: box.rect.h } : defaultFloatSize(id);
+    const rect = clampFloat(
+      { x: Math.floor(cx) - grab.x, y: Math.floor(cy) - grab.y, ...size },
+      floatMin(id, s.panes[id].border),
+      r.cols,
+      H,
+    );
+    if (box?.dock === 'float' && sameRect(box.rect, rect)) return null;
+    return { kind: 'float', rect };
   }
+}
+
+const sameRect = (a: Rect, b: Rect): boolean => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+function placePx(el: HTMLElement, r: Rect): void {
+  const st = el.style;
+  st.left = `${r.x}px`;
+  st.top = `${r.y}px`;
+  st.width = `${r.w}px`;
+  st.height = `${r.h}px`;
 }
 
 function placeEl(el: HTMLElement, r: Rect, cell: { w: number; h: number }): void {

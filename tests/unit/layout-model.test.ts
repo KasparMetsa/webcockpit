@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BOTTOM_DESIRED } from '../../src/layout/allocate';
 import {
+  findFloat,
   findPane,
+  floatPane,
   isNoopMove,
   movePane,
+  raisePane,
+  resizeRect,
   setDesired,
   setDockSize,
+  setFloatRect,
   shiftBoundary,
   togglePatch,
 } from '../../src/layout/model';
@@ -15,7 +20,13 @@ import { defaultSettings } from '../../src/settings/types';
 const order = (m: LayoutModel, d: DockId) => m.docks[d].panes.map((p) => p.id);
 
 function everyPaneOnce(m: LayoutModel): void {
-  const ids = [...order(m, 'left'), ...order(m, 'right'), ...order(m, 'top'), ...order(m, 'bottom')];
+  const ids = [
+    ...order(m, 'left'),
+    ...order(m, 'right'),
+    ...order(m, 'top'),
+    ...order(m, 'bottom'),
+    ...m.floating.map((f) => f.id),
+  ];
   expect(ids.sort()).toEqual([...PANE_IDS].sort());
 }
 
@@ -99,6 +110,94 @@ describe('sizes', () => {
     // Bottom dock minimum is 8 columns each.
     expect(shiftBoundary(a, b, 'bottom', 20)).toEqual({ a: 9, b: 8 });
     expect(shiftBoundary(a, b, 'bottom', -20)).toEqual({ a: 8, b: 9 });
+  });
+});
+
+describe('floating panes', () => {
+  const zOrder = (m: LayoutModel) => m.floating.map((f) => f.id);
+
+  it('floats a docked pane in front, in whole cells, and keeps every pane once', () => {
+    const m0 = defaultLayout();
+    const m = floatPane(m0, 'comm', { x: 10.4, y: 3, w: 33, h: 12 });
+    expect(order(m, 'right')).toEqual(['character', 'timers', 'group', 'ui']);
+    expect(m.floating).toEqual([{ id: 'comm', x: 10, y: 3, w: 33, h: 12 }]);
+    expect(findPane(m, 'comm')).toBeNull();
+    expect(findFloat(m, 'comm')).toBe(0);
+    everyPaneOnce(m);
+    const m2 = floatPane(m, 'ui', { x: -4, y: 0, w: 0, h: 5 });
+    expect(m2.floating.at(-1)).toEqual({ id: 'ui', x: 0, y: 0, w: 1, h: 5 });
+    expect(zOrder(m2)).toEqual(['comm', 'ui']);
+    everyPaneOnce(m2);
+    expect(JSON.stringify(m0)).toBe(JSON.stringify(defaultLayout()));
+  });
+
+  it('moves a floating pane (floatPane again) to the front', () => {
+    let m = floatPane(defaultLayout(), 'comm', { x: 1, y: 1, w: 20, h: 8 });
+    m = floatPane(m, 'ui', { x: 5, y: 5, w: 20, h: 8 });
+    m = floatPane(m, 'comm', { x: 7, y: 2, w: 20, h: 8 });
+    expect(m.floating).toEqual([
+      { id: 'ui', x: 5, y: 5, w: 20, h: 8 },
+      { id: 'comm', x: 7, y: 2, w: 20, h: 8 },
+    ]);
+    everyPaneOnce(m);
+  });
+
+  it('sets a floating rectangle in place and knows no-ops', () => {
+    let m = floatPane(defaultLayout(), 'comm', { x: 1, y: 1, w: 20, h: 8 });
+    m = floatPane(m, 'ui', { x: 5, y: 5, w: 20, h: 8 });
+    const r = setFloatRect(m, 'comm', { x: 2, y: 3, w: 25, h: 9 });
+    expect(r.floating).toEqual([
+      { id: 'comm', x: 2, y: 3, w: 25, h: 9 },
+      { id: 'ui', x: 5, y: 5, w: 20, h: 8 },
+    ]);
+    expect(setFloatRect(m, 'comm', { x: 1, y: 1, w: 20, h: 8 })).toBe(m);
+    expect(setFloatRect(m, 'timers', { x: 1, y: 1, w: 20, h: 8 })).toBe(m);
+  });
+
+  it('raises a floating pane to the front and persists the z-order', () => {
+    let m = floatPane(defaultLayout(), 'comm', { x: 1, y: 1, w: 20, h: 8 });
+    m = floatPane(m, 'ui', { x: 5, y: 5, w: 20, h: 8 });
+    m = floatPane(m, 'group', { x: 9, y: 9, w: 20, h: 8 });
+    const r = raisePane(m, 'comm');
+    expect(zOrder(r)).toEqual(['ui', 'group', 'comm']);
+    expect(raisePane(r, 'comm')).toBe(r);
+    expect(raisePane(r, 'timers')).toBe(r);
+  });
+
+  it('docks a floating pane with the default size for the axis', () => {
+    let m = floatPane(defaultLayout(), 'comm', { x: 1, y: 1, w: 20, h: 8 });
+    expect(isNoopMove(m, 'comm', 'right', 0)).toBe(false);
+    const right = movePane(m, 'comm', 'right', 1);
+    expect(order(right, 'right')).toEqual(['character', 'comm', 'timers', 'group', 'ui']);
+    expect(right.docks.right.panes[1]).toEqual({ id: 'comm', desired: 10 });
+    expect(right.floating).toEqual([]);
+    everyPaneOnce(right);
+    m = movePane(m, 'comm', 'top', 99);
+    expect(m.docks.top.panes).toEqual([{ id: 'comm', desired: DEFAULT_BOTTOM_DESIRED }]);
+    everyPaneOnce(m);
+  });
+
+  it('keeps floating panes when desired sizes are set', () => {
+    const m = floatPane(defaultLayout(), 'comm', { x: 1, y: 1, w: 20, h: 8 });
+    expect(setDesired(m, { comm: 3 })).toBe(m);
+  });
+
+  it('resizes from edges and corners within the minimum and the area', () => {
+    const r = { x: 10, y: 5, w: 20, h: 10 };
+    const min = { w: 10, h: 5 };
+    expect(resizeRect(r, 'e', 4, 9, min, 100, 40)).toEqual({ x: 10, y: 5, w: 24, h: 10 });
+    expect(resizeRect(r, 's', 4, 3, min, 100, 40)).toEqual({ x: 10, y: 5, w: 20, h: 13 });
+    expect(resizeRect(r, 'w', -3, 0, min, 100, 40)).toEqual({ x: 7, y: 5, w: 23, h: 10 });
+    expect(resizeRect(r, 'n', 0, -2, min, 100, 40)).toEqual({ x: 10, y: 3, w: 20, h: 12 });
+    expect(resizeRect(r, 'se', 2, 2, min, 100, 40)).toEqual({ x: 10, y: 5, w: 22, h: 12 });
+    expect(resizeRect(r, 'nw', 1, 1, min, 100, 40)).toEqual({ x: 11, y: 6, w: 19, h: 9 });
+    // Minimum: the opposite edge stays put.
+    expect(resizeRect(r, 'w', 50, 0, min, 100, 40)).toEqual({ x: 20, y: 5, w: 10, h: 10 });
+    expect(resizeRect(r, 'n', 0, 50, min, 100, 40)).toEqual({ x: 10, y: 10, w: 20, h: 5 });
+    expect(resizeRect(r, 'se', -50, -50, min, 100, 40)).toEqual({ x: 10, y: 5, w: 10, h: 5 });
+    // The area: up to the window edges.
+    expect(resizeRect(r, 'se', 500, 500, min, 100, 40)).toEqual({ x: 10, y: 5, w: 90, h: 35 });
+    expect(resizeRect(r, 'nw', -500, -500, min, 100, 40)).toEqual({ x: 0, y: 0, w: 30, h: 15 });
   });
 });
 

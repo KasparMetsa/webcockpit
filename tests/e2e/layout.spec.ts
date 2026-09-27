@@ -214,3 +214,142 @@ test('narrow window collapses the side dock and restores it when widened', async
   await expect(page.locator('.wc-cockpit')).toHaveAttribute('data-collapsed', '');
   for (const id of ORDER) await expect(page.locator(`.wc-pane-${id}`)).toBeVisible();
 });
+
+const floating = (page: Page) => page.evaluate(() => window.__wc!.settings.get().layout.floating);
+
+test('floating pane: drop over the game, move, resize, reload, dock again', async ({ page }) => {
+  const { cw, ch, cols, rows } = await open(page);
+  const o = await origin(page);
+  const grip = async (id: string, dx = 6): Promise<{ x: number; y: number }> => {
+    const b = await box(page, `.wc-pane-${id}`);
+    return { x: o.x + b.x + dx * cw + cw / 2, y: o.y + b.y + ch / 2 };
+  };
+
+  // Drag Comm out of the right dock over the game pane: an outline shows where.
+  let g = await grip('comm');
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(o.x + 300, o.y + 300, { steps: 6 });
+  await expect(page.locator('.wc-drop-ghost')).toBeVisible();
+  await expect(page.locator('.wc-drop-bar')).toBeHidden();
+  await page.mouse.up();
+  await expect(page.locator('.wc-drop-ghost')).toBeHidden();
+  let x = Math.floor(300 / cw) - 6;
+  let y = Math.floor(300 / ch);
+  await expect.poll(() => floating(page)).toEqual([{ id: 'comm', x, y, w: 33, h: 12 }]);
+  await expect.poll(() => box(page, '.wc-pane-comm')).toEqual({ x: x * cw, y: y * ch, width: 33 * cw, height: 12 * ch });
+  await expect(page.locator('.wc-pane-comm')).toHaveAttribute('data-floating', '');
+  // The docks and the game pane keep their places; Comm lies over the game.
+  expect(await box(page, '.wc-game')).toEqual({ x: 0, y: 0, width: (cols - 34) * cw, height: (rows - 1) * ch });
+  const style = await page.locator('.wc-pane-comm').evaluate((el) => ({
+    z: getComputedStyle(el).zIndex,
+    bg: getComputedStyle(el).backgroundColor,
+  }));
+  expect(style).toEqual({ z: '10', bg: 'rgb(14, 20, 28)' }); // the opaque blue tint
+  await expect(page.locator('.wc-input-field')).toBeFocused();
+
+  // Move it by its title row.
+  g = await grip('comm', 3);
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 5 * cw, g.y + 3 * ch, { steps: 5 });
+  await page.mouse.up();
+  x += 5;
+  y += 3;
+  await expect.poll(() => floating(page)).toEqual([{ id: 'comm', x, y, w: 33, h: 12 }]);
+  await expect.poll(() => box(page, '.wc-pane-comm')).toMatchObject({ x: x * cw, y: y * ch });
+
+  // Resize from the bottom-right corner, then from the left edge.
+  let b = await box(page, '.wc-pane-comm');
+  const se = { x: o.x + b.x + b.width - cw / 2, y: o.y + b.y + b.height - ch / 2 };
+  await page.mouse.move(se.x, se.y);
+  expect(await page.evaluate(([px, py]) => getComputedStyle(document.elementFromPoint(px!, py!)!).cursor, [se.x, se.y])).toBe('nwse-resize');
+  await page.mouse.down();
+  await page.mouse.move(se.x + 4 * cw, se.y + 2 * ch, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => floating(page)).toEqual([{ id: 'comm', x, y, w: 37, h: 14 }]);
+  await expect.poll(() => box(page, '.wc-pane-comm')).toMatchObject({ width: 37 * cw, height: 14 * ch });
+  b = await box(page, '.wc-pane-comm');
+  const w = { x: o.x + b.x + 2, y: o.y + b.y + b.height / 2 };
+  await page.mouse.move(w.x, w.y);
+  await page.mouse.down();
+  await page.mouse.move(w.x - 3 * cw, w.y, { steps: 3 });
+  await page.mouse.up();
+  await expect.poll(() => floating(page)).toEqual([{ id: 'comm', x: x - 3, y, w: 40, h: 14 }]);
+  x -= 3;
+  await expect.poll(() => box(page, '.wc-pane-comm')).toEqual({ x: x * cw, y: y * ch, width: 40 * cw, height: 14 * ch });
+  const frame = (await page.locator('.wc-pane-comm .wc-pane-frame').textContent())!.split('\n');
+  expect(frame[0]).toBe('▛▀▀ Comm ' + '▀'.repeat(40 - 2 - 8) + '▜');
+  expect(frame).toHaveLength(14);
+  await expect(page.locator('.wc-input-field')).toBeFocused();
+
+  // A reload keeps it.
+  await page.evaluate(() => window.__wc!.settings.flush());
+  await page.reload();
+  await expect(page.locator('.wc-cockpit')).toBeVisible();
+  await metrics(page);
+  await expect.poll(() => box(page, '.wc-pane-comm')).toEqual({ x: x * cw, y: y * ch, width: 40 * cw, height: 14 * ch });
+
+  // Over the right dock (not at the edge) it stays floating; at the right
+  // screen edge it docks into the right column where the bar shows.
+  g = await grip('comm', 3);
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(o.x + (cols - 20) * cw, o.y + 3 * ch, { steps: 6 });
+  await expect(page.locator('.wc-drop-ghost')).toBeVisible();
+  await expect(page.locator('.wc-drop-bar')).toBeHidden();
+  await page.mouse.move(o.x + cols * cw - cw / 2, o.y + 3 * ch, { steps: 4 });
+  await expect(page.locator('.wc-drop-bar')).toBeVisible();
+  await expect(page.locator('.wc-drop-bar')).toHaveAttribute('data-dock', 'right');
+  await page.mouse.up();
+  await expect.poll(() => floating(page)).toEqual([]);
+  await expect
+    .poll(() => page.evaluate(() => window.__wc!.settings.get().layout.docks.right.panes.map((p) => p.id)))
+    .toEqual(['comm', 'character', 'timers', 'group', 'ui']);
+  await expect(page.locator('.wc-pane-comm')).not.toHaveAttribute('data-floating');
+  expect(await box(page, '.wc-pane-comm')).toMatchObject({ x: (cols - 33) * cw, y: 0, width: 33 * cw });
+});
+
+test('floating panes come to front on a press and stay inside a smaller window', async ({ page }) => {
+  const { cw, ch } = await open(page);
+  const o = await origin(page);
+  await page.evaluate(() =>
+    window.__wc!.settings.update((d) => {
+      d.layout.docks.right.panes = d.layout.docks.right.panes.filter((p) => p.id !== 'comm' && p.id !== 'ui');
+      d.layout.floating = [
+        { id: 'comm', x: 60, y: 30, w: 30, h: 12 },
+        { id: 'ui', x: 70, y: 35, w: 30, h: 12 },
+      ];
+    }),
+  );
+  await expect(page.locator('.wc-pane-ui')).toHaveCSS('z-index', '11');
+  // A click on Comm's content (where UI does not cover it) brings it to front
+  // and returns the focus to the input.
+  await page.mouse.click(o.x + 62 * cw, o.y + 33 * ch);
+  await expect.poll(() => floating(page).then((f) => f.map((p) => p.id))).toEqual(['ui', 'comm']);
+  await expect(page.locator('.wc-pane-comm')).toHaveCSS('z-index', '11');
+  await expect(page.locator('.wc-input-field')).toBeFocused();
+
+  // A smaller window: both are moved inside it; the stored places are kept.
+  await page.setViewportSize({ width: 800, height: 500 });
+  const m = await metrics(page);
+  for (const id of ['comm', 'ui']) {
+    const b = await box(page, `.wc-pane-${id}`);
+    expect(b.x).toBeGreaterThanOrEqual(0);
+    expect(b.y).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width).toBeLessThanOrEqual(m.cols * cw);
+    expect(b.y + b.height).toBeLessThanOrEqual((m.rows - 1) * ch);
+    expect(b.width).toBe(30 * cw);
+  }
+  expect((await box(page, '.wc-pane-ui')).x).toBe((m.cols - 30) * cw);
+  // Too small: the notice, as for docked panes.
+  await page.setViewportSize({ width: 400, height: 250 });
+  await expect(page.locator('.wc-too-small')).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator('.wc-too-small')).toBeHidden();
+  await expect.poll(() => box(page, '.wc-pane-comm')).toMatchObject({ x: 60 * cw, y: 30 * ch });
+  expect(await floating(page)).toEqual([
+    { id: 'ui', x: 70, y: 35, w: 30, h: 12 },
+    { id: 'comm', x: 60, y: 30, w: 30, h: 12 },
+  ]);
+});

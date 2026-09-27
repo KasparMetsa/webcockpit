@@ -16,6 +16,7 @@ import {
   PANE_IDS,
   type PaneId,
 } from '../layout/types';
+import { defaultFloatSize } from '../layout/allocate';
 import { normalizeHex } from '../theme/color';
 import {
   type AppearanceSettings,
@@ -91,15 +92,17 @@ function migratePanes(raw: unknown): Record<PaneId, PaneSettings> {
 
 /**
  * A valid layout from anything: known dock ids only, sizes clamped, each
- * pane id at most once (first occurrence wins), and any pane missing from
- * every dock appended to the right dock with its default height.
+ * pane id at most once (docks first, then `floating`; first occurrence
+ * wins), and any pane missing from every dock and from `floating` appended
+ * to the right dock with its default height. A dock missing from an older
+ * layout (the top dock) comes back empty at its default size.
  */
 export function migrateLayout(raw: unknown): LayoutModel {
   const d = defaultSettings().layout;
   const docksRaw = isObj(raw) && isObj(raw.docks) ? raw.docks : null;
   if (!docksRaw) return d;
   const seen = new Set<PaneId>();
-  const out = { docks: {} } as LayoutModel;
+  const out = { docks: {}, floating: [] } as unknown as LayoutModel;
   for (const dock of DOCK_IDS) {
     const x = isObj(docksRaw[dock]) ? (docksRaw[dock] as Obj) : {};
     const panes: DockPane[] = [];
@@ -111,6 +114,20 @@ export function migrateLayout(raw: unknown): LayoutModel {
       panes.push({ id, desired: int(p.desired, 1, MAX_CELLS, DEFAULT_PANE_DESIRED[id]) });
     }
     out.docks[dock] = { size: int(x.size, 1, MAX_CELLS, d.docks[dock].size), panes };
+  }
+  for (const f of isObj(raw) && Array.isArray(raw.floating) ? raw.floating : []) {
+    if (!isObj(f)) continue;
+    const id = f.id as PaneId;
+    if (!PANE_IDS.includes(id) || seen.has(id)) continue;
+    seen.add(id);
+    const size = defaultFloatSize(id);
+    out.floating.push({
+      id,
+      x: int(f.x, 0, MAX_CELLS, 0),
+      y: int(f.y, 0, MAX_CELLS, 0),
+      w: int(f.w, 1, MAX_CELLS, size.w),
+      h: int(f.h, 1, MAX_CELLS, size.h),
+    });
   }
   for (const id of PANE_IDS) {
     if (!seen.has(id)) out.docks.right.panes.push({ id, desired: DEFAULT_PANE_DESIRED[id] });

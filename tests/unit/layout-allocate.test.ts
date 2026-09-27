@@ -5,9 +5,11 @@ import {
   GAME_MIN_COLS,
   allocate,
   allocateAxis,
+  clampFloat,
+  floatMin,
 } from '../../src/layout/allocate';
 import { type LayoutModel, PANE_IDS, type PaneId, defaultLayout } from '../../src/layout/types';
-import { movePane, setDockSize } from '../../src/layout/model';
+import { floatPane, movePane, setDockSize } from '../../src/layout/model';
 
 const MIN: Record<PaneId, number> = { character: 3, timers: 1, group: 1, comm: 1, ui: 1 };
 const DES: Record<PaneId, number> = { character: 9, timers: 8, group: 6, comm: 10, ui: 5 };
@@ -262,5 +264,45 @@ describe('allocate', () => {
   it('reports the model index of every shown pane', () => {
     const r = allocate(input(120, 50, defaultLayout(), toggles(['timers'])));
     expect(r.panes.map((p) => p.index)).toEqual([0, 2, 3, 4]);
+  });
+
+  it('lays floating panes over the game, in z-order, without changing the docks', () => {
+    let m = floatPane(defaultLayout(), 'comm', { x: 10, y: 5, w: 30, h: 12 });
+    m = floatPane(m, 'group', { x: 20, y: 8, w: 20, h: 6 });
+    const r = allocate(input(120, 50, m));
+    // The right dock holds the other three; the game pane is unchanged.
+    expect(r.game).toEqual({ x: 0, y: 0, w: 86, h: 49 });
+    expect(r.docks.right!.panes).toEqual(['character', 'timers', 'ui']);
+    const floats = r.panes.filter((p) => p.dock === 'float');
+    expect(floats.map((p) => [p.id, p.index])).toEqual([
+      ['comm', 0],
+      ['group', 1],
+    ]);
+    expect(floats[0]!.rect).toEqual({ x: 10, y: 5, w: 30, h: 12 });
+    expect(floats[0]!.content).toEqual({ x: 11, y: 6, w: 28, h: 10 });
+    expect(r.panes.slice(0, 3).every((p) => p.dock === 'right')).toBe(true);
+    // Off: not shown and not hidden-for-space.
+    const off = allocate(input(120, 50, m, toggles(['comm'], ['group'])));
+    expect(off.panes.filter((p) => p.dock === 'float').map((p) => p.id)).toEqual(['group']);
+    expect(off.panes.find((p) => p.id === 'group')!.content).toEqual({ x: 20, y: 8, w: 20, h: 6 });
+    expect(off.hidden).toEqual([]);
+  });
+
+  it('clamps floating panes into the area above the input line, shrinking them if needed', () => {
+    const m = floatPane(defaultLayout(), 'comm', { x: 100, y: 45, w: 40, h: 30 });
+    const r = allocate(input(120, 50, m));
+    expect(r.panes.find((p) => p.id === 'comm')!.rect).toEqual({ x: 80, y: 19, w: 40, h: 30 });
+    const small = allocate(input(60, 18, m));
+    expect(small.panes.find((p) => p.id === 'comm')!.rect).toEqual({ x: 20, y: 0, w: 40, h: 17 });
+    // The model is untouched.
+    expect(m.floating[0]).toEqual({ id: 'comm', x: 100, y: 45, w: 40, h: 30 });
+    expect(allocate(input(59, 18, m)).tooSmall).toBe(true);
+    expect(allocate(input(59, 18, m)).hidden).toContain('comm');
+  });
+
+  it('keeps a floating pane at least the frame plus its minimum content', () => {
+    expect(floatMin('character', true)).toEqual({ w: 10, h: 5 });
+    expect(floatMin('comm', false)).toEqual({ w: 8, h: 1 });
+    expect(clampFloat({ x: 5, y: 5, w: 2, h: 2 }, floatMin('character', true), 100, 40)).toEqual({ x: 5, y: 5, w: 10, h: 5 });
   });
 });

@@ -131,6 +131,37 @@ describe('migrateSettings', () => {
   });
 });
 
+describe('migrateLayout: floating panes', () => {
+  it('keeps valid floating panes, repairs bad ones and keeps every pane once', () => {
+    const s = migrateSettings({
+      layout: {
+        docks: { right: { size: 33, panes: [{ id: 'character', desired: 9 }, { id: 'timers', desired: 8 }] } },
+        floating: [
+          { id: 'comm', x: 4, y: 2, w: 30, h: 12 },
+          { id: 'character', x: 1, y: 1, w: 10, h: 10 }, // already docked: dropped
+          { id: 'group', x: -3, y: 'x', w: 0 }, // repaired
+          { id: 'comm', x: 9, y: 9, w: 9, h: 9 }, // duplicate
+          { id: 'nope', x: 1, y: 1, w: 1, h: 1 },
+          'garbage',
+        ],
+      },
+    });
+    expect(s.layout.floating).toEqual([
+      { id: 'comm', x: 4, y: 2, w: 30, h: 12 },
+      { id: 'group', x: 0, y: 0, w: 1, h: 8 },
+    ]);
+    expect(s.layout.docks.right.panes.map((p) => p.id)).toEqual(['character', 'timers', 'ui']);
+    expect(s.layout.docks.top).toEqual({ size: 10, panes: [] });
+  });
+
+  it('gives an older layout an empty floating list and a top dock', () => {
+    const s = migrateSettings({ layout: { docks: { right: { size: 40, panes: [] } } } });
+    expect(s.layout.floating).toEqual([]);
+    expect(s.layout.docks.top.panes).toEqual([]);
+    expect(s.layout.docks.right.size).toBe(40);
+  });
+});
+
 describe('database', () => {
   it('upgrades a version-1 capture database without losing runs', async () => {
     const factory = new IDBFactory();
