@@ -1,0 +1,240 @@
+/* Profile editor (src/editor, Inv §5.3–5.8). Cell-grid sizes and --c-*
+ * tokens only; the three-state grammar reuses the kit's .wc-btn and .wc-tr. */
+
+.wc-ped {
+  position: relative;
+  outline: none;
+}
+
+.wc-ped-spacer {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wc-ped-title {
+  flex: 0 0 auto;
+}
+
+/* Kind buttons: 3-row blocks; fill = selected (grey), amber when focused. */
+.wc-ped-kinds {
+  display: flex;
+  flex: 0 0 auto;
+  height: calc(var(--cell-h) * 3);
+}
+
+.wc-ped-kind {
+  display: inline-block;
+  flex: 0 0 auto;
+  height: calc(var(--cell-h) * 3);
+  color: var(--c-item);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.wc-ped-kind > .wc-line {
+  display: block;
+}
+
+.wc-ped-kind-gap {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.wc-ped-kind:hover {
+  color: var(--c-hover);
+}
+
+.wc-ped-kind.is-sel,
+.wc-ped-kind.is-sel:hover {
+  color: var(--c-sel-fg);
+  background: var(--c-sel-bg);
+}
+
+.wc-ped-kind.is-sel-focus,
+.wc-ped-kind.is-sel-focus:hover {
+  color: var(--c-sel-fg);
+  background: var(--c-focus-bg);
+}
+
+/* Lite body: list | scrollbar | gap | detail. */
+.wc-ped-body {
+  display: flex;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.wc-ped-list,
+.wc-ped-detail {
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.wc-ped-new {
+  color: var(--c-hint);
+}
+
+.wc-ped-border {
+  color: var(--c-hint);
+}
+
+.wc-ped-border.is-focus {
+  color: var(--c-accent);
+  font-weight: bold;
+}
+
+.wc-ped-border .wc-field {
+  font-weight: normal;
+}
+
+.wc-ped-input,
+.wc-ped-textarea {
+  color: var(--c-item);
+}
+
+.wc-ped-textbox {
+  display: flex;
+  overflow: hidden;
+}
+
+.wc-ped-col {
+  display: block;
+  flex: 0 0 auto;
+  width: var(--cell-w);
+  overflow: hidden;
+  white-space: pre;
+}
+
+.wc-ped-textarea {
+  display: block;
+  flex: 0 0 auto;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.wc-ped-textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-ped-input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Palette zones and the Key cell: amber-or-nothing (gold brackets on the cursor cell). */
+.wc-ped-sw,
+.wc-ped-keycell {
+  cursor: pointer;
+  color: var(--c-item);
+}
+
+.wc-ped-sw:hover,
+.wc-ped-keycell:hover {
+  color: var(--c-hover);
+}
+
+.wc-ped-sw.is-on {
+  color: var(--c-active);
+}
+
+.wc-ped-keycell.is-hint {
+  color: var(--c-hint);
+}
+
+.wc-ped-sw .wc-ped-br,
+.wc-ped-keycell .wc-ped-br {
+  color: var(--c-hint);
+}
+
+.wc-ped-sw.is-cursor .wc-ped-br,
+.wc-ped-keycell.is-focus .wc-ped-br {
+  color: var(--c-cursor);
+  font-weight: bold;
+}
+
+.wc-ped-note {
+  color: var(--c-note);
+}
+
+/* Editor view: CodeMirror on the cell grid, with a 1-cell TUI scrollbar. */
+.wc-ped-bufwrap {
+  display: flex;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.wc-ped-buffer {
+  flex: 0 0 auto;
+  height: 100%;
+  overflow: hidden;
+}
+
+.wc-ped-bufbar {
+  flex: 0 0 auto;
+  width: var(--cell-w);
+}
+
+.wc-ped-bufbar .wc-scroll-track {
+  cursor: pointer;
+}
+
+.wc-ped .cm-scroller {
+  scrollbar-width: none;
+}
+
+.wc-ped .cm-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-ped .cm-content,
+.wc-ped .cm-line {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.wc-ped .cm-content ::selection,
+.wc-ped .cm-content::selection {
+  color: var(--c-sel-fg);
+  background: var(--c-sel-bg);
+}
+
+.wc-syn-cmd { color: var(--c-syn-cmd); }
+.wc-syn-brace { color: var(--c-syn-brace); }
+.wc-syn-delim { color: var(--c-syn-delim); }
+.wc-syn-var { color: var(--c-syn-var); }
+.wc-syn-code { color: var(--c-syn-code); }
+
+.wc-syn-inert {
+  text-decoration: underline wavy var(--c-note);
+  text-underline-offset: 2px;
+}
+
+.wc-brace-match,
+.wc-brace-match > span {
+  color: var(--c-hover);
+  background: var(--c-brace-match-bg);
+}
+
+/* Key capture and the apply confirm: a boxed layer over the frame. */
+.wc-ped-overlay {
+  position: absolute;
+  z-index: 2;
+  background: var(--term-bg);
+}
+
+.wc-ped-overlay > .wc-line {
+  position: relative;
+}
+
+.wc-ped-overlay-r {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
