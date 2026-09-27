@@ -59,7 +59,7 @@ None yet. Carried: per-character timers state survives sessions
       stub. Notes in ADR 0017.
 - [ ] P1. Game data tables and the six trackers, system rules, UI
       lines, demo fixture. Notes in ADR 0017.
-- [ ] P2. Timers pane and Options → Panes → Timers. Notes in ADR 0017.
+- [x] P2. Timers pane and Options → Panes → Timers. Notes in ADR 0017.
 - [ ] Merge P1 + P2; bench still passes (§1.3).
 - [ ] Main-session verification.
 - [ ] Test guide ready.
