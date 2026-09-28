@@ -252,6 +252,7 @@ test('Options → Appearance changes the font size live, also from the ESC menu'
   await page.keyboard.press('Escape');
   await page.locator('.wc-overlay .wc-mrow[data-key="options"] .wc-label').click();
   await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown'); // past Mapper
   await page.keyboard.press('Enter'); // Appearance
   await expect(page.locator('.wc-overlay .wc-frame:not([hidden]) .wc-title-row')).toHaveText('─── Appearance ───');
   await page.keyboard.press('ArrowDown');

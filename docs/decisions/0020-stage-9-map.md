@@ -507,3 +507,10 @@ dropped, one added from an inbound list), no server ids. Its render at
 the Orc Sleeping Warrens matches the bundled map pixel for pixel.
 With no server ids, the locator works from direction and text matches
 and learned ids (P2), as for the 84 % of arda.mm2 rooms without one.
+
+## Amendment 2026-09-28: Mapper menu and default on (owner test 2)
+
+- The Mapper page moves from Options → Panes → Mapper to **Options →
+  Mapper** (directly after Panes).
+- The map pane is **on by default** (`panes.map.on: true`) for new
+  settings. Stored settings keep their value.

@@ -1,6 +1,6 @@
 // The map tools worker (src/map/tools.ts): one request per worker, then
 // the client terminates it. Started by src/map/tools-client.ts for an
-// import check (Options → Panes → Mapper) or an HTML replay export, so the
+// import check (Options → Mapper) or an HTML replay export, so the
 // app's main thread never parses a map.
 
 import { type MapToolRequest, type MapToolResponse, runMapToolRequest } from '../tools';

@@ -35,7 +35,7 @@
 // cockpit.
 //
 // Map (ADR 0020): `maps` (src/map/store.ts) is the current map, shared by
-// the cockpit's Map pane, the log player's and Options → Panes → Mapper.
+// the cockpit's Map pane, the log player's and Options → Mapper.
 //
 // Spotlights (ADR 0019): `openSpotlights()` (the start page's Spotlights)
 // loads the reel (src/player/spotlight-reel.ts) and opens it in the same

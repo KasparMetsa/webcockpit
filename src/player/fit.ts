@@ -51,4 +51,10 @@ export function overlayView(draft: Settings, view: Partial<ViewSnapshot>): void 
     const part = view[k];
     if (part !== undefined) d[k] = JSON.parse(JSON.stringify(part)) as unknown;
   }
+  // A VIEW recorded before the map existed (ADR 0020): the map was not on
+  // screen, whatever today's default is.
+  const panes = view.panes as Record<string, unknown> | undefined;
+  if (panes && !('map' in panes)) {
+    (d.panes as Record<string, unknown>).map = { on: false, color: 'black', border: true };
+  }
 }

@@ -1,4 +1,4 @@
-// Options → Panes → Mapper (ADR 0020 "Map files and storage").
+// Options → Mapper (ADR 0020 "Map files and storage").
 //
 //   ─── Mapper ───
 //        Map       arda.mm2 (bundled)          or the imported file:

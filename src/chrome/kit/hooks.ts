@@ -35,7 +35,7 @@ export interface ChromeServices {
    */
   openSpotlights?: () => Promise<'no_data' | 'filtered' | null>;
   /**
-   * The current map (ADR 0020; Options → Panes → Mapper, the HTML replay
+   * The current map (ADR 0020; Options → Mapper, the HTML replay
    * export). Absent: the Mapper page says the map store is not available
    * and exports use the bundled map.
    */

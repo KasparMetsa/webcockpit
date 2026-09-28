@@ -1,27 +1,21 @@
-// Stage 9 P0 (ADR 0020): the Map pane floats at its default spot, starts
-// its worker only when turned on, loads the bundled arda.mm2 in the worker
+// Stage 9 P0 (ADR 0020): the Map pane is on by default, floats at its
+// default spot, loads the bundled arda.mm2 in the worker
 // and takes pointer input without stealing the input line's focus.
 import { writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 const SHOT_DIR = process.env.WC_MAP_SHOT_DIR;
 
-test('map pane: off at start, floats top-right when on, worker loads arda.mm2', async ({ page }) => {
+test('map pane: on by default, floats top-right, worker loads arda.mm2', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const workers: string[] = [];
-  page.on('worker', (w) => workers.push(w.url()));
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/?replay');
   await expect(page.locator('.wc-cockpit')).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 
-  // Off by default: hidden, and no map worker has been started.
+  // On by default (owner test 2).
   const pane = page.locator('.wc-pane-map');
-  await expect(pane).toBeHidden();
-  expect(workers.filter((u) => u.includes('map'))).toEqual([]);
-
-  await page.evaluate(() => window.__wc!.settings.update({ panes: { map: { on: true } } }));
   await expect(pane).toBeVisible();
   const content = pane.locator('.wc-pane-content');
   await expect(content).toHaveAttribute('data-map-state', 'loaded', { timeout: 20_000 });

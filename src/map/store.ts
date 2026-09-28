@@ -1,7 +1,7 @@
 // The current map (ADR 0020 "Map files and storage"): an imported `.mm2`
 // kept in IndexedDB (`maps`, record `current`), else the bundled
 // public/map/arda.mm2. One `MapStore` per page (the shell's), shared by
-// the live App's map pane, the log player and Options → Panes → Mapper:
+// the live App's map pane, the log player and Options → Mapper:
 //
 // - `host()` is the Map pane's `MapPaneHost`: the imported bytes (a fresh
 //   copy per load, since the pane transfers them to its worker) or the
@@ -34,7 +34,7 @@ export function bundledMapSource(base = mapAssetBase()): MapSource {
   return { kind: 'url', url: `${base}${BUNDLED_MAP_FILE}`, name: BUNDLED_MAP_FILE };
 }
 
-/** What Options → Panes → Mapper shows. */
+/** What Options → Mapper shows. */
 export type CurrentMap =
   | { kind: 'bundled'; name: string }
   | { kind: 'imported'; name: string; size: number; date: number; hash: string; rooms?: number };

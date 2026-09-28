@@ -79,7 +79,7 @@ async function pickFile(host: HTMLElement, name: string, bytes: Uint8Array): Pro
   await settle();
 }
 
-describe('Options → Panes → Mapper', () => {
+describe('Options → Mapper', () => {
   it('shows the map, toggles the pane, imports a map and goes back to the bundled one', async () => {
     const factory = new IDBFactory();
     const maps = new MapStore({
@@ -99,24 +99,26 @@ describe('Options → Panes → Mapper', () => {
     await act(() => page.show());
     await act(() => host.querySelector<HTMLElement>('.wc-mrow[data-key="options"] .wc-label')!.click());
     await click(host, 'panes');
-    expect(labels(host)).toEqual(['General', 'Timers', 'Communication', 'Group', 'Mapper', 'Back']);
+    expect(labels(host)).toEqual(['General', 'Timers', 'Communication', 'Group', 'Back']);
 
     // General lists the map pane like the others.
     await click(host, 'general');
     expect([...frame(host).querySelectorAll('.wc-grid-row')].map((r) => r.textContent!.slice(0, 12).trim())).toContain('Map');
     await key('Escape');
+    await key('Escape');
+    expect(labels(host)).toEqual(['Panes', 'Mapper', 'Appearance', 'Spotlights', 'Back']);
 
     await click(host, 'mapper');
     await settle();
     expect(frame(host).querySelector('.wc-c-section')?.textContent).toBe('─── Mapper ───');
     expect(info(host)).toEqual(['Map arda.mm2 (bundled)']);
-    expect(labels(host)).toEqual(['[ ] Show map pane', 'Import map file…', 'Use bundled map', 'Back']);
+    expect(labels(host)).toEqual(['[X] Show map pane', 'Import map file…', 'Use bundled map', 'Back']);
     expect(frame(host).querySelector('.wc-mrow[data-key="bundled"]')!.classList.contains('is-disabled')).toBe(true);
 
-    // Enter on the first row turns the map pane on (the General grid's setting).
+    // Enter on the first row turns the map pane off (the General grid's setting).
     await key('Enter');
-    expect(svc.settings.get().panes.map.on).toBe(true);
-    expect(labels(host)[0]).toBe('[X] Show map pane');
+    expect(svc.settings.get().panes.map.on).toBe(false);
+    expect(labels(host)[0]).toBe('[ ] Show map pane');
 
     // A bad file: flash, nothing stored.
     await pickFile(host, 'junk.mm2', new Uint8Array([1, 2, 3]));

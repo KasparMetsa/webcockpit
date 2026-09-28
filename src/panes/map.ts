@@ -90,7 +90,7 @@ export class MapPane extends PaneShell {
 
     this.onResize(() => this.sync());
     this.own(ctx.cells.subscribe(() => this.sync()));
-    // The current map changed (Options → Panes → Mapper): load the new one.
+    // The current map changed (Options → Mapper): load the new one.
     const unsubMap = this.host.subscribe?.(() => void this.reload());
     if (unsubMap) this.own(unsubMap);
 

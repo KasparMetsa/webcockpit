@@ -244,14 +244,14 @@ test('narrow window collapses the side dock and restores it when widened', async
   for (const id of ORDER) await expect(page.locator(`.wc-pane-${id}`)).toBeHidden();
   const { cols } = await metrics(page);
   expect((await box(page, '.wc-game')).width).toBe(cols * cw);
-  // The side panes stay on (the map is off by default).
-  expect(await page.evaluate(() => Object.entries(window.__wc!.settings.get().panes).every(([id, p]) => p.on === (id !== 'map')))).toBe(true);
+  // The side panes stay on (the map too: on by default).
+  expect(await page.evaluate(() => Object.values(window.__wc!.settings.get().panes).every((p) => p.on))).toBe(true);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.locator('.wc-cockpit')).toHaveAttribute('data-collapsed', '');
   for (const id of ORDER) await expect(page.locator(`.wc-pane-${id}`)).toBeVisible();
 });
 
-/** Floating panes other than the map (whose default entry stays backmost while it is off, ADR 0020). */
+/** Floating panes other than the map (whose default entry stays backmost, ADR 0020). */
 const floating = (page: Page) =>
   page.evaluate(() => window.__wc!.settings.get().layout.floating.filter((f) => f.id !== 'map'));
 

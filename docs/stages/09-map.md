@@ -13,7 +13,7 @@ today: the tiled 2D map around them, the yellow square on their room,
 group mates on their rooms, and the path ahead when they pre-spam moves.
 The map follows every move with no noticeable cost to sending commands or
 scrolling text. It is a pane like the others: toggle, dock, float,
-borders. Options → Panes → Mapper imports another `.mm2` file.
+borders. Options → Mapper imports another `.mm2` file.
 
 ## Scope
 
@@ -32,7 +32,7 @@ In:
 - Current room marker, off-screen arrow, other-layer arrow; prespam path
   from sent moves (MMapper queue rules).
 - Group mates from `Group.*` `mapid`, with MMapper colours and labels.
-- Map pane (`map`, off by default), Options → Panes → Mapper.
+- Map pane (`map`, off by default), Options → Mapper.
 - The in-app log player and the exported HTML replay show the map (the
   replay embeds a map subset around the visited rooms).
 
@@ -63,7 +63,7 @@ path finding, `.xml`/web JSON import.
       and arrows. Screenshot parity with the owner's screenshot area.
 - [x] P2. Tracking: locator, prespam path, group mates, event
       forwarding, `tests/fixtures/map-demo.log` from a real path.
-- [x] P3. Options → Panes → Mapper (import, use bundled, status), pane
+- [x] P3. Options → Mapper (import, use bundled, status), pane
       default placement, log player loader, map subset embedded in the
       HTML replay.
 - [x] P4. Merge; bench with the map on (ADR 0020 gates); verification
@@ -75,7 +75,7 @@ path finding, `.xml`/web JSON import.
 **Start:** `cd ~/proj/webcockpit && npm run dev` (restart it if it was
 already running), then open http://localhost:5173/.
 
-1. **Turn the map on:** ESC → Options → Panes → Mapper → `[X] Show map
+1. **Turn the map on:** ESC → Options → Mapper → `[X] Show map
    pane` (or the Map row in Options → Panes → General). The pane floats
    top-right over the game text, with a border like the other panes. The
    first load takes about half a second (5.8 MB).
@@ -97,7 +97,7 @@ already running), then open http://localhost:5173/.
    without live GMCP.)
 6. **Speed:** play as usual with the map on: sending and scrolling should
    feel exactly as with it off. Tell me if anything feels slower.
-7. **Import:** Options → Panes → Mapper → Import map file… → another
+7. **Import:** Options → Mapper → Import map file… → another
    `.mm2` (e.g. `~/Documents/MMapper/arda-copy.mm2`). The pane reloads.
    `Use bundled map` goes back to arda.mm2.
 8. **Replays:** History → a run you played with the map on → PLAY: the
@@ -117,3 +117,8 @@ users still run such files.
 
 - [x] Read older `.mm2` versions (at least 36 → 42, as MMapper 26.06
       does). Done: versions 17–42, as MMapper 26.06 (ADR 0020 amendment).
+
+**Owner test 2 (2026-09-28):** older map import works. Asked: the Mapper
+page directly under Options (not Options → Panes), and the map pane on
+by default. Done (ADR 0020 amendment); a VIEW recorded before the map
+existed still replays with the map off. 1069 unit, 178 e2e.

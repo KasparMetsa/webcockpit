@@ -3,9 +3,9 @@
 // applies live (ADR 0010: one store, no launcher/popup asymmetry), so
 // there is no Apply and Back never discards.
 //
-//   Options hub:  Panes · Appearance · Spotlights · Back
-//   Panes hub:    General · Timers · Communication · Group · Mapper · Back
-//                 (Cockpit's order, then the map)
+//   Options hub:  Panes · Mapper · Appearance · Spotlights · Back
+//   Panes hub:    General · Timers · Communication · Group · Back
+//                 (Cockpit's order)
 //   General:      pane × colour grid with a Border column, reset layout
 //   Timers:       options-timers.tsx
 //   Communication: comm-options.tsx
@@ -68,6 +68,7 @@ export function OptionsHub(): VNode {
   const nav = useNav();
   const items: MenuItem[] = [
     { key: 'panes', label: 'Panes', activate: () => nav.push(<PanesHub />) },
+    { key: 'mapper', label: 'Mapper', activate: () => nav.push(<MapperOptionsFrame />) },
     { key: 'appearance', label: 'Appearance', activate: () => nav.push(<AppearanceFrame />) },
     { key: 'spotlights', label: 'Spotlights', activate: () => nav.push(<SpotlightsOptionsFrame />) },
     { key: 'sp', spacer: true },
@@ -92,7 +93,6 @@ export function PanesHub(): VNode {
     { key: 'timers', label: 'Timers', activate: () => nav.push(<TimersOptionsFrame />) },
     { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
     { key: 'group', label: 'Group', activate: () => nav.push(<GroupOptionsFrame />) },
-    { key: 'mapper', label: 'Mapper', activate: () => nav.push(<MapperOptionsFrame />) },
     { key: 'sp', spacer: true },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];

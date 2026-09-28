@@ -1,5 +1,5 @@
 // Stage 9 P3 (ADR 0020 "Map files and storage", "Replays"): Options →
-// Panes → Mapper imports a .mm2 and the running Map pane reloads it; the
+// Mapper imports a .mm2 and the running Map pane reloads it; the
 // log player uses the same map; an HTML replay embeds the map subset
 // around the rooms its chain visited and loads it from file://.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ const deflate = async (b: Uint8Array): Promise<Uint8Array> => new Uint8Array(def
 
 type ReplayWindow = { __wcReplay?: { host: { store: { update(p: object): void } } } };
 
-test('Options → Panes → Mapper imports a map; the pane and the log player load it', async ({ page }) => {
+test('Options → Mapper imports a map; the pane and the log player load it', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1400, height: 820 });
@@ -26,12 +26,11 @@ test('Options → Panes → Mapper imports a map; the pane and the log player lo
   const content = page.locator('.wc-app .wc-pane-map .wc-pane-content');
   await expect(content).toHaveAttribute('data-map-rooms', '30074', { timeout: 20_000 });
 
-  // ESC menu → Options → Panes → Mapper.
+  // ESC menu → Options → Mapper.
   await page.locator('.wc-input-field').focus();
   await page.keyboard.press('Escape');
   const frame = page.locator('.wc-frame:not([hidden])');
   await frame.locator('.wc-mrow[data-key="options"] .wc-label').click();
-  await frame.locator('.wc-mrow[data-key="panes"] .wc-label').click();
   await frame.locator('.wc-mrow[data-key="mapper"] .wc-label').click();
   await expect(frame.locator('.wc-mapper-info').first()).toHaveText(/Map\s+arda\.mm2 \(bundled\)/);
   await expect(frame.locator('.wc-mrow[data-key="on"] .wc-label')).toHaveText('[X] Show map pane');
@@ -69,7 +68,6 @@ test('Options → Panes → Mapper imports a map; the pane and the log player lo
   // Use bundled map (from the start page's Options this time).
   const start = page.locator('.wc-start .wc-frame:not([hidden])');
   await start.locator('.wc-mrow[data-key="options"] .wc-label').click();
-  await start.locator('.wc-mrow[data-key="panes"] .wc-label').click();
   await start.locator('.wc-mrow[data-key="mapper"] .wc-label').click();
   await expect(start.locator('.wc-mapper-info').first()).toHaveText(/Map\s+small\.mm2/);
   await start.locator('.wc-mrow[data-key="bundled"] .wc-label').click();
