@@ -131,3 +131,6 @@ to clicks in a way it should not.
 - 2026-09-28, profiles: new users get `khazdul` (the owner's PvP
   profile) as a selectable profile beside `default`. Published as
   221b15c.
+- 2026-09-28, update notice: tested live while logged in. Test publish
+  0.1.1 showed the indicator and the output line; F5 loaded 0.1.1.
+  Approved; the client is ready to share on Discord.
