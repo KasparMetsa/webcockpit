@@ -10,8 +10,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:prod": "playwright test -c playwright.prod.config.ts",
     "bench": "node bench/text-bench.ts && node bench/script-bench.ts && node bench/browser-bench.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "publish": "node scripts/publish.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
