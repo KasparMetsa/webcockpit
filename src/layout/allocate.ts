@@ -109,9 +109,9 @@ export function defaultFloatSize(id: PaneId): { w: number; h: number } {
 /**
  * Default spot of a floating pane whose placement is not chosen yet
  * (`FloatPane.auto`, ADR 0020): the top-right corner of the game pane,
- * `w` × `h` of the window (the owner's MMapper position).
+ * `w` × `h` of the window (the owner's MMapper position; size ADR 0023).
  */
-export const AUTO_FLOAT = { w: 0.5, h: 0.35 } as const;
+export const AUTO_FLOAT = { w: 0.25, h: 0.27 } as const;
 
 /** The rectangle of an `auto` floating pane over `game` in a `cols` × `rows` window (before clamping). */
 export function autoFloatRect(game: Rect, cols: number, rows: number): Rect {

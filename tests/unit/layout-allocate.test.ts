@@ -360,9 +360,9 @@ describe('allocate', () => {
     const r = allocate(input(200, 60, defaultLayout(), toggles([], [], true)));
     const map = r.panes.find((p) => p.id === 'map')!;
     expect(map.dock).toBe('float');
-    // Top-right corner of the game pane, 50 % × 35 % of the window.
+    // Top-right corner of the game pane, 25 % × 27 % of the window.
     expect(r.game).toEqual({ x: 0, y: 0, w: 166, h: 59 });
-    expect(map.rect).toEqual({ x: 66, y: 0, w: 100, h: 21 });
+    expect(map.rect).toEqual({ x: 116, y: 0, w: 50, h: 16 });
     // A narrow window: shifted inside, never off screen.
     const narrow = allocate(input(70, 20, defaultLayout(), toggles([], [], true)));
     const n = narrow.panes.find((p) => p.id === 'map')!.rect;

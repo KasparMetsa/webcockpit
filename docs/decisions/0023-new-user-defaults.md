@@ -25,13 +25,18 @@ with the leftover rows given to the UI pane (Inv §2.1).
 - The first drag of a boundary already freezes every pane in the dock to
   its shown size (`setDesired` at drag start), so from then on the user's
   heights are concrete and behave as before.
+- The map's default float (`AUTO_FLOAT`, ADR 0020) shrinks from 50 % × 35 %
+  to 25 % × 27 % of the window, still at the game pane's top-right corner
+  (owner, 2026-09-28: the larger one covered too much of the game text).
 - `DEFAULT_PANE_DESIRED` stays: it still sizes a pane that enters a side
   dock or starts floating.
 
 ## Consequences
 
 - Only settings created fresh change (new users, Options → Reset layout).
-  Stored settings keep their colours and heights.
+  Stored settings keep their colours and heights. The map size also
+  applies to existing users whose map was never moved or resized
+  (`auto` is recomputed on every layout).
 - A pane toggled off in the default layout gives its rows to the other
   shared panes, not to one pane by priority.
 - Tests that need Cockpit's fixed heights pin them explicitly.

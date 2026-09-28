@@ -217,7 +217,7 @@ research §7. The existing `GroupModel` is not changed.
   first in `LEFTOVER_PRIORITY` and first in `DROP_ORDER`. Default
   placement is `FloatPane.auto`: until the user moves or resizes it, the
   map floats at the game pane's top-right corner, 50 % × 35 % of the
-  window (`autoFloatRect`, recomputed on every layout). `defaultLayout`
+  window (25 % × 27 % since ADR 0023) (`autoFloatRect`, recomputed on every layout). `defaultLayout`
   and `migrateLayout` add `{id:'map', auto:true}` as the backmost
   floating entry, so other floating panes' z-index moves up by one.
   `MapPane` imports `src/map/client.ts` on the first show. Input is

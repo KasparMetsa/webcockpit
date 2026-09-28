@@ -30,10 +30,10 @@ test('map pane: on by default, floats top-right, worker loads arda.mm2', async (
   expect(await pane.getAttribute('data-floating')).not.toBeNull();
   expect(Math.abs(geo.map.right - geo.game.right)).toBeLessThan(2);
   expect(Math.abs(geo.map.top - geo.game.top)).toBeLessThan(2);
-  expect(geo.map.width / geo.cockpit.width).toBeGreaterThan(0.45);
-  expect(geo.map.width / geo.cockpit.width).toBeLessThan(0.55);
-  expect(geo.map.height / geo.cockpit.height).toBeGreaterThan(0.3);
-  expect(geo.map.height / geo.cockpit.height).toBeLessThan(0.4);
+  expect(geo.map.width / geo.cockpit.width).toBeGreaterThan(0.2);
+  expect(geo.map.width / geo.cockpit.width).toBeLessThan(0.3);
+  expect(geo.map.height / geo.cockpit.height).toBeGreaterThan(0.22);
+  expect(geo.map.height / geo.cockpit.height).toBeLessThan(0.32);
 
   // Drag and wheel on the canvas: the map moves and zooms, no error, the
   // input keeps the focus.
