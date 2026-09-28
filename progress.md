@@ -22,6 +22,23 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: versioning and update notices
+
+- **Done:** ADR 0025. Version 0.1.0 (public release) with the commit in
+  About; publish refuses a version already live. Production tabs check
+  `release.json` on focus/visibility and every 10 min; a newer release
+  shows `Update: x.y.z` in the input row and one `[SYSTEM]` output line.
+  Never reloads by itself. Lost lazy chunks and a DB upgraded by a newer
+  tab ("Storage: not saved") are reported instead of failing silently.
+  1097 unit, 182 e2e, 10 prod e2e pass.
+- **Published:** 87eb347 (0.1.0); smoke test passes against the live URL.
+- **Next:** owner shares on Discord; every later publish bumps the version
+  first (`npm version patch --no-git-tag-version`, commit).
+- **Open issues:** a failed map-worker load has no update hint (the Map
+  pane reports it); after `--rollback` tabs are told the older build "is
+  available".
+- **Commits:** 6ff8322…87eb347, plus this one.
+
 ### 2026-09-28 — Stage 8: About page
 
 - **Done:** About text grows sections on MUME, the PvP focus, website and
