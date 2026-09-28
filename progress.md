@@ -30,7 +30,8 @@ Newest first.
   the composition is cancelled (blur/refocus, value and caret restored).
   1114 unit, 188 e2e pass. Version 0.1.3.
 - **Published:** 631bcf2 (0.1.3); smoke test passes against the live URL.
-- **Next:** owner retests ´ and ¨ in Firefox.
+- **Owner test:** approved live in Firefox (0.1.3).
+- **Next:** plan the rest of stage 8.
 - **Open issues:** a real Firefox/Linux composition has not been tested
   (synthetic replay only); if the IME still holds the accent, the next
   letter may come out accented.

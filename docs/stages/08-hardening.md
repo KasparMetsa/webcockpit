@@ -106,6 +106,7 @@ Printable key macros (owner request 2026-09-28):
 - [x] Dead keys as macros (ADR 0026 "Dead keys"): a bound `´`/`¨` fires
       once, also inside an open composition, and leaves no accent in the
       input line; unbound dead keys compose as before; unit + e2e tests.
+- [x] Owner test (Firefox, Swedish keyboard).
 
 ## Test guide (part A)
 
@@ -170,3 +171,7 @@ the character in the input line is ever a problem in play.
 - 2026-09-28, update notice: tested live while logged in. Test publish
   0.1.1 showed the indicator and the output line; F5 loaded 0.1.1.
   Approved; the client is ready to share on Discord.
+- 2026-09-28, printable key macros: requested Shift+letters and § 1–0 +
+  ´ ' - (with and without Shift). In 0.1.2 a bound `´` left the accent
+  and `¨` after it did not fire (Firefox composition); fixed in 0.1.3.
+  Tested live in Firefox: "works well". Approved.
