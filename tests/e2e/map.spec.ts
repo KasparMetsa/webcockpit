@@ -41,14 +41,20 @@ test('map pane: off at start, floats top-right when on, worker loads arda.mm2', 
   expect(geo.map.height / geo.cockpit.height).toBeGreaterThan(0.3);
   expect(geo.map.height / geo.cockpit.height).toBeLessThan(0.4);
 
-  // Drag and wheel on the canvas: no error, the input keeps the focus.
+  // Drag and wheel on the canvas: the map moves and zooms, no error, the
+  // input keeps the focus.
   await page.locator('.wc-input-field').focus();
+  await expect(content).toHaveAttribute('data-map-drawn-ms', /\d+/, { timeout: 20_000 });
   const c = await content.boundingBox();
+  const shot0 = await content.screenshot();
   await page.mouse.move(c!.x + c!.width / 2, c!.y + c!.height / 2);
   await page.mouse.down();
   await page.mouse.move(c!.x + c!.width / 2 + 60, c!.y + c!.height / 2 + 30, { steps: 5 });
   await page.mouse.up();
+  await expect.poll(async () => (await content.screenshot()).equals(shot0), { timeout: 5000 }).toBe(false);
+  const shot1 = await content.screenshot();
   await page.mouse.wheel(0, -200);
+  await expect.poll(async () => (await content.screenshot()).equals(shot1), { timeout: 5000 }).toBe(false);
   await expect(page.locator('.wc-input-field')).toBeFocused();
   // The pane did not move (the drag was inside the content, not on the title row).
   const after = await pane.boundingBox();
