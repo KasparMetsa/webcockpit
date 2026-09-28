@@ -5,6 +5,10 @@
 
 import type { AssetSource } from './protocol';
 
+/** A transparent 1×1 PNG: the HTML replay's answer for a tile it did not embed (`AssetSource.fallback`). */
+export const EMPTY_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==';
+
 /** Reads one asset by its path relative to the asset root (`pixmaps/…`, `fonts/…`). */
 export type AssetResolver = (path: string) => Promise<Blob>;
 
@@ -18,8 +22,10 @@ export function assetResolver(src: AssetSource, fetchFn: typeof fetch = fetch): 
     };
   }
   const files = src.files;
+  const fallback = src.fallback;
   return async (path) => {
-    const f = Object.hasOwn(files, path) ? files[path] : undefined;
+    let f = Object.hasOwn(files, path) ? files[path] : undefined;
+    if (f === undefined && fallback !== undefined && path.startsWith('pixmaps/')) f = fallback;
     if (f === undefined) throw new Error(`map asset ${path}: not included`);
     if (typeof f !== 'string') return f;
     return (await fetchFn(f)).blob(); // data: URI
