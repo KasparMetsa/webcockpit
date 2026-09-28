@@ -89,6 +89,14 @@ Defaults (owner brief 2026-09-28):
 - [x] Default map float 25 % × 27 % of the window (owner feedback).
 - [x] Bundled `khazdul` profile for new users (ADR 0024).
 
+Public release (owner brief 2026-09-28):
+
+- [x] Versioning and update notices (ADR 0025): version 0.1.0 and the
+      build commit in About; publish refuses an unchanged version; update
+      check on focus/visibility and every 10 min; `Update: x.y.z`
+      indicator and a `[SYSTEM]` line; lazy chunk and superseded-storage
+      notices; unit + e2e-prod tests.
+
 ## Test guide (part A)
 
 Open: History → a session with panes → RUN LOG. Then EXPORT the same

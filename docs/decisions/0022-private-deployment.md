@@ -124,3 +124,14 @@ scripts and the module worker are refused otherwise), `.css`,
   Acceptable while releases are few; hashing it is the fix if it bites.
 - The smoke test adds a few seconds to each publish and needs Playwright's
   browsers, which the e2e suite already needs.
+
+## Amendment 2026-09-28 — version guard and release.json (ADR 0025)
+
+- `npm run publish` refuses to publish when `package.json`'s version
+  equals the live release's (`--dry-run` only warns; `--rollback` is
+  unaffected). Bump the version and commit before every publish.
+- `vite build` itself emits a minimal `release.json`
+  (`{ version, commit }`); publish overwrites it with the full manifest
+  above. The running app fetches it (`cache: 'no-store'`) to tell the
+  user that a newer release is live. The site-root smoke test checks its
+  type and `no-cache`.
