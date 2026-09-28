@@ -227,3 +227,59 @@ research §7. The existing `GroupModel` is not changed.
 - **DB v7.** `maps` (keyPath `key`, record `current`: `StoredMap`) and
   `mapIds` (keyPath `['mapHash','serverId']`, `StoredMapId`). `mapHash` is
   a 32-hex SHA-256 prefix of the file bytes.
+
+### P1 Renderer (2026-09-28)
+
+- **Modules** (`src/map/render/`, pure unless noted): `palette.ts`
+  (MMapper's named colours), `textures.ts` (texture catalogue, generated
+  dotted walls), `rooms.ts` (per-layer instanced room meshes, a port of
+  `visitRoom`/`LayerBatchBuilder`), `connections.ts` + `geometry.ts`
+  (connections and door names, a port of `Connections.cpp` and
+  `ConnectionLineBuilder.cpp`), `infomarks.ts`, `font.ts` (BMFont parse
+  and `FontBatchBuilder` layout), `characters.ts` (player, group mates,
+  path, off-screen arrows, labels, MapScreen visibility), `shaders.ts`,
+  `webgl.ts` (the WebGL2 renderer; `createRenderer` returns it). Origin
+  comments name the MMapper files ported (GPL-2.0-or-later).
+- **Projection.** The vertex shaders apply MMapper's 2D camera exactly:
+  clip = ((x − sx)·5280·zoom/W, (y − sy)·5280·zoom/H, 0, 60 − 7z), so
+  other layers get MMapper's per-layer scale. No depth buffer: layers are
+  drawn in ascending z (painter's order), which gives the same result as
+  MMapper's depth tests in the 2D view.
+- **Textures.** Tiles are read through the AssetResolver and decoded with
+  `createImageBitmap(…, {imageOrientation: 'flipY', premultiplyAlpha:
+  'none'})`, matching MMapper's `QImage::mirrored()` upload, so texture
+  coordinates and quads are MMapper's. Arrays: every 128² file (96
+  layers), trails (64²), doors + `char-room-sel` (256²), all with
+  `generateMipmap` + LINEAR_MIPMAP_LINEAR / LINEAR, mirrored repeat. The
+  dotted walls are generated like MMapper (manual mips, NEAREST). A file
+  that is missing (an HTML-replay subset) leaves its layer transparent.
+- **Draw order** per frame: clear; per layer ascending (fade quad before
+  the current layer; `LayerMeshes::render`: terrain, multiply tints,
+  streams, trails, overlays, up/down, doors, walls, dotted, other-layer
+  dim; connections at zoom ≥ 0.15; door names on the current layer at
+  zoom ≥ 0.4); infomarks (current layer, zoom ≥ 0.25); characters
+  (squares, far-style fills and 2-px outlines, edge arrows), path point,
+  path quads, name labels. About 15 draw calls per layer; a frame only
+  sets uniforms. The scene geometry (a few dozen vertices) is rebuilt
+  when the scene or the view changes.
+- **Text.** Cantarell 18/27/36 by DPR (MMapper's thresholds), offsets in
+  physical px, anchors snapped to the pixel grid, background box = glyph
+  bounds + 2/1 px. Text meshes are rebuilt when the DPR picks another
+  size.
+- **Player marker.** The far (outline) style is used at zoom ≤ 0.4 and,
+  WebCockpit-specific, whenever `scene.located` is false.
+- **Worker changes.** `createRenderer(gl, assets, onChange)`: `onChange`
+  requests a redraw when tiles or the font arrive. `webglcontextrestored`
+  rebuilds the renderer and its meshes. The appended protocol message
+  `{t: 'debugScene', scene?, center?, zoom?}` (development and tests
+  only) sets a scene and the view without the tracking side; the e2e
+  finds the worker by wrapping `Worker` in an init script (`name: 'map'`).
+- **Numbers.** arda.mm2 mesh build in Node: rooms ~50 ms, connections
+  ~35 ms, infomarks ~1 ms (plus the GPU upload), once per `setMap`, in the
+  worker. Map worker bundle 10.0 → 43.0 kB; replay bundle 319 768 →
+  352 821 bytes (+33.1 kB).
+- **Parity check.** `tests/e2e/map-render.spec.ts` renders the owner's
+  screenshot area (Orc Sleeping Warrens, 451,-84,0). The owner's
+  screenshot matches a DPR 2 render at zoom 1.0 scaled by 0.58 (51 px
+  per room, Cantarell 36): tiles, walls, icons, connection lines and
+  door-name labels line up.
