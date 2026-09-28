@@ -27,7 +27,8 @@ Newest first.
 - **Done:** About text grows sections on MUME, the PvP focus, website and
   Discord, and CREDITS (MMapper first, Cockpit, MUME, fonts, libraries).
   Web addresses are clickable links. 1080 unit tests pass.
-- **Next:** owner reads the About page; publish; plan the rest of stage 8.
+- **Published:** 35bfa90; smoke test passes against the live URL.
+- **Next:** owner reads the About page; plan the rest of stage 8.
 - **Open issues:** none new.
 - **Commits:** 8b11597.
 
