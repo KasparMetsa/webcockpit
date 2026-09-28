@@ -29,6 +29,28 @@
 // presses something, `stripHoverTime` shows `MM:SS` beside the pointer over
 // the strip, `boxButtons` adds a row of buttons to the control box, and
 // `onEsc` is ESC.
+//
+// Viewer settings (stage 8, ADR 0021): with `settings`, a gear `⚙` ends the
+// control box's first row. It folds a settings section into the box, above
+// the transport row:
+//
+//   ┌──────────────────────────────┐
+//   │ Panes                        │
+//   │ [X] Character  [X] Timers    │
+//   │ [X] Group      [X] Comm      │
+//   │ [X] UI         [ ] Map       │
+//   │ Font      ◄ Default ►        │
+//   │ Colours   ◄ Default ►        │
+//   │ Reset layout                 │
+//   ├──────────────────────────────┤
+//   │ ◄◄ Rewind  ► Play    1x    ⚙ │
+//   │        00:12 / 02:02         │
+//   └──────────────────────────────┘
+//
+// The chrome does not auto-hide while it is open; ESC folds it first. The
+// box takes the pointer (clicks and the wheel there never reach the stage
+// or move the pause cursor). The gear cell is one cell wide whatever font
+// draws it (JetBrains Mono has no ⚙; DejaVu Sans Mono does).
 
 import './player.css';
 import type { OutputPane } from '../ui/output-pane';
@@ -63,7 +85,12 @@ const HEADER_GAP = 2;
 /** Control box: cells in from the right edge, rows up from the bottom. */
 const BOX_RIGHT = 8;
 const BOX_BOTTOM = 1;
-const BOX_INNER = 28;
+const BOX_INNER = 30;
+/** Settings section: the pane toggles' column width, and the name column of Font / Colours. */
+const TOGGLE_W = 15;
+const NAME_W = 10;
+/** Width of a cycled value (`Default`, `Medium` …). */
+const VALUE_W = 7;
 
 /** What the in-app log player's header shows (`runHeader`). */
 export interface PlayerHeader {
@@ -131,11 +158,27 @@ export interface PlayerViewOptions {
   stripHoverTime?: boolean;
   /** Buttons of an extra control box row (above the clock). */
   boxButtons?: BoxButton[];
+  /** The gear and its settings section (ADR 0021). */
+  settings?: ViewerControls;
   /** Auto-hide delay (tests). */
   hideMs?: number;
 }
 
-type Act = 'rewind' | 'play' | 'speed';
+/** The viewer settings the control box's gear shows (PlayerHost implements it). */
+export interface ViewerControls {
+  panes: () => ReadonlyArray<{ id: string; label: string; on: boolean }>;
+  togglePane: (id: string) => void;
+  /** Current font / theme choice, as shown. */
+  font: () => string;
+  cycleFont: (dir: 1 | -1) => void;
+  theme: () => string;
+  cycleTheme: (dir: 1 | -1) => void;
+  /** Something to reset (the reset button is dim otherwise). */
+  canReset: () => boolean;
+  reset: () => void;
+}
+
+type Act = 'rewind' | 'play' | 'speed' | 'settings';
 
 export class PlayerView {
   readonly el: HTMLDivElement;
@@ -152,6 +195,9 @@ export class PlayerView {
   private readonly boxSpeed: HTMLSpanElement;
   private readonly boxClock: HTMLDivElement;
   private readonly boxExtra: HTMLDivElement | null = null;
+  private readonly boxGear: HTMLSpanElement | null = null;
+  private readonly settingsEl: HTMLDivElement;
+  private settingsOpen = false;
   private readonly hintEl: HTMLDivElement;
   private readonly unsubs: Array<() => void> = [];
   private readonly ro: ResizeObserver | null = null;
@@ -196,7 +242,14 @@ export class PlayerView {
     const rewind = this.button('rewind', '◄◄ Rewind');
     this.boxPlay = this.button('play', '');
     this.boxSpeed = this.button('speed', '');
-    row1.append('│ ', rewind, '  ', this.boxPlay, '  ', this.boxSpeed, ' │');
+    if (opts.settings) {
+      this.boxGear = this.button('settings', '⚙');
+      this.boxGear.classList.add('wc-player-gear');
+      this.boxGear.title = 'Viewer settings';
+      row1.append('│ ', rewind, '  ', this.boxPlay, '  ', this.boxSpeed, ' ', this.boxGear, ' │');
+    } else row1.append('│ ', rewind, '  ', this.boxPlay, '  ', this.boxSpeed, '   │');
+    this.settingsEl = div('wc-player-settings');
+    this.settingsEl.hidden = true;
     this.boxClock = div('wc-player-box-row wc-player-clock');
     const top = div('wc-player-box-frame');
     top.textContent = '┌' + '─'.repeat(BOX_INNER) + '┐';
@@ -204,8 +257,9 @@ export class PlayerView {
     bottom.textContent = '└' + '─'.repeat(BOX_INNER) + '┘';
     if (opts.boxButtons?.length) {
       this.boxExtra = div('wc-player-box-row');
-      this.boxEl.append(top, row1, this.boxExtra, this.boxClock, bottom);
-    } else this.boxEl.append(top, row1, this.boxClock, bottom);
+      this.boxEl.append(top, this.settingsEl, row1, this.boxExtra, this.boxClock, bottom);
+    } else this.boxEl.append(top, this.settingsEl, row1, this.boxClock, bottom);
+    this.boxEl.addEventListener('wheel', this.onBoxWheel, { passive: false });
     this.hintEl = div('wc-player-hint');
     this.hintEl.hidden = true;
     this.el.append(this.headerEl, this.marksEl, this.stripEl, this.boxEl, this.hintEl);
@@ -257,6 +311,7 @@ export class PlayerView {
     const eng = this.o.engine;
     if (a === 'rewind') eng.seek(0);
     else if (a === 'play') this.toggle();
+    else if (a === 'settings') this.setSettingsOpen(!this.settingsOpen);
     else {
       const i = SPEEDS.indexOf(eng.speed);
       eng.setSpeed(SPEEDS[(i + 1) % SPEEDS.length]!);
@@ -266,6 +321,23 @@ export class PlayerView {
   /** True while the chrome is shown (tests). */
   get chromeShown(): boolean {
     return this.shown;
+  }
+
+  /** True while the settings section is folded out. */
+  get settingsShown(): boolean {
+    return this.settingsOpen;
+  }
+
+  /** Folds the settings section in or out (the gear). */
+  setSettingsOpen(on: boolean): void {
+    if (!this.o.settings || on === this.settingsOpen) return;
+    this.settingsOpen = on;
+    this.settingsEl.hidden = !on;
+    this.boxGear?.classList.toggle('is-on', on);
+    this.boxEl.toggleAttribute('data-settings', on);
+    this.boxSig = '';
+    this.touch();
+    this.schedule();
   }
 
   /** The pause cursor's line, or null. */
@@ -415,9 +487,14 @@ export class PlayerView {
     const playLabel = (eng.playing ? '▌▌ Pause' : '► Play').padEnd(8);
     const clock = `${fmtClock(pos)} / ${fmtClock(dur)}`;
     const extra = this.o.boxButtons?.map((b) => b.label()) ?? [];
-    const boxSig = `${playLabel}|${eng.speed}|${clock}|${extra.join('|')}`;
+    const vs = this.o.settings && this.settingsOpen ? this.o.settings : null;
+    const setSig = vs
+      ? JSON.stringify([vs.panes(), vs.font(), vs.theme(), vs.canReset()])
+      : '';
+    const boxSig = `${playLabel}|${eng.speed}|${clock}|${extra.join('|')}|${setSig}`;
     if (boxSig !== this.boxSig) {
       this.boxSig = boxSig;
+      if (vs) this.renderSettings(vs);
       if (this.boxExtra) {
         const text = extra.join('  ');
         const pad = Math.max(0, BOX_INNER - text.length);
@@ -449,6 +526,66 @@ export class PlayerView {
     this.el.toggleAttribute('data-seeking', eng.seeking);
   }
 
+  /** The settings section's rows (see the file header). */
+  private renderSettings(vs: ViewerControls): void {
+    const doc = this.doc;
+    const rows: HTMLDivElement[] = [];
+    const row = (...parts: Array<string | HTMLElement>): void => {
+      const r = doc.createElement('div');
+      r.className = 'wc-player-box-row';
+      const len = parts.reduce((n, p) => n + (typeof p === 'string' ? p.length : (p.textContent ?? '').length), 0);
+      r.append('│ ', ...parts, ' '.repeat(Math.max(0, BOX_INNER - 1 - len)) + '│');
+      rows.push(r);
+    };
+    const btn = (text: string, cls: string, onClick: () => void, data: Record<string, string> = {}): HTMLSpanElement => {
+      const b = doc.createElement('span');
+      b.className = `wc-player-btn ${cls}`;
+      b.textContent = text;
+      Object.assign(b.dataset, data);
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.touch();
+        onClick();
+        this.schedule();
+      });
+      return b;
+    };
+    const label = (text: string, cls: string): HTMLSpanElement => {
+      const l = doc.createElement('span');
+      l.className = cls;
+      l.textContent = text;
+      return l;
+    };
+    row(label('Panes', 'wc-player-set-head'));
+    const panes = vs.panes();
+    for (let i = 0; i < panes.length; i += 2) {
+      const parts: Array<string | HTMLElement> = [];
+      panes.slice(i, i + 2).forEach((p, j) => {
+        const text = `[${p.on ? 'X' : ' '}] ${p.label}`;
+        const b = btn(text, `wc-player-toggle${p.on ? ' is-on' : ''}`, () => vs.togglePane(p.id), { pane: p.id });
+        parts.push(b);
+        if (j === 0) parts.push(' '.repeat(Math.max(1, TOGGLE_W - text.length)));
+      });
+      row(...parts);
+    }
+    const cycler = (name: string, key: string, value: string, step: (dir: 1 | -1) => void): void =>
+      row(
+        label(name.padEnd(NAME_W), 'wc-player-set-head'),
+        btn('◄', 'wc-player-step', () => step(-1), { set: key, dir: '-1' }),
+        btn(` ${value.padEnd(VALUE_W)} `, 'wc-player-value', () => step(1), { set: key, value }),
+        btn('►', 'wc-player-step', () => step(1), { set: key, dir: '1' }),
+      );
+    cycler('Font', 'font', vs.font(), vs.cycleFont);
+    cycler('Colours', 'theme', vs.theme(), vs.cycleTheme);
+    const can = vs.canReset();
+    row(btn('Reset layout', `wc-player-reset${can ? '' : ' is-off'}`, () => can && vs.reset(), { set: 'reset' }));
+    const sep = doc.createElement('div');
+    sep.className = 'wc-player-box-row wc-player-box-frame';
+    sep.textContent = '├' + '─'.repeat(BOX_INNER) + '┤';
+    rows.push(sep);
+    this.settingsEl.replaceChildren(...rows);
+  }
+
   private markEl(m: MarkRow, h: number): HTMLDivElement {
     const d = this.doc.createElement('div');
     d.className = 'wc-player-mark';
@@ -473,7 +610,7 @@ export class PlayerView {
     if (!this.o.engine.playing) return;
     this.hideTimer = setTimeout(() => {
       this.hideTimer = null;
-      if (this.o.engine.playing && !this.drag) this.setShown(false);
+      if (this.o.engine.playing && !this.drag && !this.settingsOpen) this.setShown(false);
     }, this.o.hideMs ?? HIDE_MS);
   }
 
@@ -506,7 +643,8 @@ export class PlayerView {
     let handled = true;
     switch (e.key) {
       case 'Escape':
-        this.o.onEsc();
+        if (this.settingsOpen) this.setSettingsOpen(false);
+        else this.o.onEsc();
         break;
       case ' ':
         this.toggle();
@@ -600,7 +738,16 @@ export class PlayerView {
     e.preventDefault();
     this.touch();
     if (this.o.engine.playing || e.deltaY === 0) return;
+    // A side pane scrolls itself (Comm, Timers); only the game text moves the cursor.
+    if ((e.target as Element | null)?.closest?.('.wc-pane')) return;
     this.moveCursor(e.deltaY < 0 ? -1 : 1);
+  };
+
+  /** The box keeps the wheel (no page scroll, no cursor move). */
+  private readonly onBoxWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    this.touch();
   };
 
   private readonly onStageClick = (e: MouseEvent): void => {
@@ -686,6 +833,7 @@ export class PlayerView {
     root.removeEventListener('pointerdown', this.onActivity);
     root.removeEventListener('wheel', this.onWheel);
     root.removeEventListener('click', this.onStageClick);
+    this.boxEl.removeEventListener('wheel', this.onBoxWheel);
     this.ro?.disconnect();
     if (this.raf !== null) this.win.cancelAnimationFrame(this.raf);
     if (this.hideTimer !== null) clearTimeout(this.hideTimer);

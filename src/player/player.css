@@ -23,11 +23,11 @@
   height: 100%;
 }
 
-/* No input pane: its row stays (the recorded layout) but shows nothing. */
+/* No input pane: its row stays (the recorded layout) but shows nothing.
+ * The pane grips and resize handles stay (invisible, as live): the viewer
+ * may rearrange the player cockpit (ADR 0021). */
 .wc-player .wc-input-slot,
-.wc-player .wc-tail-bar,
-.wc-player .wc-pane-grip,
-.wc-player .wc-handles {
+.wc-player .wc-tail-bar {
   visibility: hidden;
 }
 
@@ -127,6 +127,42 @@
   position: absolute;
   background: var(--term-bg);
   color: #585858;
+  /* The box takes the pointer: clicks never fall through to the stage. */
+  pointer-events: auto;
+}
+
+.wc-player-settings[hidden] {
+  display: none;
+}
+
+/* One cell whatever font draws the glyph (JetBrains Mono has no ⚙). */
+.wc-player-gear {
+  display: inline-block;
+  width: var(--cell-w);
+  overflow: hidden;
+  text-align: center;
+  vertical-align: top;
+  font-family: "DejaVu Sans Mono", var(--font-mono);
+}
+
+.wc-player-gear.is-on,
+.wc-player-toggle.is-on,
+.wc-player-value {
+  color: var(--c-accent);
+}
+
+.wc-player-set-head {
+  color: #6f6f6f;
+}
+
+.wc-player-btn.is-off {
+  color: #3a3a3a;
+  cursor: default;
+}
+
+.wc-player-btn.is-off:hover {
+  background: none;
+  font-weight: normal;
 }
 
 .wc-player-box-row {
@@ -155,4 +191,10 @@
   height: var(--cell-h);
   color: var(--c-accent);
   background: var(--term-bg);
+}
+
+/* Read-only panes (ADR 0021): the Comm header's filter cells do not take
+ * the pointer, so a borderless Comm pane is still dragged by its top row. */
+.wc-player .wc-comm-cell {
+  pointer-events: none;
 }

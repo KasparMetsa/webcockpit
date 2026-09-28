@@ -10,6 +10,8 @@ import { ReplayClock } from '../../src/player/clock';
 import { PlayerSocket } from '../../src/player/socket';
 import type { RunEvent } from '../../src/runs/events';
 import { SettingsStore } from '../../src/settings';
+import { movePane } from '../../src/layout/model';
+import { resetLayout } from '../../src/player/viewer';
 import { BASE_US, FakeWall, makeLog, meta, twoRunChain } from './player-helpers';
 
 type Key = string;
@@ -185,6 +187,79 @@ describe('PlayerHost', () => {
     expect(settings().comm.showHeader).toBe(true);
     expect(settings().appearance.size).toBe(14);
     expect(host.el.querySelectorAll('.wc-app')).toHaveLength(1);
+    host.dispose();
+  });
+
+  it('keeps the viewer overrides over later VIEW records and a backward seek (ADR 0021)', () => {
+    const { wall, host } = open();
+    const eng = host.engine!;
+    eng.pause();
+    eng.seek(1500);
+    wall.flush();
+    const store = () => (host.app as unknown as { settings: SettingsStore }).settings;
+    // The viewer drags a pane: the cockpit writes the layout to the App's store.
+    store().update((d) => {
+      d.layout = movePane(d.layout, 'group', 'left', 0);
+    });
+    expect(host.viewerOverrides.layout?.docks.left.panes.map((p) => p.id)).toEqual(['group']);
+    host.setViewer({ ...host.viewerOverrides, font: 'large', theme: 'paper', panes: { comm: false } });
+    const check = () => {
+      const s = store().get();
+      expect(s.appearance.size).toBe(18);
+      expect(s.appearance.bg).toBe('#f4ecd8');
+      expect(s.panes.timers.color).toBe('black');
+      expect(s.panes.comm.on).toBe(false);
+      expect(s.layout.docks.left.panes.map((p) => p.id)).toEqual(['group']);
+    };
+    check();
+    eng.seek(3500); // past the second VIEW
+    wall.flush();
+    expect(store().get().comm.showHeader).toBe(false);
+    check();
+    eng.seek(1000); // back: a new App
+    wall.flush();
+    expect(eng.buildCount).toBe(2);
+    check();
+    // Reset: the recorded layout and panes; font and theme stay.
+    host.setViewer(resetLayout(host.viewerOverrides));
+    expect(store().get().panes.comm.on).toBe(true);
+    expect(store().get().layout.docks.left.panes).toEqual([]);
+    expect(store().get().appearance.size).toBe(18);
+    // Default theme: the recorded colours again.
+    host.setViewer({ ...host.viewerOverrides, theme: 'default', font: 'default' });
+    expect(store().get().panes.timers.color).toBe('red');
+    expect(store().get().appearance.size).toBe(14);
+    host.dispose();
+  });
+
+  it('the gear folds the settings section; its buttons change the overrides', async () => {
+    const { root, host } = open();
+    host.engine!.pause();
+    const view = host.playerView!;
+    const gear = root.querySelector<HTMLElement>('.wc-player-gear')!;
+    expect(gear.textContent).toBe('⚙');
+    const section = root.querySelector<HTMLElement>('.wc-player-settings')!;
+    expect(section.hidden).toBe(true);
+    gear.click();
+    expect(view.settingsShown).toBe(true);
+    view.render();
+    expect(section.hidden).toBe(false);
+    const rows = [...section.children].map((r) => r.textContent!);
+    expect(rows.every((r) => r.length === 32)).toBe(true);
+    expect(rows[1]).toBe('│ [X] Character  [X] Timers    │');
+    section.querySelector<HTMLElement>('[data-pane="timers"]')!.click();
+    expect(host.viewerOverrides.panes).toEqual({ timers: false });
+    section.querySelector<HTMLElement>('[data-set="font"][data-dir="1"]')!.click();
+    section.querySelector<HTMLElement>('[data-set="theme"][data-dir="-1"]')!.click();
+    expect(host.viewerOverrides.font).toBe('small');
+    expect(host.viewerOverrides.theme).toBe('slate');
+    view.render();
+    expect(section.querySelector('[data-pane="timers"]')!.textContent).toBe('[ ] Timers');
+    expect(section.querySelector('[data-set="theme"][data-value]')!.textContent).toBe(' Slate   ');
+    // ESC folds the section first, then leaves.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(view.settingsShown).toBe(false);
+    expect(root.querySelector('.wc-player')).not.toBeNull();
     host.dispose();
   });
 

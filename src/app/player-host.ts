@@ -24,18 +24,41 @@
 // spotlight windows), their own markers and the view's mode options
 // (header, keys, overlay …). The target shows comments as wrapped `## `
 // rows and blanks as `.wc-blank` rows in the output pane.
+//
+// Stage 8 (ADR 0021): the viewer's own choices — font size, colour theme,
+// pane on/off and layout (src/player/viewer.ts) — live here, not in a
+// player App, so they survive the rebuild of a backward seek. Each App's
+// settings are composed as the viewer's settings → the VIEW records so far
+// (`base`) → the overrides (`applyViewer`). A layout change the host did
+// not make itself is the viewer dragging or resizing in the player
+// cockpit; it becomes the layout override. The control box's gear shows
+// the controls (`ViewerControls`, PlayerView).
 
 import type { RunLibrary } from '../runs/library';
 import type { RunEvent } from '../runs/events';
 import type { Session } from '../runs/stitch';
-import { SettingsStore, type ViewSnapshot } from '../settings';
+import { type Settings, SettingsStore, type ViewSnapshot } from '../settings';
+import { PANE_IDS, PANE_LABELS, type PaneId } from '../layout/types';
 import { applyTheme } from '../theme/apply';
 import { CellMetrics } from '../theme/cells';
 import { PlayerEngine, type PlayerTarget, type Wall } from '../player/engine';
 import { overlayView, parseView, playerFontSize } from '../player/fit';
 import { type MarkLetter, STRIP_COLS, markersOf } from '../player/strip';
 import { type ChainRun, type Timeline, type TimelineEdits, buildTimeline, playAtLogUs } from '../player/timeline';
-import { PlayerView, type PlayerViewOptions, runHeader } from '../player/view';
+import { PlayerView, type PlayerViewOptions, type ViewerControls, runHeader } from '../player/view';
+import {
+  VIEWER_FONTS,
+  VIEWER_THEMES,
+  type ViewerOverrides,
+  applyViewer,
+  cycle,
+  hasLayoutOverride,
+  noOverrides,
+  resetLayout,
+  viewerLabel,
+  withLayout,
+  withPane,
+} from '../player/viewer';
 import { commentLines } from '../share/edits';
 import type { ReplayClock } from '../player/clock';
 import type { MapPaneHost } from '../map/protocol';
@@ -77,6 +100,8 @@ export interface PlayerOpenOptions {
   autoplay?: boolean;
   /** Runs whose login system line is not printed (HTML replay `hiddenSys`, ADR 0019). */
   hiddenSys?: readonly number[];
+  /** The control box's gear and viewer settings (ADR 0021; default true). */
+  viewerSettings?: boolean;
 }
 
 /** Paint gate: frame callbacks wait while it is closed. */
@@ -119,6 +144,12 @@ export class PlayerHost {
   private fitKey = '';
   private closed = false;
   private hiddenSys: ReadonlySet<number> = new Set();
+  /** The viewer's overrides (ADR 0021), kept across App rebuilds. */
+  private viewer: ViewerOverrides = noOverrides();
+  /** The current App's recorded settings: the viewer's settings with the VIEW records so far. */
+  private base: Settings | null = null;
+  /** The host is writing the player store (not the viewer's drag). */
+  private applying = false;
 
   constructor(opts: PlayerHostOptions) {
     this.opts = opts;
@@ -198,6 +229,7 @@ export class PlayerHost {
       cells: () => this.cells.get(),
       onEsc,
       ...(this.opts.hideMs !== undefined ? { hideMs: this.opts.hideMs } : {}),
+      ...(opts.viewerSettings !== false ? { settings: this.controls() } : {}),
       ...opts.view,
     });
     if (opts.autoplay !== false) engine.play();
@@ -227,8 +259,10 @@ export class PlayerHost {
     const gate = new FrameGate();
     const store = new SettingsStore({ factory: null, storage: null, win: null });
     void store.load();
-    store.update(() => JSON.parse(JSON.stringify(this.opts.settings.get())) as never);
+    const base = JSON.parse(JSON.stringify(this.opts.settings.get())) as Settings;
+    this.base = base;
     this.store = store;
+    this.compose();
     const app = new App({
       root: this.stage,
       player: true,
@@ -243,7 +277,14 @@ export class PlayerHost {
       ...(this.opts.map ? { map: this.opts.map } : {}),
     });
     this.appRef = app;
-    const unsub = store.subscribe(() => this.relayout());
+    const unsub = store.subscribe((next, prev) => {
+      // The viewer moved or resized a pane in the player cockpit.
+      if (!this.applying && this.store === store && JSON.stringify(next.layout) !== JSON.stringify(prev.layout)) {
+        this.viewer = withLayout(this.viewer, next.layout);
+        this.view?.refresh();
+      }
+      this.relayout();
+    });
     this.relayout();
     return {
       connect: (sock, run) => {
@@ -252,7 +293,9 @@ export class PlayerHost {
       },
       view: (json) => {
         const v = parseView(json);
-        if (v) store.update((d) => overlayView(d, v as Partial<ViewSnapshot>));
+        if (!v) return;
+        overlayView(base, v as Partial<ViewSnapshot>);
+        if (this.base === base) this.compose();
       },
       // The recorded size is not used: the player fills the viewer's window.
       size: () => {},
@@ -264,7 +307,58 @@ export class PlayerHost {
         gate.dispose();
         app.dispose();
         if (this.appRef === app) this.appRef = null;
+        if (this.base === base) this.base = null;
+        if (this.store === store) this.store = null;
       },
+    };
+  }
+
+  // --------------------------------------------------------------- viewer
+
+  /** The viewer's overrides (tests). */
+  get viewerOverrides(): Readonly<ViewerOverrides> {
+    return this.viewer;
+  }
+
+  /** Replaces the overrides and recomposes the current App's settings. */
+  setViewer(o: ViewerOverrides): void {
+    this.viewer = o;
+    this.compose();
+    this.view?.refresh();
+  }
+
+  /** The current store := the recorded settings (`base`) with the overrides. */
+  private compose(): void {
+    const store = this.store;
+    const base = this.base;
+    if (!store || !base) return;
+    const o = this.viewer;
+    this.applying = true;
+    try {
+      // Top-level parts replaced whole (a returned patch would merge, and
+      // keep sparse keys such as comm filters that a VIEW dropped).
+      store.update((draft) => {
+        const d = JSON.parse(JSON.stringify(base)) as Settings;
+        applyViewer(d, o);
+        Object.assign(draft, d);
+      });
+    } finally {
+      this.applying = false;
+    }
+  }
+
+  /** The control box's settings section (PlayerView), over this host. */
+  private controls(): ViewerControls {
+    const on = (id: PaneId): boolean => this.store?.get().panes[id]?.on ?? false;
+    return {
+      panes: () => PANE_IDS.map((id) => ({ id, label: PANE_LABELS[id], on: on(id) })),
+      togglePane: (id) => this.setViewer(withPane(this.viewer, id as PaneId, !on(id as PaneId))),
+      font: () => viewerLabel(this.viewer.font),
+      cycleFont: (dir) => this.setViewer({ ...this.viewer, font: cycle(VIEWER_FONTS, this.viewer.font, dir) }),
+      theme: () => viewerLabel(this.viewer.theme),
+      cycleTheme: (dir) => this.setViewer({ ...this.viewer, theme: cycle(VIEWER_THEMES, this.viewer.theme, dir) }),
+      canReset: () => hasLayoutOverride(this.viewer),
+      reset: () => this.setViewer(resetLayout(this.viewer)),
     };
   }
 
