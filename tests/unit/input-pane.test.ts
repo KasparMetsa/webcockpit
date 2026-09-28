@@ -428,3 +428,71 @@ describe('InputPane custom caret', () => {
     expect(t.c.hidden).toBe(true);
   });
 });
+
+describe('InputPane macros on printable keys (ADR 0026)', () => {
+  function macroSetup(bound: string[]) {
+    document.body.innerHTML = '';
+    const bus = new Bus();
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const sender: Sender = { sendCommand: () => {}, sendGmcp: () => {} };
+    const fired: string[] = [];
+    const pane = new InputPane(bus, root, {
+      sender,
+      onMacroKey: (k) => {
+        if (!bound.includes(k)) return false;
+        fired.push(k);
+        return true;
+      },
+    });
+    pane.focus();
+    const key = (code: string, k: string, init: KeyboardEventInit = {}, target: EventTarget = pane.input) => {
+      const e = new KeyboardEvent('keydown', { code, key: k, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(e);
+      return e;
+    };
+    return { bus, pane, fired, key };
+  }
+
+  it('a bound bare key fires and is consumed; an unbound one types', () => {
+    const t = macroSetup(['A', 'Backquote', 'Shift+2']);
+    expect(t.key('KeyA', 'a').defaultPrevented).toBe(true);
+    expect(t.key('Backquote', '§').defaultPrevented).toBe(true);
+    expect(t.key('Digit2', '"', { shiftKey: true }).defaultPrevented).toBe(true);
+    expect(t.key('KeyB', 'b').defaultPrevented).toBe(false);
+    expect(t.key('Digit2', '2').defaultPrevented).toBe(false);
+    expect(t.fired).toEqual(['A', 'Backquote', 'Shift+2']);
+  });
+
+  it('Shift+letter fires while the bare letter still types', () => {
+    const t = macroSetup(['Shift+A']);
+    expect(t.key('KeyA', 'a').defaultPrevented).toBe(false);
+    expect(t.key('KeyA', 'A', { shiftKey: true }).defaultPrevented).toBe(true);
+    expect(t.fired).toEqual(['Shift+A']);
+  });
+
+  it('nothing fires in password mode, with AltGr, or in other fields', () => {
+    const t = macroSetup(['A', 'Minus']);
+    t.bus.emit('telnet.echo', { serverEchoes: true });
+    expect(t.key('KeyA', 'a').defaultPrevented).toBe(false);
+    t.bus.emit('telnet.echo', { serverEchoes: false });
+
+    const altGr = new KeyboardEvent('keydown', { code: 'Minus', key: '\\', bubbles: true, cancelable: true });
+    Object.defineProperty(altGr, 'getModifierState', { value: (k: string) => k === 'AltGraph' });
+    t.pane.input.dispatchEvent(altGr);
+    expect(altGr.defaultPrevented).toBe(false);
+
+    for (const tag of ['textarea', 'input']) {
+      const el = document.createElement(tag);
+      document.body.appendChild(el);
+      expect(t.key('KeyA', 'a', {}, el).defaultPrevented, tag).toBe(false);
+    }
+    const editable = document.createElement('div');
+    editable.contentEditable = 'true';
+    document.body.appendChild(editable);
+    t.key('KeyA', 'a', {}, editable);
+    expect(t.fired).toEqual([]);
+    expect(t.key('KeyA', 'a').defaultPrevented).toBe(true);
+    expect(t.fired).toEqual(['A']);
+  });
+});

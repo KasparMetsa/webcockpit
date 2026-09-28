@@ -25,10 +25,13 @@
 //   `onMacroKey` with the key's canonical name (src/script/keys.ts); a
 //   bound macro wins and the key is consumed. Not in password mode, not
 //   while AltGr is down. The macro runs synchronously in the keydown.
+//   Printable keys can be bound too (ADR 0026): a bound `a` or `Shift+1`
+//   is consumed (preventDefault), so its character is never typed. Every
+//   keydown also teaches the key labels (`learnKeyLabel`).
 
 import type { Bus } from '../core/bus';
 import type { Sender } from '../core/types';
-import { keyNameFromEvent } from '../script/keys';
+import { keyNameFromEvent, learnKeyLabel } from '../script/keys';
 
 /** What the input pane needs from the output pane. */
 export interface ScrollTarget {
@@ -353,6 +356,7 @@ export class InputPane {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.defaultPrevented || e.isComposing) return;
+    learnKeyLabel(e);
     if (this.isOtherInteractive(e.target)) return;
     if (this.doc.activeElement !== this.input) {
       // Keystrokes typed while focus is elsewhere land in the input: moving

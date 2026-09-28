@@ -35,12 +35,15 @@ import type { BenchProbe } from './app/bench-hook';
 import { Notices } from './app/notices';
 import { installNotices } from './app/notices-wiring';
 import { Shell } from './app/shell';
+import { initKeyLabels } from './script/keys';
 import { SettingsStore } from './settings';
 import { appearanceChanged, applyTheme } from './theme/apply';
 import { CellMetrics } from './theme/cells';
 import { preloadFont } from './theme/fonts';
 
 const params = new URLSearchParams(location.search);
+// Macro key labels follow the keyboard layout where the browser says (ADR 0026).
+void initKeyLabels();
 
 const settings = new SettingsStore({ safe: params.has('safe') });
 preloadFont(settings.get().appearance.font);

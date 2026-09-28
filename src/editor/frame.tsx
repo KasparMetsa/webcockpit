@@ -37,7 +37,7 @@ import {
   storeBody,
   validateEntry,
 } from '../script/doc';
-import { bindability, displayKey } from '../script/keys';
+import { bindability, displayKey, learnKeyLabel } from '../script/keys';
 import { type BufferStatus, type ScrollStatus, createBuffer, handleKey, onFirstLine, pageScroll } from './cm';
 import {
   HINTS,
@@ -441,6 +441,7 @@ export function ProfileEditor({ host }: { host: EditorHost }): VNode {
       return true;
     }
     if (['Shift', 'Control', 'Alt', 'Meta', 'AltGraph', 'CapsLock', 'NumLock', 'OS'].includes(e.key)) return true;
+    learnKeyLabel(e);
     if (e.getModifierState?.('AltGraph')) {
       setCapture({ ...capture, error: 'AltGr keys type text.' });
       return true;
