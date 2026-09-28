@@ -5,6 +5,10 @@
 //   npm run publish -- --allow-dirty  publish from uncommitted changes
 //   npm run publish -- --rollback   swap the live and the previous release
 //
+// The package.json version must differ from the live release's (ADR 0025):
+// bump it (`npm version patch --no-git-tag-version`) and commit before
+// publishing. A dry run only warns.
+//
 // Steps, stopping at the first failure (the live site is then untouched):
 //   1. typecheck and unit tests
 //   2. `vite build` into a staging directory next to the site directory
@@ -20,6 +24,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
+import { versionGuard } from './publish-guard.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SITE = resolve(process.env.WEBCOCKPIT_PUBLISH_DIR ?? join(homedir(), '.local/share/tailweb/sajter/webcockpit'));
@@ -80,6 +85,9 @@ if (dirty && !allowDirty) fail('the working tree has uncommitted changes (commit
 const commit = git('rev-parse', '--short', 'HEAD');
 const version = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 console.log(`publish: ${version} ${commit}${dirty ? ' (dirty)' : ''} → ${SITE}${dryRun ? ' (dry run)' : ''}`);
+const refused = versionGuard(readRelease(SITE)?.version ?? null, version);
+if (refused && !dryRun) fail(refused);
+if (refused) console.warn(`publish (dry run): ${refused}`);
 
 step('typecheck');
 run('npx', ['tsc', '--noEmit']);
