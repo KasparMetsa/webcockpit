@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **8 — Hardening → v1** (part A done; next: plan the rest of stage 8).
+Current stage: **8 — Hardening → v1** (part A done; 0.1.1 public, update notices approved; next: plan the rest of stage 8).
 
 ## Stages
 
@@ -33,6 +33,7 @@ Newest first.
   1097 unit, 182 e2e, 10 prod e2e pass.
 - **Published:** 87eb347 (0.1.0), then 75db548 (0.1.1, test publish of the
   update notice); smoke test passes against the live URL.
+- **Owner test:** approved live (0.1.1 notice shown, F5 loaded it).
 - **Next:** owner shares on Discord; every later publish bumps the version
   first (`npm version patch --no-git-tag-version`, commit).
 - **Open issues:** a failed map-worker load has no update hint (the Map
