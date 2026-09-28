@@ -28,7 +28,8 @@ Newest first.
   bundled as `src/profiles/khazdul.tin`) beside `default`; existing users
   unchanged, a deleted copy stays deleted. Owner-profile tests now read
   the bundled copy and always run. 1080 unit, 182 e2e pass.
-- **Next:** publish on the owner's go; plan the rest of stage 8.
+- **Published:** 221b15c; smoke test passes against the live URL.
+- **Next:** plan the rest of stage 8.
 - **Open issues:** none new.
 - **Commits:** (this commit).
 

@@ -121,4 +121,5 @@ to clicks in a way it should not.
   right. After the first publish: the map float was too large; now
   25 % × 27 % of the window. Published as 99981b7.
 - 2026-09-28, profiles: new users get `khazdul` (the owner's PvP
-  profile) as a selectable profile beside `default`.
+  profile) as a selectable profile beside `default`. Published as
+  221b15c.
