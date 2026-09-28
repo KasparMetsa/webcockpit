@@ -4,11 +4,14 @@
 // `LayoutModel` as plain data and repairs a damaged one on load
 // (src/settings/migrate.ts).
 
-/** The framed side panes, in Cockpit's order (Inv §2.1). */
-export type PaneId = 'character' | 'timers' | 'group' | 'comm' | 'ui';
+/** The framed side panes, in Cockpit's order (Inv §2.1), then the map (ADR 0020). */
+export type PaneId = 'character' | 'timers' | 'group' | 'comm' | 'ui' | 'map';
 
-/** Every pane id in Cockpit's default stack order. */
-export const PANE_IDS: readonly PaneId[] = ['character', 'timers', 'group', 'comm', 'ui'];
+/** Every pane id in Cockpit's default stack order, then the map. */
+export const PANE_IDS: readonly PaneId[] = ['character', 'timers', 'group', 'comm', 'ui', 'map'];
+
+/** The panes of the default right dock (the map floats by default). */
+export const DOCKED_BY_DEFAULT: readonly PaneId[] = ['character', 'timers', 'group', 'comm', 'ui'];
 
 /** Frame labels (Inv §2.1 "Pane frame"). */
 export const PANE_LABELS: Readonly<Record<PaneId, string>> = {
@@ -17,6 +20,7 @@ export const PANE_LABELS: Readonly<Record<PaneId, string>> = {
   group: 'Group',
   comm: 'Comm',
   ui: 'UI',
+  map: 'Map',
 };
 
 /**
@@ -65,6 +69,12 @@ export interface FloatPane {
   y: number;
   w: number;
   h: number;
+  /**
+   * Placement not chosen yet (ADR 0020): the pane shows at its default
+   * spot for the current window (`allocate`, AUTO_FLOAT) and x/y/w/h are
+   * ignored. Moving or resizing it stores a real rectangle and drops this.
+   */
+  auto?: boolean;
 }
 
 /**
@@ -86,6 +96,7 @@ export const DEFAULT_PANE_DESIRED: Readonly<Record<PaneId, number>> = {
   group: 6,
   comm: 10,
   ui: 5,
+  map: 20,
 };
 
 /** Default width of the right (and left) dock in cells. */
@@ -109,11 +120,16 @@ export function defaultLayout(): LayoutModel {
       left: { size: DEFAULT_SIDE_DOCK_SIZE, panes: [] },
       right: {
         size: DEFAULT_SIDE_DOCK_SIZE,
-        panes: PANE_IDS.map((id) => ({ id, desired: DEFAULT_PANE_DESIRED[id] })),
+        panes: DOCKED_BY_DEFAULT.map((id) => ({ id, desired: DEFAULT_PANE_DESIRED[id] })),
       },
       top: { size: DEFAULT_TOP_DOCK_SIZE, panes: [] },
       bottom: { size: DEFAULT_BOTTOM_DOCK_SIZE, panes: [] },
     },
-    floating: [],
+    floating: [defaultMapFloat()],
   };
+}
+
+/** The map's first floating entry: placed by `allocate` until the user moves it (ADR 0020). */
+export function defaultMapFloat(): FloatPane {
+  return { id: 'map', x: 0, y: 0, w: 60, h: 20, auto: true };
 }

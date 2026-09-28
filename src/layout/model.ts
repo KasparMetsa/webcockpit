@@ -106,7 +106,7 @@ export function setFloatRect(m: LayoutModel, id: PaneId, rect: Rect): LayoutMode
   if (fi < 0) return m;
   const r = cells(rect);
   const f = m.floating[fi]!;
-  if (f.x === r.x && f.y === r.y && f.w === r.w && f.h === r.h) return m;
+  if (!f.auto && f.x === r.x && f.y === r.y && f.w === r.w && f.h === r.h) return m;
   const out = copy(m);
   out.floating[fi] = { id, ...r };
   return out;

@@ -197,6 +197,7 @@ export function defaultSettings(): Settings {
       group: { on: true, color: 'green', border: true },
       comm: { on: true, color: 'blue', border: true },
       ui: { on: true, color: 'black', border: true },
+      map: { on: false, color: 'black', border: true },
     },
     layout: defaultLayout(),
     profile: 'default',

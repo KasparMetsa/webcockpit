@@ -8,13 +8,13 @@ import {
   clampFloat,
   floatMin,
 } from '../../src/layout/allocate';
-import { type LayoutModel, PANE_IDS, type PaneId, defaultLayout } from '../../src/layout/types';
-import { floatPane, movePane, setDockSize } from '../../src/layout/model';
+import { DOCKED_BY_DEFAULT, type LayoutModel, PANE_IDS, type PaneId, defaultLayout } from '../../src/layout/types';
+import { floatPane, movePane, setDockSize, setFloatRect } from '../../src/layout/model';
 
-const MIN: Record<PaneId, number> = { character: 3, timers: 1, group: 1, comm: 1, ui: 1 };
-const DES: Record<PaneId, number> = { character: 9, timers: 8, group: 6, comm: 10, ui: 5 };
+const MIN: Record<PaneId, number> = { character: 3, timers: 1, group: 1, comm: 1, ui: 1, map: 3 };
+const DES: Record<PaneId, number> = { character: 9, timers: 8, group: 6, comm: 10, ui: 5, map: 20 };
 
-const items = (ids: PaneId[] = [...PANE_IDS], frame = 2): AxisItem[] =>
+const items = (ids: PaneId[] = [...DOCKED_BY_DEFAULT], frame = 2): AxisItem[] =>
   ids.map((id) => ({ id, desired: DES[id], min: MIN[id], frame }));
 
 const sizes = (r: ReturnType<typeof allocateAxis>): Record<string, number> =>
@@ -23,9 +23,10 @@ const sizes = (r: ReturnType<typeof allocateAxis>): Record<string, number> =>
 const total = (r: ReturnType<typeof allocateAxis>, frame = 2): number =>
   r.sizes.reduce((a, s) => a + s.size + frame, 0);
 
-function toggles(off: PaneId[] = [], noBorder: PaneId[] = []): AllocateInput['panes'] {
+/** Every pane on except `off` and the map (off by default, ADR 0020) unless `mapOn`. */
+function toggles(off: PaneId[] = [], noBorder: PaneId[] = [], mapOn = false): AllocateInput['panes'] {
   return Object.fromEntries(
-    PANE_IDS.map((id) => [id, { on: !off.includes(id), border: !noBorder.includes(id) }]),
+    PANE_IDS.map((id) => [id, { on: (id !== 'map' || mapOn) && !off.includes(id), border: !noBorder.includes(id) }]),
   ) as AllocateInput['panes'];
 }
 
@@ -51,7 +52,8 @@ describe('allocateAxis', () => {
 
   it('keeps exact desired sizes when they sum to the length', () => {
     const r = allocateAxis(items(), 48);
-    expect(sizes(r)).toEqual(DES);
+    const { map: _map, ...docked } = DES;
+    expect(sizes(r)).toEqual(docked);
     expect(r.mode).toBe('fit');
   });
 
@@ -119,7 +121,7 @@ describe('allocate', () => {
     expect(r.input).toEqual({ x: 0, y: 49, w: 86, h: 1 });
     expect(r.docks.right!.rect).toEqual({ x: 87, y: 0, w: 33, h: 50 });
     expect(r.game).toEqual({ x: 0, y: 0, w: 86, h: 49 });
-    expect(r.panes.map((p) => p.id)).toEqual([...PANE_IDS]);
+    expect(r.panes.map((p) => p.id)).toEqual([...DOCKED_BY_DEFAULT]);
     const heights = r.panes.map((p) => p.content.h);
     expect(heights).toEqual([9, 8, 6, 10, 5 + 2]); // 48 of 50 rows: two left over, to UI
     let y = 0;
@@ -172,7 +174,7 @@ describe('allocate', () => {
     const narrow = allocate(input(63, 30));
     expect(narrow.docks.right).toBeUndefined();
     expect(narrow.collapsed).toEqual(['right']);
-    expect(narrow.hidden).toEqual([...PANE_IDS]);
+    expect(narrow.hidden).toEqual([...DOCKED_BY_DEFAULT]);
     expect(narrow.game).toEqual({ x: 0, y: 0, w: 63, h: 29 });
     expect(narrow.input).toEqual({ x: 0, y: 29, w: 63, h: 1 });
   });
@@ -324,9 +326,10 @@ describe('allocate', () => {
     expect(r.game).toEqual({ x: 0, y: 0, w: 86, h: 49 });
     expect(r.docks.right!.panes).toEqual(['character', 'timers', 'ui']);
     const floats = r.panes.filter((p) => p.dock === 'float');
+    // Index 0 is the map's default entry (off, ADR 0020).
     expect(floats.map((p) => [p.id, p.index])).toEqual([
-      ['comm', 0],
-      ['group', 1],
+      ['comm', 1],
+      ['group', 2],
     ]);
     expect(floats[0]!.rect).toEqual({ x: 10, y: 5, w: 30, h: 12 });
     expect(floats[0]!.content).toEqual({ x: 11, y: 6, w: 28, h: 10 });
@@ -348,9 +351,28 @@ describe('allocate', () => {
     const low = allocate(input(120, 50, floatPane(defaultLayout(), 'comm', { x: 0, y: 45, w: 36, h: 14 })));
     expect(low.panes.find((p) => p.id === 'comm')!.rect).toEqual({ x: 0, y: 36, w: 36, h: 14 });
     // The model is untouched.
-    expect(m.floating[0]).toEqual({ id: 'comm', x: 100, y: 45, w: 40, h: 30 });
+    expect(m.floating.find((f) => f.id === 'comm')).toEqual({ id: 'comm', x: 100, y: 45, w: 40, h: 30 });
     expect(allocate(input(59, 18, m)).tooSmall).toBe(true);
     expect(allocate(input(59, 18, m)).hidden).toContain('comm');
+  });
+
+  it('places the map at its default spot until it is moved (ADR 0020)', () => {
+    const r = allocate(input(200, 60, defaultLayout(), toggles([], [], true)));
+    const map = r.panes.find((p) => p.id === 'map')!;
+    expect(map.dock).toBe('float');
+    // Top-right corner of the game pane, 50 % × 35 % of the window.
+    expect(r.game).toEqual({ x: 0, y: 0, w: 166, h: 59 });
+    expect(map.rect).toEqual({ x: 66, y: 0, w: 100, h: 21 });
+    // A narrow window: shifted inside, never off screen.
+    const narrow = allocate(input(70, 20, defaultLayout(), toggles([], [], true)));
+    const n = narrow.panes.find((p) => p.id === 'map')!.rect;
+    expect(n.x).toBeGreaterThanOrEqual(0);
+    expect(n.x + n.w).toBeLessThanOrEqual(70);
+    // Moved or resized: a stored rectangle without `auto`.
+    const moved = setFloatRect(defaultLayout(), 'map', { x: 3, y: 4, w: 50, h: 20 });
+    expect(moved.floating[0]).toEqual({ id: 'map', x: 3, y: 4, w: 50, h: 20 });
+    const again = allocate(input(200, 60, moved, toggles([], [], true)));
+    expect(again.panes.find((p) => p.id === 'map')!.rect).toEqual({ x: 3, y: 4, w: 50, h: 20 });
   });
 
   it('keeps a floating pane at least the frame plus its minimum content', () => {

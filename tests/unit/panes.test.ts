@@ -290,8 +290,9 @@ describe('Cockpit', () => {
     flush();
     const comm = c.pane('comm');
     expect(comm.el.hasAttribute('data-floating')).toBe(true);
-    expect(comm.el.style.zIndex).toBe('10');
-    expect(c.pane('ui').el.style.zIndex).toBe('11');
+    // The map (off) keeps the backmost floating slot (migrateLayout, ADR 0020).
+    expect(comm.el.style.zIndex).toBe('11');
+    expect(c.pane('ui').el.style.zIndex).toBe('12');
     expect(c.pane('character').el.hasAttribute('data-floating')).toBe(false);
     expect(c.pane('character').el.style.zIndex).toBe('');
     expect([comm.cols, comm.rows]).toEqual([28, 10]);
@@ -318,7 +319,7 @@ describe('Cockpit', () => {
     expect(comm.visible).toBe(false);
     settings.update({ panes: { comm: { on: true } } });
     flush();
-    expect(settings.get().layout.floating[0]).toEqual({ id: 'comm', x: 80, y: 10, w: 30, h: 12 });
+    expect(settings.get().layout.floating.find((f) => f.id === 'comm')).toEqual({ id: 'comm', x: 80, y: 10, w: 30, h: 12 });
     expect(comm.visible).toBe(true);
   });
 });

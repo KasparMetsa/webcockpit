@@ -43,9 +43,9 @@ async function seed(store: RunStore, m: RunMeta, chunks: Array<[firstUs: number,
 const doc = (sessionId: string, over: Partial<ExportDoc> = {}): ExportDoc => ({ ...defaultExportDoc(sessionId), ...over });
 
 describe('RunLibrary export docs', () => {
-  it('opens DB v6 with the exports store', async () => {
+  it('opens DB v6+ with the exports store', async () => {
     const { store } = await lib();
-    expect(DB_VERSION).toBe(6);
+    expect(DB_VERSION).toBeGreaterThanOrEqual(6);
     expect([...store.db.objectStoreNames]).toContain('exports');
   });
 

@@ -7,6 +7,7 @@ import { CharacterPane } from './character';
 import { CommPane } from './comm';
 import type { PaneContext } from './context';
 import { GroupPane } from './group';
+import { MapPane } from './map';
 import type { PaneShell } from './pane';
 import { TimersPane } from './timers';
 import { UiPane } from './ui';
@@ -20,4 +21,5 @@ export const PANE_FACTORIES: Readonly<Record<PaneId, PaneFactory>> = {
   group: (ctx) => new GroupPane(ctx),
   comm: (ctx) => new CommPane(ctx),
   ui: (ctx) => new UiPane(ctx),
+  map: (ctx) => new MapPane(ctx),
 };

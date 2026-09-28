@@ -67,6 +67,7 @@ export const MIN_ROWS: Readonly<Record<PaneId, number>> = {
   group: 1,
   comm: 1,
   ui: 1,
+  map: 3,
 };
 /** Minimum content columns in the top/bottom dock (ADR 0012). */
 export const MIN_COLS = 8;
@@ -74,9 +75,9 @@ export const MIN_COLS = 8;
 export const DEFAULT_BOTTOM_DESIRED = 30;
 
 /** Who gets the leftover cells first (Inv §2.1). */
-export const LEFTOVER_PRIORITY: readonly PaneId[] = ['ui', 'character', 'comm', 'timers', 'group'];
-/** Who is dropped first when even the minimums do not fit (Inv §2.1). */
-export const DROP_ORDER: readonly PaneId[] = ['group', 'timers', 'comm', 'character', 'ui'];
+export const LEFTOVER_PRIORITY: readonly PaneId[] = ['map', 'ui', 'character', 'comm', 'timers', 'group'];
+/** Who is dropped first when even the minimums do not fit (Inv §2.1; the map first, ADR 0020). */
+export const DROP_ORDER: readonly PaneId[] = ['map', 'group', 'timers', 'comm', 'character', 'ui'];
 
 /** True for the docks that stack panes vertically (left, right). */
 export const isSideDock = (d: DockId): boolean => d === 'left' || d === 'right';
@@ -103,6 +104,20 @@ export const FLOAT_STANDARD_H = 14;
 /** Size of a pane that starts floating without a shown rectangle to copy (settings migration). */
 export function defaultFloatSize(id: PaneId): { w: number; h: number } {
   return { w: DEFAULT_SIDE_DOCK_SIZE, h: DEFAULT_PANE_DESIRED[id] + FRAME_CELLS };
+}
+
+/**
+ * Default spot of a floating pane whose placement is not chosen yet
+ * (`FloatPane.auto`, ADR 0020): the top-right corner of the game pane,
+ * `w` × `h` of the window (the owner's MMapper position).
+ */
+export const AUTO_FLOAT = { w: 0.5, h: 0.35 } as const;
+
+/** The rectangle of an `auto` floating pane over `game` in a `cols` × `rows` window (before clamping). */
+export function autoFloatRect(game: Rect, cols: number, rows: number): Rect {
+  const w = Math.round(cols * AUTO_FLOAT.w);
+  const h = Math.round(rows * AUTO_FLOAT.h);
+  return { x: game.x + game.w - w, y: game.y, w, h };
 }
 
 /**
@@ -407,7 +422,7 @@ export function allocate(input: AllocateInput): LayoutResult {
     const t = input.panes[f.id];
     if (!t?.on) return;
     const framed = t.border;
-    const r = clampFloat(f, floatMin(f.id, framed), cols, rows);
+    const r = clampFloat(f.auto ? autoFloatRect(res.game, cols, rows) : f, floatMin(f.id, framed), cols, rows);
     const c: Rect = framed ? { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 } : { ...r };
     res.panes.push({ id: f.id, dock: 'float', index, rect: r, content: c, framed });
   });

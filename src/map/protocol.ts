@@ -129,3 +129,16 @@ export type WorkerToMain =
   | { t: 'error'; stage: 'init' | 'load' | 'render'; req?: number; message: string }
   /** Locator state (P2): the player's room index, or null when unknown. */
   | { t: 'status'; located: boolean; room: number | null };
+
+// ------------------------------------------------------ pane host
+
+/**
+ * What the Map pane loads (src/panes/map.ts). The app uses the bundled
+ * map (`defaultMapHost`); the log player and the HTML replay pass their
+ * own through `PaneContext.map` (P3). `source()` is read when the worker
+ * starts; null loads nothing.
+ */
+export interface MapPaneHost {
+  source: () => MapSource | null;
+  assets: AssetSource;
+}

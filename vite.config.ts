@@ -124,6 +124,11 @@ const ROOT = fileURLToPath(new URL('.', import.meta.url));
  * Bundles the HTML replay runtime (src/replay/main.ts) into one IIFE with
  * its CSS inlined (a `<style>` added when it runs): the text that
  * `buildReplayHtml` embeds in every exported file (ADR 0019).
+ *
+ * The map (ADR 0020): `__WC_REPLAY__` is true here, and
+ * src/map/spawn-worker.ts is swapped for spawn-worker-inline.ts, which
+ * embeds the map worker (`?worker&inline`, an IIFE worker started from a
+ * blob: URL) because a single file cannot load a worker by URL.
  */
 async function bundleReplay(): Promise<string> {
   const { build } = await import('vite');
@@ -152,9 +157,13 @@ async function bundleReplay(): Promise<string> {
     mode: 'production',
     logLevel: 'warn',
     publicDir: false,
-    define,
+    define: { ...define, __WC_REPLAY__: 'true' },
     oxc,
     plugins: [inlineCss],
+    resolve: {
+      alias: [{ find: /^\.\/spawn-worker$/, replacement: resolve(ROOT, 'src/map/spawn-worker-inline.ts') }],
+    },
+    worker: { format: 'iife' },
     build: {
       write: false,
       target: 'es2022',
@@ -229,6 +238,8 @@ export default defineConfig({
   define,
   oxc,
   plugins: [fixturesPlugin(), replayBundlePlugin()],
+  // The map worker is a module worker (src/map/spawn-worker.ts, ADR 0020).
+  worker: { format: 'es' },
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
   build: { target: 'es2022' },

@@ -14,10 +14,12 @@ import {
   shiftBoundary,
   togglePatch,
 } from '../../src/layout/model';
-import { type DockId, type LayoutModel, PANE_IDS, defaultLayout } from '../../src/layout/types';
+import { type DockId, type LayoutModel, PANE_IDS, defaultLayout, defaultMapFloat } from '../../src/layout/types';
 import { defaultSettings } from '../../src/settings/types';
 
 const order = (m: LayoutModel, d: DockId) => m.docks[d].panes.map((p) => p.id);
+/** The map's default floating entry (ADR 0020). */
+const MAP = defaultMapFloat();
 
 function everyPaneOnce(m: LayoutModel): void {
   const ids = [
@@ -120,13 +122,14 @@ describe('floating panes', () => {
     const m0 = defaultLayout();
     const m = floatPane(m0, 'comm', { x: 10.4, y: 3, w: 33, h: 12 });
     expect(order(m, 'right')).toEqual(['character', 'timers', 'group', 'ui']);
-    expect(m.floating).toEqual([{ id: 'comm', x: 10, y: 3, w: 33, h: 12 }]);
+    // The map's default entry stays backmost (ADR 0020).
+    expect(m.floating).toEqual([MAP, { id: 'comm', x: 10, y: 3, w: 33, h: 12 }]);
     expect(findPane(m, 'comm')).toBeNull();
-    expect(findFloat(m, 'comm')).toBe(0);
+    expect(findFloat(m, 'comm')).toBe(1);
     everyPaneOnce(m);
     const m2 = floatPane(m, 'ui', { x: -4, y: 0, w: 0, h: 5 });
     expect(m2.floating.at(-1)).toEqual({ id: 'ui', x: 0, y: 0, w: 1, h: 5 });
-    expect(zOrder(m2)).toEqual(['comm', 'ui']);
+    expect(zOrder(m2)).toEqual(['map', 'comm', 'ui']);
     everyPaneOnce(m2);
     expect(JSON.stringify(m0)).toBe(JSON.stringify(defaultLayout()));
   });
@@ -136,6 +139,7 @@ describe('floating panes', () => {
     m = floatPane(m, 'ui', { x: 5, y: 5, w: 20, h: 8 });
     m = floatPane(m, 'comm', { x: 7, y: 2, w: 20, h: 8 });
     expect(m.floating).toEqual([
+      MAP,
       { id: 'ui', x: 5, y: 5, w: 20, h: 8 },
       { id: 'comm', x: 7, y: 2, w: 20, h: 8 },
     ]);
@@ -147,6 +151,7 @@ describe('floating panes', () => {
     m = floatPane(m, 'ui', { x: 5, y: 5, w: 20, h: 8 });
     const r = setFloatRect(m, 'comm', { x: 2, y: 3, w: 25, h: 9 });
     expect(r.floating).toEqual([
+      MAP,
       { id: 'comm', x: 2, y: 3, w: 25, h: 9 },
       { id: 'ui', x: 5, y: 5, w: 20, h: 8 },
     ]);
@@ -159,7 +164,7 @@ describe('floating panes', () => {
     m = floatPane(m, 'ui', { x: 5, y: 5, w: 20, h: 8 });
     m = floatPane(m, 'group', { x: 9, y: 9, w: 20, h: 8 });
     const r = raisePane(m, 'comm');
-    expect(zOrder(r)).toEqual(['ui', 'group', 'comm']);
+    expect(zOrder(r)).toEqual(['map', 'ui', 'group', 'comm']);
     expect(raisePane(r, 'comm')).toBe(r);
     expect(raisePane(r, 'timers')).toBe(r);
   });
@@ -170,7 +175,7 @@ describe('floating panes', () => {
     const right = movePane(m, 'comm', 'right', 1);
     expect(order(right, 'right')).toEqual(['character', 'comm', 'timers', 'group', 'ui']);
     expect(right.docks.right.panes[1]).toEqual({ id: 'comm', desired: 10 });
-    expect(right.floating).toEqual([]);
+    expect(right.floating).toEqual([MAP]);
     everyPaneOnce(right);
     m = movePane(m, 'comm', 'top', 99);
     expect(m.docks.top.panes).toEqual([{ id: 'comm', desired: DEFAULT_BOTTOM_DESIRED }]);

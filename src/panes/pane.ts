@@ -43,13 +43,14 @@ import { frameText } from './frame';
 
 export type { PaneContext } from './context';
 
-/** Panes that blank their content while not `playing` (Inv §2.1): all but UI. */
+/** Panes that blank their content while not `playing` (Inv §2.1): all but UI and the map. */
 export const BLANK_WHEN_INACTIVE: Readonly<Record<PaneId, boolean>> = {
   character: true,
   timers: true,
   group: true,
   comm: true,
   ui: false,
+  map: false,
 };
 
 /** True for the connection state in which panes are active. */

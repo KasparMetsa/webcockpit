@@ -2,7 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CaptureStore } from '../../src/capture/store';
 import { DB_NAME, DB_VERSION, openWebcockpitDb } from '../../src/core/db';
-import { PANE_IDS } from '../../src/layout/types';
+import { PANE_IDS, defaultMapFloat } from '../../src/layout/types';
 import {
   DEFAULT_SETTINGS,
   MIRROR_KEY,
@@ -223,7 +223,9 @@ describe('migrateSettings', () => {
     // Layouts stored before the top dock existed get an empty one.
     expect(s.layout.docks.top).toEqual({ size: 10, panes: [] });
     const all = Object.values(s.layout.docks).flatMap((d) => d.panes.map((p) => p.id));
-    expect(all.sort()).toEqual([...PANE_IDS].sort());
+    // The map floats at its default spot (ADR 0020).
+    expect(s.layout.floating).toEqual([defaultMapFloat()]);
+    expect([...all, 'map'].sort()).toEqual([...PANE_IDS].sort());
   });
 });
 
@@ -243,6 +245,7 @@ describe('migrateLayout: floating panes', () => {
       },
     });
     expect(s.layout.floating).toEqual([
+      defaultMapFloat(),
       { id: 'comm', x: 4, y: 2, w: 30, h: 12 },
       { id: 'group', x: 0, y: 0, w: 1, h: 8 },
     ]);
@@ -250,9 +253,9 @@ describe('migrateLayout: floating panes', () => {
     expect(s.layout.docks.top).toEqual({ size: 10, panes: [] });
   });
 
-  it('gives an older layout an empty floating list and a top dock', () => {
+  it('gives an older layout a floating list with only the map and a top dock', () => {
     const s = migrateSettings({ layout: { docks: { right: { size: 40, panes: [] } } } });
-    expect(s.layout.floating).toEqual([]);
+    expect(s.layout.floating).toEqual([defaultMapFloat()]);
     expect(s.layout.docks.top.panes).toEqual([]);
     expect(s.layout.docks.right.size).toBe(40);
   });
@@ -279,7 +282,7 @@ describe('database', () => {
     });
     const cap = await CaptureStore.open(factory);
     expect(cap.db.version).toBe(DB_VERSION);
-    expect([...cap.db.objectStoreNames].sort()).toEqual(['comm', 'exports', 'profiles', 'runChunks', 'runEvents', 'runs', 'settings', 'timers']);
+    expect([...cap.db.objectStoreNames].sort()).toEqual(['comm', 'exports', 'mapIds', 'maps', 'profiles', 'runChunks', 'runEvents', 'runs', 'settings', 'timers']);
     expect((await cap.listRuns()).map((r) => r.runId)).toEqual(['A/1']);
     cap.close();
   });

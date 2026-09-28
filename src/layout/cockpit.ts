@@ -4,7 +4,7 @@
 //
 //   .wc-cockpit
 //     .wc-game          the output pane (src/ui/output-pane.ts) goes in here
-//     .wc-pane × 5      pane shells (src/panes/pane.ts)
+//     .wc-pane × 6      pane shells (src/panes/pane.ts; the map included)
 //     .wc-input-slot    the input line (src/ui/input-pane.ts), under the game pane
 //     .wc-handles       invisible resize handles over the gaps and frames
 //     .wc-drop-bar      insertion bar while a pane is dragged to a dock

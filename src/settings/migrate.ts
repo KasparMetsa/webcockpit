@@ -15,6 +15,7 @@ import {
   PANE_COLORS,
   PANE_IDS,
   type PaneId,
+  defaultMapFloat,
 } from '../layout/types';
 import { defaultFloatSize } from '../layout/allocate';
 import { normalizeHex } from '../theme/color';
@@ -106,7 +107,8 @@ function migratePanes(raw: unknown): Record<PaneId, PaneSettings> {
  * A valid layout from anything: known dock ids only, sizes clamped, each
  * pane id at most once (docks first, then `floating`; first occurrence
  * wins), and any pane missing from every dock and from `floating` appended
- * to the right dock with its default height. A dock missing from an older
+ * to the right dock with its default height (the map instead floats at its
+ * default spot, `defaultMapFloat`). A dock missing from an older
  * layout (the top dock) comes back empty at its default size.
  */
 export function migrateLayout(raw: unknown): LayoutModel {
@@ -139,10 +141,15 @@ export function migrateLayout(raw: unknown): LayoutModel {
       y: int(f.y, 0, MAX_CELLS, 0),
       w: int(f.w, 1, MAX_CELLS, size.w),
       h: int(f.h, 1, MAX_CELLS, size.h),
+      ...(f.auto === true ? { auto: true } : {}),
     });
   }
+  // The map floats at its default spot (ADR 0020); a missing side pane
+  // joins the right dock. The map goes first (backmost), under panes the
+  // user already floats.
+  if (!seen.has('map')) out.floating.unshift(defaultMapFloat());
   for (const id of PANE_IDS) {
-    if (!seen.has(id)) out.docks.right.panes.push({ id, desired: DEFAULT_PANE_DESIRED[id] });
+    if (!seen.has(id) && id !== 'map') out.docks.right.panes.push({ id, desired: DEFAULT_PANE_DESIRED[id] });
   }
   return out;
 }

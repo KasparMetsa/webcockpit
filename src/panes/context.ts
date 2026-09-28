@@ -15,6 +15,7 @@ import { Bus } from '../core/bus';
 import { openWebcockpitDb } from '../core/db';
 import type { ConnState, Sender } from '../core/types';
 import { GameState } from '../gmcp/state';
+import type { MapPaneHost } from '../map/protocol';
 import { SettingsStore } from '../settings';
 
 /** The cell size source (src/theme/cells.ts `CellMetrics` fits). */
@@ -50,6 +51,11 @@ export interface PaneContext {
    * P1). Shared with the input-line clock strip.
    */
   readonly game: GameState;
+  /**
+   * What the Map pane shows (ADR 0020). Absent: the bundled map
+   * (`defaultMapHost` in src/panes/map.ts).
+   */
+  readonly map?: MapPaneHost;
 }
 
 /** A sender that drops everything (tests, a cockpit without a session). */
@@ -128,5 +134,6 @@ export function createPaneContext(p: Partial<PaneContext> & { doc: Document }): 
     localStorage: p.localStorage === undefined ? storage('localStorage') : p.localStorage,
     sessionStorage: p.sessionStorage === undefined ? storage('sessionStorage') : p.sessionStorage,
     game: p.game ?? new GameState({ now }),
+    ...(p.map ? { map: p.map } : {}),
   };
 }
