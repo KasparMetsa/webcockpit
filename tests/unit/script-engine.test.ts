@@ -527,7 +527,7 @@ describe('loadProfile', () => {
   });
 });
 
-const KHAZDUL = '/home/ole/MUME/ttpp/profiles/khazdul.tin';
+const KHAZDUL = new URL('../../src/profiles/khazdul.tin', import.meta.url);
 
 describe.skipIf(!existsSync(KHAZDUL))("the owner's profile", () => {
   it('loads and runs its aliases, macros, actions and highlights', () => {

@@ -2,7 +2,7 @@
 // IndexedDB `profiles` store (keyPath `name`, src/core/db.ts).
 //
 //   const profiles = new ProfileStore();
-//   await profiles.init();                  // seeds `default` if missing
+//   await profiles.init();                  // first run: seeds `default` and `khazdul`
 //   await profiles.create('ranger', text);
 //   await profiles.rename('ranger', 'hunter');
 //   const name = await profiles.importFile('My pvp.tin', text);  // My_pvp
@@ -16,6 +16,7 @@
 
 import { STORE, idbDone, idbRequest, openWebcockpitDb } from '../core/db';
 import { DEFAULT_PROFILE, nameError, nameFromFileName, uniqueName } from './names';
+import KHAZDUL from './khazdul.tin?raw';
 import TEMPLATE from './template.tin?raw';
 
 export interface ProfileRecord {
@@ -34,6 +35,14 @@ export class ProfileError extends Error {
 
 /** The text a new blank profile (and `default`) starts from. */
 export const PROFILE_TEMPLATE: string = TEMPLATE;
+
+/**
+ * Bundled profiles a new user starts with besides `default` (ADR 0024):
+ * the owner's PvP profile. Seeded once, on first run only.
+ */
+export const BUNDLED_PROFILES: readonly { name: string; text: string }[] = [
+  { name: 'khazdul', text: KHAZDUL },
+];
 
 export interface ProfileStoreOptions {
   /** IndexedDB factory; null = memory only. Default: `globalThis.indexedDB`. */
@@ -60,11 +69,19 @@ export class ProfileStore {
     return this.mem === null;
   }
 
-  /** Seeds `default` from the template when it is missing. */
+  /**
+   * Seeds `default` from the template when it is missing. A missing
+   * `default` means a first run, so the bundled profiles are seeded too
+   * (unless a name is taken); a user who deletes one keeps it deleted.
+   */
   async init(): Promise<void> {
     await this.tx('readwrite', async (st) => {
       const cur = await st.get(DEFAULT_PROFILE);
-      if (!cur) await st.put(this.record(DEFAULT_PROFILE, PROFILE_TEMPLATE));
+      if (cur) return;
+      await st.put(this.record(DEFAULT_PROFILE, PROFILE_TEMPLATE));
+      for (const b of BUNDLED_PROFILES) {
+        if (!(await st.get(b.name))) await st.put(this.record(b.name, b.text));
+      }
     });
   }
 

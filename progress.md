@@ -22,6 +22,16 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: bundled khazdul profile
+
+- **Done:** ADR 0024. First run seeds `khazdul` (the owner's PvP profile,
+  bundled as `src/profiles/khazdul.tin`) beside `default`; existing users
+  unchanged, a deleted copy stays deleted. Owner-profile tests now read
+  the bundled copy and always run. 1080 unit, 182 e2e pass.
+- **Next:** publish on the owner's go; plan the rest of stage 8.
+- **Open issues:** none new.
+- **Commits:** (this commit).
+
 ### 2026-09-28 — Stage 8: new-user defaults
 
 - **Done:** ADR 0023. Fresh settings: every pane tinted None; right dock

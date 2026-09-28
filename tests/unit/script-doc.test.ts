@@ -22,7 +22,7 @@ import {
 import { PROFILE_TEMPLATE } from '../../src/profiles';
 
 const CORPUS = readFileSync(new URL('./fixtures/pvp-shapes.tin', import.meta.url), 'utf8');
-const OWNER_PROFILE = '/home/ole/MUME/ttpp/profiles/khazdul.tin';
+const OWNER_PROFILE = new URL('../../src/profiles/khazdul.tin', import.meta.url);
 
 const rt = (t: string): string => serialize(parseProfile(t));
 

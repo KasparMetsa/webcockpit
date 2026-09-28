@@ -2,6 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_PROFILE,
+  BUNDLED_PROFILES,
   PROFILE_TEMPLATE,
   ProfileError,
   ProfileStore,
@@ -104,13 +105,24 @@ for (const kind of ['indexeddb', 'memory'] as const) {
       expect(s.persistent).toBe(kind === 'indexeddb');
     });
 
+    it('seeds the bundled profiles on first run only', async () => {
+      const s = fresh();
+      await s.init();
+      const k = await s.get('khazdul');
+      expect(k?.text).toBe(BUNDLED_PROFILES[0]!.text);
+      expect(k?.text).toMatch(/#ALIAS/i);
+      await s.remove('khazdul');
+      await s.init();
+      expect(await s.get('khazdul')).toBeNull();
+    });
+
     it('creates, lists sorted, and refuses bad or taken names', async () => {
       const s = fresh();
       await s.init();
       await s.create('zed', 'z');
       await s.create('Alpha', 'a');
       await s.create('beta');
-      expect((await s.list()).map((r) => r.name)).toEqual(['Alpha', 'beta', 'default', 'zed']);
+      expect((await s.list()).map((r) => r.name)).toEqual(['Alpha', 'beta', 'default', 'khazdul', 'zed']);
       expect((await s.get('beta'))?.text).toBe(PROFILE_TEMPLATE);
       await expect(s.create('zed', 'again')).rejects.toBeInstanceOf(ProfileError);
       await expect(s.create('1bad', '')).rejects.toThrow(/start with a letter/);
@@ -131,7 +143,7 @@ for (const kind of ['indexeddb', 'memory'] as const) {
       await expect(s.rename('hunter', 'default')).rejects.toThrow(/already exists/);
       await expect(s.rename('default', 'other')).rejects.toBeInstanceOf(ProfileError);
       await expect(s.rename('nobody', 'other')).rejects.toThrow(/No profile/);
-      expect((await s.list()).map((x) => x.name)).toEqual(['default', 'hunter']);
+      expect((await s.list()).map((x) => x.name)).toEqual(['default', 'hunter', 'khazdul']);
     });
 
     it('deletes, but never default', async () => {
@@ -163,5 +175,5 @@ it('persists across store instances on the same database', async () => {
   await a.create('ranger', 'r');
   await a.close();
   const b = make(factory);
-  expect((await b.list()).map((r) => r.name)).toEqual(['default', 'ranger']);
+  expect((await b.list()).map((r) => r.name)).toEqual(['default', 'khazdul', 'ranger']);
 });

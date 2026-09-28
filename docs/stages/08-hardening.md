@@ -87,6 +87,7 @@ Defaults (owner brief 2026-09-28):
 - [x] New-user defaults (ADR 0023): all panes None, right dock shared
       evenly with Character at 9 rows.
 - [x] Default map float 25 % × 27 % of the window (owner feedback).
+- [x] Bundled `khazdul` profile for new users (ADR 0024).
 
 ## Test guide (part A)
 
@@ -119,3 +120,5 @@ to clicks in a way it should not.
   None, borders on, map floating, the other panes shared evenly on the
   right. After the first publish: the map float was too large; now
   25 % × 27 % of the window. Published as 99981b7.
+- 2026-09-28, profiles: new users get `khazdul` (the owner's PvP
+  profile) as a selectable profile beside `default`.
