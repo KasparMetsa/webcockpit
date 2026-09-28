@@ -156,11 +156,21 @@ export function meta(runId: string, startedUs: number, extra: Partial<RunMeta> =
 
 /** Two runs of Rasta: 0–30 s (a 60 s gap inside) and, an hour later, 0–5 s. */
 export const BASE_US = 1_790_000_000_000_000;
+/** A recorded pane set with one tint, so tests can tell recorded colours from the None default. */
+const RECORDED_PANES = {
+  character: { on: true, color: 'black', border: true },
+  timers: { on: true, color: 'red', border: true },
+  group: { on: true, color: 'black', border: true },
+  comm: { on: true, color: 'black', border: true },
+  ui: { on: true, color: 'black', border: true },
+  map: { on: true, color: 'black', border: true },
+};
+
 export function twoRunChain(): ChainRun[] {
   const r1 = makeLog(BASE_US, [
     { at: 0, gmcp: 'Char.Name', json: { name: 'Rasta', fullname: 'Rasta the Ranger' } },
     { at: 0.0001, size: { cols: 120, rows: 40 } },
-    { at: 0.0002, view: { appearance: { size: 14 } } },
+    { at: 0.0002, view: { appearance: { size: 14 }, panes: RECORDED_PANES } },
     { at: 1, in: 'Hello.' },
     { at: 1.0002, in: 'World.' },
     { at: 2, in: 'oO>' },

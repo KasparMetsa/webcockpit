@@ -113,14 +113,25 @@ export function defaultDockSize(dock: DockId): number {
   return DEFAULT_SIDE_DOCK_SIZE;
 }
 
-/** A fresh copy of Cockpit's default layout (ADR 0010). */
+/**
+ * Desired rows of the default right dock's panes after Character (ADR 0023).
+ * Larger than any window, so the dock always runs in `scaled` mode:
+ * Character keeps its 9 rows and the others split the rest about evenly.
+ * The first drag of a boundary freezes real sizes.
+ */
+export const EVEN_SHARE_DESIRED = 200;
+
+/** A fresh copy of the default layout (ADR 0010, ADR 0023). */
 export function defaultLayout(): LayoutModel {
   return {
     docks: {
       left: { size: DEFAULT_SIDE_DOCK_SIZE, panes: [] },
       right: {
         size: DEFAULT_SIDE_DOCK_SIZE,
-        panes: DOCKED_BY_DEFAULT.map((id) => ({ id, desired: DEFAULT_PANE_DESIRED[id] })),
+        panes: DOCKED_BY_DEFAULT.map((id) => ({
+          id,
+          desired: id === 'character' ? DEFAULT_PANE_DESIRED.character : EVEN_SHARE_DESIRED,
+        })),
       },
       top: { size: DEFAULT_TOP_DOCK_SIZE, panes: [] },
       bottom: { size: DEFAULT_BOTTOM_DOCK_SIZE, panes: [] },

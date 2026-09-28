@@ -20,6 +20,7 @@ const ramp = shadeRamp(0, 0, false);
 describe('shade ramp', () => {
   it('is resolved from the pane colour each call, dark or light', () => {
     const s = defaultSettings();
+    s.panes.group.color = 'green';
     const a = paneShade(s, 'group');
     expect(a.light).toBe(false);
     expect(a.bg).toBe('#0e1a0e');

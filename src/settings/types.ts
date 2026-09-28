@@ -193,9 +193,9 @@ export function defaultSettings(): Settings {
     },
     panes: {
       character: { on: true, color: 'black', border: true },
-      timers: { on: true, color: 'red', border: true },
-      group: { on: true, color: 'green', border: true },
-      comm: { on: true, color: 'blue', border: true },
+      timers: { on: true, color: 'black', border: true },
+      group: { on: true, color: 'black', border: true },
+      comm: { on: true, color: 'black', border: true },
       ui: { on: true, color: 'black', border: true },
       map: { on: true, color: 'black', border: true },
     },

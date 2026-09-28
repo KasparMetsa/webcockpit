@@ -58,6 +58,7 @@ describe('viewer overrides', () => {
       expect(s.panes.timers.on).toBe(true);
     }
     const s = defaultSettings();
+    s.panes.timers.color = 'red';
     applyViewer(s, noOverrides());
     expect(s.panes.timers.color).toBe('red');
     expect(themeColors('default')).toBeNull();

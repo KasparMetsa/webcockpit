@@ -17,6 +17,16 @@ async function open(page: Page, width = 1280, height = 900): Promise<{ cw: numbe
   return metrics(page);
 }
 
+/** Pins the right dock to Cockpit's fixed heights 9/8/6/10/5 (the default shares them out, ADR 0023). */
+async function cockpitHeights(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    window.__wc!.settings.update((d) => {
+      const want: Record<string, number> = { character: 9, timers: 8, group: 6, comm: 10, ui: 5 };
+      for (const p of d.layout.docks.right.panes) p.desired = want[p.id] ?? p.desired;
+    }),
+  );
+}
+
 async function metrics(page: Page): Promise<{ cw: number; ch: number; cols: number; rows: number }> {
   // Wait for the layout that follows the font load.
   await page.waitForFunction(() => {
@@ -73,9 +83,10 @@ test('default layout: game left, input under it as wide as the game, full-height
     y += b.height;
   }
   expect(y).toBe(rows * ch); // the right column reaches the bottom of the window
-  // Desired 9/8/6/10/5 content rows; the leftover goes to the UI pane.
-  expect(heights.slice(0, 4)).toEqual([9, 8, 6, 10]);
-  expect(heights[4]).toBe(rows - 48 + 5);
+  // Character keeps 9 content rows; the other four share the rest evenly (ADR 0023).
+  expect(heights[0]).toBe(9);
+  expect(heights.reduce((a, b) => a + b, 0)).toBe(rows - 2 * ORDER.length);
+  expect(Math.max(...heights.slice(1)) - Math.min(...heights.slice(1))).toBeLessThanOrEqual(1);
 
   const frame = await page.locator('.wc-pane-character .wc-pane-frame').textContent();
   const lines = frame!.split('\n');
@@ -88,13 +99,14 @@ test('default layout: game left, input under it as wide as the game, full-height
     bg: getComputedStyle(el).backgroundColor,
     fg: getComputedStyle(el.querySelector('.wc-pane-frame')!).color,
   }));
-  expect(colors).toEqual({ bg: 'rgb(26, 14, 14)', fg: 'rgb(46, 34, 34)' });
+  expect(colors).toEqual({ bg: 'rgb(0, 0, 0)', fg: 'rgb(41, 41, 41)' }); // None: the terminal background
   await expect(page.locator('.wc-input-field')).toBeFocused();
   expect(errors).toEqual([]);
 });
 
 test('toggles, colours and borders apply live; corners are always quadrant', async ({ page }) => {
   const { ch } = await open(page);
+  await cockpitHeights(page);
   const set = (patch: object) => page.evaluate((p) => window.__wc!.settings.update(p), patch);
   await set({ panes: { group: { on: false } } });
   await expect(page.locator('.wc-pane-group')).toBeHidden();
@@ -284,7 +296,7 @@ test('floating pane: drop over the game, move, resize, reload, dock again', asyn
     z: getComputedStyle(el).zIndex,
     bg: getComputedStyle(el).backgroundColor,
   }));
-  expect(style).toEqual({ z: '11', bg: 'rgb(14, 20, 28)' }); // the opaque blue tint (z 10: the map's slot)
+  expect(style).toEqual({ z: '11', bg: 'rgb(0, 0, 0)' }); // opaque None: the terminal background (z 10: the map's slot)
   await expect(page.locator('.wc-input-field')).toBeFocused();
 
   // Move it by its title row.

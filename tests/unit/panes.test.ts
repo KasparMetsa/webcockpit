@@ -229,7 +229,7 @@ describe('Cockpit', () => {
     expect(c.inputEl.style.width).toBe('860px'); // as wide as the game pane
     expect(c.pane('character').el.style.left).toBe('870px');
     expect(c.pane('character').rows).toBe(9);
-    expect(c.pane('ui').rows).toBe(7); // the right column runs the full 50 rows
+    expect(c.pane('ui').rows).toBe(8); // the right column runs the full 50 rows
     expect(c.el.querySelectorAll('.wc-handle')).toHaveLength(5); // dock gap + 4 boundaries
   });
 
@@ -241,7 +241,8 @@ describe('Cockpit', () => {
     flush();
     expect(c.pane('ui').visible).toBe(false);
     expect(c.pane('group').visible).toBe(false);
-    expect(c.pane('character').rows).toBe(9 + 50 - 33); // leftover to Character without UI
+    expect(c.pane('character').rows).toBe(9);
+    expect(c.pane('timers').rows + c.pane('comm').rows).toBe(44 - 9); // the rest shared without UI and Group
   });
 
   it('shows the too-small state and makes the view inert', () => {

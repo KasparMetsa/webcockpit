@@ -123,7 +123,7 @@ describe('allocate', () => {
     expect(r.game).toEqual({ x: 0, y: 0, w: 86, h: 49 });
     expect(r.panes.map((p) => p.id)).toEqual([...DOCKED_BY_DEFAULT]);
     const heights = r.panes.map((p) => p.content.h);
-    expect(heights).toEqual([9, 8, 6, 10, 5 + 2]); // 48 of 50 rows: two left over, to UI
+    expect(heights).toEqual([9, 8, 7, 8, 8]); // Character 9, the other 31 rows split about evenly (ADR 0023)
     let y = 0;
     for (const p of r.panes) {
       expect(p.rect.y).toBe(y);

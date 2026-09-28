@@ -17,10 +17,21 @@ const menuTitle = (page: Page) => page.locator('.wc-overlay .wc-frame:not([hidde
 
 const texts = async (page: Page): Promise<string[]> => (await prows(page).allTextContents()).map((t) => t.trimEnd());
 
+/** Pins the right dock to Cockpit's fixed heights 9/8/6/10/5 (the default shares them out, ADR 0023). */
+async function cockpitHeights(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    window.__wc!.settings.update((d) => {
+      const want: Record<string, number> = { character: 9, timers: 8, group: 6, comm: 10, ui: 5 };
+      for (const p of d.layout.docks.right.panes) p.desired = want[p.id] ?? p.desired;
+    }),
+  );
+}
+
 async function demoDone(page: Page): Promise<void> {
   await page.goto(DEMO);
   await expect(rows(page).filter({ hasText: '[SYSTEM] Replay finished.' })).toHaveCount(1);
   await expect(page.locator('.wc-pane[data-pane="timers"]')).toHaveAttribute('data-active', '');
+  await cockpitHeights(page); // the Timers pane at eight rows
 }
 
 /** Puts debug cells in: a full spell, a half-drained buff, a blind and a charm. */

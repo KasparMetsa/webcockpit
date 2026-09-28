@@ -49,6 +49,7 @@ describe('root tokens', () => {
 describe('pane tokens', () => {
   it('sets bg, border, seven shades and data-light, recomputed every call', () => {
     const s = defaultSettings();
+    s.panes.timers.color = 'red';
     const t = paneTokens(s, 'timers');
     expect(t['--pane-bg']).toBe('#1a0e0e');
     expect(t['--pane-border']).toBe('#2e2222');
@@ -65,6 +66,7 @@ describe('pane tokens', () => {
     applyPaneTheme(el, paper, 'character');
     expect(el.hasAttribute('data-light')).toBe(true);
     expect(el.style.getPropertyValue('--pane-bg')).toBe('#f4ecd8');
+    paper.panes.timers.color = 'red';
     applyPaneTheme(el, paper, 'timers');
     expect(el.hasAttribute('data-light')).toBe(false);
     for (const id of PANE_IDS) expect(Object.keys(paneTokens(s, id))).toHaveLength(9);

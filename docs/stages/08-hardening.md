@@ -82,6 +82,11 @@ Deployment (owner brief 2026-09-28, spec §1.5):
 - [x] First publish (b7649b1); live site checked: headers, MIME types
       and the smoke test via `WC_PROD_URL` all pass.
 
+Defaults (owner brief 2026-09-28):
+
+- [x] New-user defaults (ADR 0023): all panes None, right dock shared
+      evenly with Character at 9 rows.
+
 ## Test guide (part A)
 
 Open: History → a session with panes → RUN LOG. Then EXPORT the same

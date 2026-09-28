@@ -22,6 +22,17 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: new-user defaults
+
+- **Done:** ADR 0023. Fresh settings: every pane tinted None; right dock
+  keeps Character at 9 rows and shares the rest evenly between Timers,
+  Group, Comm and UI (`EVEN_SHARE_DESIRED`). Black background, borders
+  and the floating map were already default. Stored settings unchanged.
+  Tests that need Cockpit's fixed heights pin them. 1078 unit, 182 e2e pass.
+- **Next:** plan the rest of stage 8; publish when the owner wants it live.
+- **Open issues:** none new.
+- **Commits:** (this commit).
+
 ### 2026-09-28 — Stage 8: private deployment
 
 - **Done:** ADR 0022 (Tailscale Funnel at `:8443/`, Caddy serves

@@ -2,7 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CaptureStore } from '../../src/capture/store';
 import { DB_NAME, DB_VERSION, openWebcockpitDb } from '../../src/core/db';
-import { PANE_IDS, defaultMapFloat } from '../../src/layout/types';
+import { EVEN_SHARE_DESIRED, PANE_IDS, defaultMapFloat } from '../../src/layout/types';
 import {
   DEFAULT_SETTINGS,
   MIRROR_KEY,
@@ -76,18 +76,17 @@ describe('migrateSettings', () => {
     }
   });
 
-  it('default layout: right dock 33 wide with Cockpit order and heights', () => {
+  it('default layout: right dock 33 wide, Cockpit order, Character 9 and even shares (ADR 0023)', () => {
     const r = DEFAULT_SETTINGS.layout.docks.right;
     expect(r.size).toBe(33);
-    expect(r.panes).toEqual([
-      { id: 'character', desired: 9 },
-      { id: 'timers', desired: 8 },
-      { id: 'group', desired: 6 },
-      { id: 'comm', desired: 10 },
-      { id: 'ui', desired: 5 },
-    ]);
+    expect(r.panes).toEqual(
+      ['character', 'timers', 'group', 'comm', 'ui'].map((id) => ({
+        id,
+        desired: id === 'character' ? 9 : EVEN_SHARE_DESIRED,
+      })),
+    );
     expect(DEFAULT_SETTINGS.layout.docks.left.panes).toEqual([]);
-    expect(DEFAULT_SETTINGS.panes.timers).toEqual({ on: true, color: 'red', border: true });
+    expect(DEFAULT_SETTINGS.panes.timers).toEqual({ on: true, color: 'black', border: true });
     expect(Object.isFrozen(DEFAULT_SETTINGS.appearance.ansi)).toBe(true);
   });
 
