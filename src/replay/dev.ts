@@ -9,7 +9,9 @@
 //   __wc.replayHtml({ session?, doc?, logs?, character? }) → HTML text
 //       `doc` overrides parts of the stored export doc (title, excludes,
 //       comments); `logs` builds from raw `.log` fixtures instead (not
-//       stored; e.g. a long Cockpit log, for the file size)
+//       stored; e.g. a long Cockpit log, for the file size), `texts` from
+//       raw `.log` texts. The map subset of the shell's current map is
+//       embedded when the chain has Room.Info (ADR 0020).
 
 import type { Shell } from '../app/shell';
 import type { ChainRun } from '../player/timeline';
@@ -23,6 +25,8 @@ export interface DevReplayOptions {
   session?: string | null;
   doc?: Partial<Pick<ExportDoc, 'title' | 'excludes' | 'comments'>>;
   logs?: string[];
+  /** Raw `.log` texts instead of fixtures (the browser tests build their own). */
+  texts?: string[];
   character?: string;
 }
 
@@ -39,9 +43,9 @@ export async function devReplayBlob(shell: Shell, settings: SettingsStore, o: De
   let chain: ChainRun[];
   let events: RunEvent[] = [];
   let doc: ExportDoc;
-  if (o.logs?.length) {
+  if (o.logs?.length || o.texts?.length) {
     const character = o.character ?? 'Replay';
-    const texts = await Promise.all(o.logs.map(async (rel) => (await fixture(rel)).text()));
+    const texts = o.texts?.length ? o.texts : await Promise.all((o.logs ?? []).map(async (rel) => (await fixture(rel)).text()));
     chain = texts.map((text, i) => {
       const m = /^(\d{16}) /.exec(text);
       const us = m ? Number(m[1]) : Date.now() * 1000;
@@ -60,7 +64,7 @@ export async function devReplayBlob(shell: Shell, settings: SettingsStore, o: De
     [chain, events, doc] = await Promise.all([lib.chainLog(ids), lib.events(ids), lib.exportDoc(s.id)]);
   }
   if (o.doc) doc = normalizeExportDoc({ ...doc, ...o.doc }) ?? doc;
-  return buildReplayHtml(buildReplayPayload(chain, events, doc, settings.get()));
+  return buildReplayHtml(buildReplayPayload(chain, events, doc, settings.get()), { map: await shell.maps.source() });
 }
 
 /** The HTML replay's text (`__wc.replayHtml`). */
