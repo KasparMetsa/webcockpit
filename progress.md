@@ -13,7 +13,7 @@ Current stage: **8 — Hardening → v1** (part A: player viewer settings).
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
 | 7 | Sharing | Done | `docs/stages/07-sharing.md` |
-| 8 | Hardening → v1 | In progress | `docs/stages/08-hardening.md` |
+| 8 | Hardening → v1 | Owner testing | `docs/stages/08-hardening.md` |
 | 9 | Map | Done | `docs/stages/09-map.md` |
 
 Statuses: Next, In progress, Owner testing, Done.
@@ -21,6 +21,20 @@ Statuses: Next, In progress, Owner testing, Done.
 ## Session log
 
 Newest first.
+
+### 2026-09-28 — Stage 8 part A (player viewer settings)
+
+- **Done:** owner brief → stage 8 part A. Stage file, ADR 0021. Gear in
+  the player control box folds out pane toggles, font (Default/S/M/L),
+  colours (Default/Dark/Teal/Paper/Sepia/Slate; non-default → panes
+  None), Reset layout. Drag/resize live in the player, sticky over VIEW
+  records and seeks. Timers `+`/charm `×` and Comm filter clicks off in
+  players. RUN LOG, HTML replay and reel. 1078 unit, 182 e2e.
+- **Next:** owner tests (guide in the stage file); then stage 8 rest.
+- **Open issues:** Sepia/ink and Slate/ink are black text on dark bg
+  (owner asked); overrides not saved between opens (ADR 0021); gear
+  glyph from the system font in JetBrains-only replays.
+- **Commits:** 146ca7f, ba8376a, 9a1a204, 360af71, f446b89, e122f63.
 
 ### 2026-09-28 — Stage 9 build (map)
 
