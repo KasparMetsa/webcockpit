@@ -56,6 +56,11 @@ export interface PaneContext {
    * (`defaultMapHost` in src/panes/map.ts).
    */
   readonly map?: MapPaneHost;
+  /**
+   * A log player's pane (ADR 0021): read-only, nothing that would change
+   * game or profile state (the Timers corner `+` and charm `×` are gone).
+   */
+  readonly player?: boolean;
 }
 
 /** A sender that drops everything (tests, a cockpit without a session). */
@@ -135,5 +140,6 @@ export function createPaneContext(p: Partial<PaneContext> & { doc: Document }): 
     sessionStorage: p.sessionStorage === undefined ? storage('sessionStorage') : p.sessionStorage,
     game: p.game ?? new GameState({ now }),
     ...(p.map ? { map: p.map } : {}),
+    ...(p.player ? { player: true } : {}),
   };
 }

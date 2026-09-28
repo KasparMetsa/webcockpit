@@ -241,6 +241,24 @@ describe('timersLayout', () => {
     expect(timersLayout(input([troll], { settings: s, w: 24 })).corner).toBe('+');
   });
 
+  it('read-only (a log player): no corner + and no charm ×, the ↑ indicator still acts', () => {
+    const s = defaultTimersSettings();
+    const spells = ['sanctuary', 'shield', 'armour', 'bless'].map((n) => cell(n, 'spell'));
+    const ro = timersLayout(input(spells, { settings: s, readOnly: true }));
+    expect(ro.corner).toBe(null);
+    expect(ro.zones).toEqual([]);
+    expect(ro.lines[1]!.text().trimEnd().endsWith('+')).toBe(false);
+    s.headers = false;
+    const troll = cell('huge stone troll', 'charm', { id: 'c1', startedAt: NOW - 21 * 60_000 - 5_000, expiresAt: NOW + 3_600_000 });
+    const ch = timersLayout(input([troll], { settings: s, w: 24, readOnly: true }));
+    expect(ch.lines.map((x) => x.text())).toEqual(['Huge stone troll   21m  ']);
+    expect(ch.zones).toEqual([]);
+    const many = Array.from({ length: 8 }, (_, i) => cell(`s${i}`, 'spell'));
+    s.groups.spell.cols = 1;
+    const up = timersLayout(input(many, { settings: s, w: 20, h: 4, scroll: 2, readOnly: true }));
+    expect(up.zones.map((z) => z.hit.kind)).toEqual(['top']);
+  });
+
   it('scrolls with an indicator row and clamps the offset', () => {
     const s = defaultTimersSettings();
     s.groups.spell.cols = 1;

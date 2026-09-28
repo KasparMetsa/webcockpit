@@ -296,7 +296,7 @@ export class App {
       openDb,
       now,
       game: this.game,
-      ...(player ? { localStorage: null, sessionStorage: null } : {}),
+      ...(player ? { localStorage: null, sessionStorage: null, player: true } : {}),
       ...(opts.map ? { map: opts.map } : {}),
     });
     this.cockpit = new Cockpit({

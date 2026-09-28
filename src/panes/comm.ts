@@ -221,6 +221,8 @@ export class CommPane extends PaneShell {
   private readonly onHeaderDown = (e: MouseEvent): void => {
     const cell = (e.target as HTMLElement).closest<HTMLElement>('.wc-comm-cell');
     if (!cell) return;
+    // A log player shows the recorded filters; the header does not change them (ADR 0021).
+    if (this.ctx.player) return void e.preventDefault();
     const name = cell.dataset.channel!;
     e.preventDefault();
     if (e.button === 0) this.toggle(name);

@@ -23,6 +23,8 @@
 // - Charm rows: `Name  21m ×` (count-up; permanent: no minutes).
 // - Corner `+` (gold) opens the herblore add-view (`[+] Name` / `[-] Name`),
 //   where it becomes `×` (close). It yields when the top row is a charm row.
+// - In a log player (`ctx.player`, ADR 0021) the pane is read-only: no
+//   corner `+` (no herblore add-view) and no charm `×`.
 // - Wheel scrolls by rows; the last row is `↑ N rows above` (click → top)
 //   or `↓ N more rows`. Redraw at 1 Hz on wall-clock seconds while
 //   something counts; blank while inactive; a disconnect resets the view.
@@ -122,6 +124,8 @@ export interface TimersLayoutInput {
   dim: string;
   /** `hitKey` of the zone under the pointer, or null. */
   hover: string | null;
+  /** A log player: no corner `+` and no charm `×` (ADR 0021). */
+  readOnly?: boolean;
 }
 
 export interface TimersLayout {
@@ -184,7 +188,8 @@ export function timersLayout(inp: TimersLayoutInput): TimersLayout {
   }
   const visible = specs.slice(scroll, scroll + listH);
 
-  const corner: '+' | '×' | null = mode === 'add' ? '×' : visible[0]?.kind === 'charms' ? null : '+';
+  const ro = inp.readOnly ?? false;
+  const corner: '+' | '×' | null = mode === 'add' ? '×' : ro || visible[0]?.kind === 'charms' ? null : '+';
   const depleted = light ? darkInk(bg) : DEPLETED_FG;
   const untracked = light ? dim : UNTRACKED_FG;
   const fgOn = (hex: string): string => (light ? lightShift(hex) : hex);
@@ -217,8 +222,8 @@ export function timersLayout(inp: TimersLayoutInput): TimersLayout {
         spec.cells.forEach((c, j) => {
           const cw = spec.widths[j]!;
           if (cw > 0) {
-            drawCharm(line, x, cw, c, now, color, depleted, hover === `charm:${c.id}`);
-            zones.push({ row, x0: x + cw - 1, x1: x + cw, hit: { kind: 'charm', id: c.id } });
+            drawCharm(line, x, cw, c, now, color, depleted, hover === `charm:${c.id}`, ro);
+            if (!ro) zones.push({ row, x0: x + cw - 1, x1: x + cw, hit: { kind: 'charm', id: c.id } });
           }
           x += cw;
         });
@@ -309,7 +314,17 @@ function drawCell(line: CellLine, x: number, cw: number, c: TimerCell, now: numb
 }
 
 /** One charm cell: `Name  21m ×` (timed) or `Name ×` (permanent / narrow). */
-function drawCharm(line: CellLine, x: number, cw: number, c: TimerCell, now: number, color: string, minsFg: string, hot: boolean): void {
+function drawCharm(
+  line: CellLine,
+  x: number,
+  cw: number,
+  c: TimerCell,
+  now: number,
+  color: string,
+  minsFg: string,
+  hot: boolean,
+  noX = false,
+): void {
   const name = charmName(c.name);
   const mins = charmMinutes(c, now);
   if (mins !== null && cw >= 7) {
@@ -319,7 +334,7 @@ function drawCharm(line: CellLine, x: number, cw: number, c: TimerCell, now: num
   } else {
     line.put(x, name.slice(0, Math.max(0, cw - 2)), { fg: color });
   }
-  line.put(x + cw - 1, '×', { fg: hot ? CHARM_X_HOVER : CHARM_X_FG });
+  if (!noX) line.put(x + cw - 1, '×', { fg: hot ? CHARM_X_HOVER : CHARM_X_FG });
 }
 
 // ------------------------------------------------------------------ pane
@@ -389,6 +404,7 @@ export class TimersPane extends PaneShell {
       bg: shade.bg,
       dim: shade.ramp.dim,
       hover: this.hover,
+      readOnly: this.ctx.player === true,
     });
     this.last = layout;
     this.scroll = layout.scroll;
@@ -454,6 +470,8 @@ export class TimersPane extends PaneShell {
   private readonly onDown = (e: MouseEvent): void => {
     if (e.button !== 0 || !this.active) return;
     const z = this.zoneOf(e);
+    // Read-only in a player: only the `↑` indicator (scroll to top) acts.
+    if (this.ctx.player && z?.dataset.hit !== 'top') return;
     if (!z) return;
     e.preventDefault();
     e.stopPropagation();
