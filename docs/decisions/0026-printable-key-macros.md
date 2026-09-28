@@ -44,6 +44,28 @@ character in the input line.
   names. With nothing learned (Firefox before the key has been pressed)
   the US labels are shown. A label learned while a view is open shows on
   its next render.
+- **Dead keys.** A dead key (`key` = `Dead`, such as `´` = `Equal` and
+  `¨` = `BracketRight` on a Swedish keyboard) is bindable like any other
+  printable key, and preventDefault does not stop the composition it
+  opens. The input line therefore:
+  - sends a dead keydown to the macro lookup even while a composition is
+    open (`isComposing`), so `´` then `¨` both fire; other keys during a
+    composition still belong to the IME;
+  - drops Firefox's second keydown for a consumed dead key (it fires one
+    before and one after compositionstart) until that key's keyup, so one
+    press runs the macro once; auto-repeat (`repeat`) still repeats;
+  - snapshots the line (value and selection) when a macro consumes a dead
+    key, and on the compositionstart/compositionupdate/`input` that
+    follow ends the composition by blurring and refocusing the field
+    (Firefox and Chrome end a composition on blur) and restores the
+    snapshot; compositionend and a trailing non-composing `input` restore
+    it too;
+  - ends that guard at the next non-dead keydown outside a composition,
+    or a task after a compositionend once the key is released. An unbound
+    dead key composes as before (`´` + `e` → `é`).
+  Checked with synthetic replays of the owner's Firefox/Linux event log
+  (unit and e2e, both browsers) and a real Chromium composition over the
+  DevTools protocol; a real keyboard is the owner's test.
 
 ## Rationale
 

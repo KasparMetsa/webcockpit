@@ -103,6 +103,9 @@ Printable key macros (owner request 2026-09-28):
       punctuation and Space bindable; the editor warns "types text";
       the input line consumes a bound key; key labels follow the
       keyboard layout (`§`, `+`); unit + e2e tests.
+- [x] Dead keys as macros (ADR 0026 "Dead keys"): a bound `´`/`¨` fires
+      once, also inside an open composition, and leaves no accent in the
+      input line; unbound dead keys compose as before; unit + e2e tests.
 
 ## Test guide (part A)
 
@@ -144,6 +147,10 @@ Try:
    each runs its macro and types nothing. An unbound key (`b`, `2`) still
    types. `Shift+a` types `A` unless you bound it.
 4. In the password prompt at login, bound keys type normally.
+5. Dead keys: bind `´` and `¨` (the keys right of `+` and `Å`). With
+   text in the input line press `´`, then `¨`, then `´` `¨` in quick
+   succession: each press runs its macro once and the line keeps its text
+   and caret. Unbind `´`: `´` then `e` types `é` again.
 
 Feedback wanted: whether the labels match your keyboard; whether losing
 the character in the input line is ever a problem in play.
