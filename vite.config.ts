@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { join, relative, resolve, sep } from 'node:path';
@@ -112,7 +113,30 @@ function fixturesPlugin(): Plugin {
   };
 }
 
-const define = { __WC_VERSION__: JSON.stringify(pkg.version) };
+/**
+ * The git short commit of a build (ADR 0025); `dev` when git is
+ * unavailable. The dev server always says `dev`.
+ */
+function gitCommit(): string {
+  try {
+    const out = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+      cwd: fileURLToPath(new URL('.', import.meta.url)),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return /^[0-9a-f]{4,40}$/.test(out) ? out : 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
+/** Set by the config function: the commit `vite build` embeds (`dev` when serving). */
+let buildCommit = 'dev';
+
+/** `define` of the app and the replay bundle (src/core/build-info.ts). */
+function defines(): Record<string, string> {
+  return { __WC_VERSION__: JSON.stringify(pkg.version), __WC_COMMIT__: JSON.stringify(buildCommit) };
+}
 // Preact JSX for the chrome (src/chrome, ADR 0013).
 const oxc = { jsx: { runtime: 'automatic', importSource: 'preact' } } as const;
 
@@ -157,7 +181,7 @@ async function bundleReplay(): Promise<string> {
     mode: 'production',
     logLevel: 'warn',
     publicDir: false,
-    define: { ...define, __WC_REPLAY__: 'true' },
+    define: { ...defines(), __WC_REPLAY__: 'true' },
     oxc,
     plugins: [inlineCss],
     resolve: {
@@ -234,13 +258,33 @@ function replayBundlePlugin(): Plugin {
   };
 }
 
-export default defineConfig({
-  define,
-  oxc,
-  plugins: [fixturesPlugin(), replayBundlePlugin()],
-  // The map worker is a module worker (src/map/spawn-worker.ts, ADR 0020).
-  worker: { format: 'es' },
-  server: { headers: isolationHeaders },
-  preview: { headers: isolationHeaders },
-  build: { target: 'es2022' },
+/**
+ * `release.json` at the site root (ADR 0025): `{ version, commit }` of the
+ * build, what the running app's update check compares itself with.
+ * `npm run publish` rewrites it with the full manifest (ADR 0022).
+ */
+function releaseManifestPlugin(): Plugin {
+  return {
+    name: 'webcockpit-release-manifest',
+    apply: 'build',
+    generateBundle() {
+      if (this.environment?.config.consumer !== undefined && this.environment.config.consumer !== 'client') return;
+      const release = { version: pkg.version, commit: buildCommit };
+      this.emitFile({ type: 'asset', fileName: 'release.json', source: `${JSON.stringify(release, null, 2)}\n` });
+    },
+  };
+}
+
+export default defineConfig(({ command }) => {
+  buildCommit = command === 'build' ? gitCommit() : 'dev';
+  return {
+    define: defines(),
+    oxc,
+    plugins: [fixturesPlugin(), replayBundlePlugin(), releaseManifestPlugin()],
+    // The map worker is a module worker (src/map/spawn-worker.ts, ADR 0020).
+    worker: { format: 'es' as const },
+    server: { headers: isolationHeaders },
+    preview: { headers: isolationHeaders },
+    build: { target: 'es2022' },
+  };
 });

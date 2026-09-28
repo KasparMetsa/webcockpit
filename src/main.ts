@@ -22,11 +22,18 @@
 // preload → settings from IndexedDB (≤ 1 s) → theme again → Shell (start
 // page, or the cockpit in the offline modes). The cell metrics are
 // re-measured once the web font has loaded.
+//
+// Notices (ADR 0025): a newer version on the site (production builds only),
+// a lazy chunk that is gone, a database upgraded by a newer tab. Not in
+// `?bench`. The exported HTML replay and the log player are other entry
+// points and have none.
 
 import './theme/fonts.css';
 import './ui/ui.css';
 import type { App } from './app/app';
 import type { BenchProbe } from './app/bench-hook';
+import { Notices } from './app/notices';
+import { installNotices } from './app/notices-wiring';
 import { Shell } from './app/shell';
 import { SettingsStore } from './settings';
 import { appearanceChanged, applyTheme } from './theme/apply';
@@ -60,9 +67,12 @@ if (benchMode) {
   probe = installBenchProbe(settings);
 }
 
+const notices = benchMode ? undefined : new Notices();
+if (notices) installNotices(window, notices, { checkUpdates: !import.meta.env.DEV });
+
 const root = document.getElementById('app') ?? document.body;
 root.textContent = '';
-const shell = new Shell({ root, settings, cells, offline, probe });
+const shell = new Shell({ root, settings, cells, offline, probe, ...(notices ? { notices } : {}) });
 if (import.meta.env.DEV) {
   window.__wc = {
     // The cockpit is built on Enter MUME (at once in the offline modes).

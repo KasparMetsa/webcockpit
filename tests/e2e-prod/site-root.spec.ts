@@ -51,6 +51,10 @@ test('files the export and the map fetch have the right types and headers', asyn
   await check('/map/arda.mm2', /^application\/octet-stream/);
   await check('/fonts/DejaVuSansMono.woff2', /^font\/woff2/);
   await check('/fonts/JetBrainsMonoNL-Regular.woff2', /^font\/woff2/);
+  // The update check's manifest (ADR 0025): revalidated, never immutable.
+  const release = await check('/release.json', /^application\/json/);
+  expect(release['cache-control']).toBe('no-cache');
+  expect(await (await request.get('/release.json')).json()).toMatchObject({ version: expect.any(String), commit: expect.any(String) });
 
   // Hashed assets: long immutable caching; the worker is among them.
   const html = await (await request.get('/')).text();

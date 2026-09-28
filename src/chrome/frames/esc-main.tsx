@@ -2,6 +2,8 @@
 // row (§4.6, ADR 0018).
 //
 //   Profile: default  ·  Link: 38ms  ·  capture: recording     (C_HINT)
+//     then the client notices (ADR 0025): `Update: 0.1.3` (C_YELLOW),
+//     `Storage: not saved` (C_ERR), each with a tooltip
 //   banner (6 Hz, dropped when short)
 //   Continue (connected) · Reconnect · Statistics (while a run is on) ·
 //   Profile · Options · Exit session
@@ -13,7 +15,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { type AppStatusState, type AppStatusView, formatLink, isLive } from '../../app/status';
 import { Banner } from '../banner';
 import { BANNER_H, bannerFits } from '../banner-data';
-import { useGrid, useServices, useSettings, useStatus } from '../kit/hooks';
+import { useGrid, useNotices, useServices, useSettings, useStatus } from '../kit/hooks';
+import { type NoticeState, noticeIndicators } from '../../app/notices';
 import { cellLen, centreLeft } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
 import {
@@ -63,13 +66,21 @@ export function linkClass(s: Readonly<AppStatusState>): string {
   return s.linkSuspect ? 'wc-c-yellow' : 'wc-c-hint';
 }
 
-/** The status header parts: `Profile: x`, `Link: 38ms`, capture text. */
-export function headerParts(profile: string, s: Readonly<AppStatusState>): { text: string; cls: string }[] {
-  const parts = [
+/** The status header parts: `Profile: x`, `Link: 38ms`, capture text, then the notices. */
+export function headerParts(
+  profile: string,
+  s: Readonly<AppStatusState>,
+  notices?: Readonly<NoticeState>,
+  running = '',
+): { text: string; cls: string; title?: string }[] {
+  const parts: { text: string; cls: string; title?: string }[] = [
     { text: `Profile: ${profile}`, cls: 'wc-c-hint' },
     { text: formatLink(s.linkMs, s.linkSuspect), cls: linkClass(s) },
   ];
   if (s.capture) parts.push({ text: s.capture, cls: 'wc-c-hint' });
+  for (const n of notices ? noticeIndicators(notices, running) : []) {
+    parts.push({ text: n.text, cls: n.key === 'update' ? 'wc-c-yellow' : 'wc-c-err', title: n.title });
+  }
   return parts;
 }
 
@@ -79,7 +90,8 @@ export function EscMain(p: EscMainProps): VNode {
   const { cols, rows } = useGrid();
   const st = useStatus(p.status);
   const settings = useSettings();
-  const { profiles, onProfileSaved } = useServices();
+  const { profiles, onProfileSaved, version } = useServices();
+  const notices = useNotices();
   const connected = isLive(st);
   const runOn = useRunOn(p.runs);
 
@@ -112,7 +124,7 @@ export function EscMain(p: EscMainProps): VNode {
   const [cursor, setCursor] = useMenuCursor(items, p.preselect);
   useKeys((_e, nk) => menuKey(items, cursor, setCursor, nk));
 
-  const parts = headerParts(settings.profile, st);
+  const parts = headerParts(settings.profile, st, notices, version);
   const sep = '  ·  ';
   const headerW = cellLen(parts.map((x) => x.text).join(sep));
   // header, blank, menu, flash, footer.
@@ -126,7 +138,9 @@ export function EscMain(p: EscMainProps): VNode {
         {parts.map((x, i) => (
           <>
             {i > 0 && <span class="wc-c-hint">{sep}</span>}
-            <span class={x.cls}>{x.text}</span>
+            <span class={x.cls} title={x.title}>
+              {x.text}
+            </span>
           </>
         ))}
       </div>

@@ -1,15 +1,28 @@
 // Start page main frame (Inv §3.2): banner, menu, Tolkien quote, footer.
 // Top-anchored: blank, banner, blank, menu, flash row, quote, attribution;
 // the footer sits on the last row. The banner is dropped when it does not
-// fit with everything else (the menu always wins).
+// fit with everything else (the menu always wins). A newer version on the
+// site (ADR 0025) adds a clickable `Update 0.1.3: reload` to the footer
+// (no game is connected here, so a reload loses nothing); superseded
+// storage adds `Storage: not saved`.
 
 import type { VNode } from 'preact';
 import { Banner } from '../banner';
 import { BANNER_H, bannerFits } from '../banner-data';
-import { useGrid, useServices } from '../kit/hooks';
+import { useGrid, useNotices, useServices } from '../kit/hooks';
 import { wrapText } from '../kit/nav';
 import { useIsTop, useKeys, useNav } from '../kit/stack';
-import { Blank, Centered, FlashRow, Footer, type MenuItem, MenuRows, menuKey, useMenuCursor } from '../kit/widgets';
+import {
+  Blank,
+  Centered,
+  FlashRow,
+  Footer,
+  type FooterToken,
+  type MenuItem,
+  MenuRows,
+  menuKey,
+  useMenuCursor,
+} from '../kit/widgets';
 import type { Quote } from '../quotes';
 import { AboutFrame } from './about';
 import { CreditsFrame } from './credits';
@@ -30,6 +43,7 @@ export function StartMain(p: StartMainProps): VNode {
   const isTop = useIsTop();
   const { cols, rows } = useGrid();
   const services = useServices();
+  const notices = useNotices();
   const items: MenuItem[] = [
     { key: 'enter', label: 'Enter MUME', activate: p.onEnter },
     { key: 'profile', label: 'Profile', activate: () => nav.push(<ProfileFrame />) },
@@ -73,7 +87,15 @@ export function StartMain(p: StartMainProps): VNode {
         </>
       )}
       <Blank n={Math.max(0, rows - used - 1)} />
-      <Footer tokens={['↑↓ Navigate', 'Enter/Space Select']} />
+      <Footer tokens={startFooter(notices.update?.version ?? null, notices.storageSuperseded)} />
     </div>
   );
+}
+
+/** The start page footer, with the client notices (ADR 0025). */
+export function startFooter(update: string | null, storageSuperseded: boolean): FooterToken[] {
+  const tokens: FooterToken[] = ['↑↓ Navigate', 'Enter/Space Select'];
+  if (update) tokens.push({ text: `Update ${update}: reload`, onClick: () => globalThis.location?.reload() });
+  if (storageSuperseded) tokens.push('Storage: not saved');
+  return tokens;
 }

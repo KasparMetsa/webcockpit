@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 export default defineConfig({
-  define: { __WC_VERSION__: JSON.stringify(pkg.version) },
+  define: { __WC_VERSION__: JSON.stringify(pkg.version), __WC_COMMIT__: JSON.stringify('dev') },
   oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
   test: {
     include: ['tests/unit/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],

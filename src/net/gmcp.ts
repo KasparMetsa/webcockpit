@@ -11,16 +11,11 @@
 //   per listed channel. Nothing is hardcoded.
 
 import type { Bus } from '../core/bus';
+import { CLIENT_VERSION } from '../core/build-info';
 
-/**
- * Injected by Vite/Vitest `define` from package.json `version` (the single
- * source of the client version). Absent when src/ runs outside Vite.
- */
-declare const __WC_VERSION__: string | undefined;
-
-/** Sent in `Core.Hello`. */
+/** Sent in `Core.Hello` (the version: package.json, src/core/build-info.ts). */
 export const CLIENT_NAME = 'WebCockpit';
-export const CLIENT_VERSION: string = typeof __WC_VERSION__ === 'string' ? __WC_VERSION__ : '0.0.0-dev';
+export { CLIENT_VERSION };
 
 /** The default module set (spec stage 1, Inv §8.1). */
 export const DEFAULT_GMCP_MODULES: ReadonlyArray<readonly [string, number]> = [

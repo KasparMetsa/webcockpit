@@ -9,6 +9,7 @@ import type { Session } from '../../runs/stitch';
 import type { Settings, SettingsStore } from '../../settings';
 import type { CellMetrics, CellSize } from '../../theme/cells';
 import type { MapStore } from '../../map/store';
+import type { NoticeState, Notices } from '../../app/notices';
 
 /** Everything the chrome needs from the rest of the app. */
 export interface ChromeServices {
@@ -17,6 +18,8 @@ export interface ChromeServices {
   profiles: ProfileStore;
   /** Build version for About (CLIENT_VERSION). */
   version: string;
+  /** Build commit for About (CLIENT_COMMIT, ADR 0025). Absent: not shown. */
+  commit?: string;
   /** The profile editor saved `name` (the UI pane line, ADR 0016). */
   onProfileSaved?: (name: string) => void;
   /** The run library (History, backups; ADR 0018), opened on first use. */
@@ -40,6 +43,8 @@ export interface ChromeServices {
    * and exports use the bundled map.
    */
   maps?: MapStore;
+  /** Client notices (ADR 0025): the ESC header and the start page show them. */
+  notices?: Notices;
 }
 
 export const ServicesCtx = createContext<ChromeServices | null>(null);
@@ -79,6 +84,20 @@ export function useStatus(view: AppStatusView): Readonly<AppStatusState> {
     set(view.get());
     return view.subscribe((next) => set(next));
   }, [view]);
+  return s;
+}
+
+const NO_NOTICES: Readonly<NoticeState> = Object.freeze({ update: null, storageSuperseded: false });
+
+/** The live client notices (ADR 0025); none without `services.notices`. */
+export function useNotices(): Readonly<NoticeState> {
+  const { notices } = useServices();
+  const [s, set] = useState(notices?.get() ?? NO_NOTICES);
+  useEffect(() => {
+    if (!notices) return;
+    set(notices.get());
+    return notices.subscribe((next) => set(next));
+  }, [notices]);
   return s;
 }
 

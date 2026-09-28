@@ -37,6 +37,11 @@
 // Map (ADR 0020): `maps` (src/map/store.ts) is the current map, shared by
 // the cockpit's Map pane, the log player's and Options → Mapper.
 //
+// Notices (ADR 0025): the shell's `Notices` (a newer version, a lost chunk,
+// superseded storage) are shown in the cockpit's input row and sent to the
+// cockpit App's output once; the chrome shows them in the ESC menu header
+// and on the start page (`services.notices`).
+//
 // Spotlights (ADR 0019): `openSpotlights()` (the start page's Spotlights)
 // loads the reel (src/player/spotlight-reel.ts) and opens it in the same
 // player host (src/player/spotlight-mode.ts); ESC returns to the start
@@ -50,7 +55,7 @@ import type { RunEvent } from '../runs/events';
 import type { ChainRun } from '../player/timeline';
 import type { ApplyResult } from '../editor';
 import type { ConnState } from '../core/types';
-import { CLIENT_VERSION } from '../net/gmcp';
+import { CLIENT_COMMIT, CLIENT_VERSION } from '../core/build-info';
 import { REASON_USER_DISCONNECT, REASON_USER_RECONNECT } from '../net/session';
 import { DEFAULT_PROFILE, ProfileStore } from '../profiles';
 import type { SettingsStore } from '../settings';
@@ -61,6 +66,8 @@ import { RunLibrary } from '../runs/library';
 import { uiValue } from './ui-messages';
 import { MapStore } from '../map/store';
 import { lazyDb } from '../panes/context';
+import type { Notices } from './notices';
+import { NoticeIndicator } from '../ui/notice-indicator';
 
 type ChromeModule = typeof import('../chrome');
 
@@ -83,6 +90,8 @@ export interface ShellOptions {
   profiles?: ProfileStore;
   /** Map store (tests inject one). */
   maps?: MapStore;
+  /** Client notices (ADR 0025). Absent: none are shown. */
+  notices?: Notices;
 }
 
 export class Shell {
@@ -291,6 +300,11 @@ export class Shell {
     });
     // Keep the menu host last, so the overlay is above the cockpit in DOM order too.
     root.appendChild(this.menuHost);
+    const notices = this.opts.notices;
+    if (notices) {
+      app.input.clockEl.before(new NoticeIndicator(root.ownerDocument, notices, CLIENT_VERSION).el);
+      notices.attach(app.bus);
+    }
     app.bus.on('conn.state', (s) => this.onConn(s.state, s.reason ?? ''));
     this.appRef = app;
     return app;
@@ -317,6 +331,8 @@ export class Shell {
       cells: this.opts.cells,
       profiles: this.profiles,
       version: CLIENT_VERSION,
+      commit: CLIENT_COMMIT,
+      ...(this.opts.notices ? { notices: this.opts.notices } : {}),
       onProfileSaved: (name) => this.appRef?.ui('system', `Profile {${uiValue(name)}} saved.`),
       runs: () => this.runLibrary(),
       openPlayer: (session) => void this.openPlayer(session),

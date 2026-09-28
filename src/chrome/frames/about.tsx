@@ -1,6 +1,6 @@
 // About (Inv §3.11): our own text, word-wrapped, scrollable. The version
-// is right-aligned on the title row. Colour rule per line: an ALL-CAPS
-// line is a heading (C_TITLE); an indented line is `  key  description`
+// and the build commit (ADR 0025) follow the title on its row. Colour rule
+// per line: an ALL-CAPS line is a heading (C_TITLE); an indented line is `  key  description`
 // (key in C_ACCENT, description in C_BODY); other text is C_BODY. Web
 // addresses (mume.org, discord.gg, github.com) are links.
 
@@ -101,7 +101,7 @@ function linked(text: string): (string | VNode)[] {
 }
 
 export function AboutFrame(): VNode {
-  const { version } = useServices();
+  const { version, commit } = useServices();
   const { cols } = useGrid();
   const visible = useBodyRows();
   const width = Math.max(20, Math.min(cols - 4, 76));
@@ -137,7 +137,7 @@ export function AboutFrame(): VNode {
   const bar = scrollbar(lines.length, visible, t);
   const at = centreLeft(cols, width + 2);
   return (
-    <Page title="About" titleRight={version} footer={['↑↓ Scroll', 'PgUp/PgDn Page', 'ESC Back']}>
+    <Page title="About" titleRight={commit ? `${version} (${commit})` : version} footer={['↑↓ Scroll', 'PgUp/PgDn Page', 'ESC Back']}>
       <div
         class="wc-about"
         onWheel={(e) => {
