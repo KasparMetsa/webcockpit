@@ -1,7 +1,8 @@
 // About (Inv §3.11): our own text, word-wrapped, scrollable. The version
 // is right-aligned on the title row. Colour rule per line: an ALL-CAPS
 // line is a heading (C_TITLE); an indented line is `  key  description`
-// (key in C_ACCENT, description in C_BODY); other text is C_BODY.
+// (key in C_ACCENT, description in C_BODY); other text is C_BODY. Web
+// addresses (mume.org, discord.gg, github.com) are links.
 
 import type { VNode } from 'preact';
 import { useState } from 'preact/hooks';
@@ -10,7 +11,23 @@ import { centreLeft, scrollbar, wrapText } from '../kit/nav';
 import { useKeys } from '../kit/stack';
 import { Line, Page, useBodyRows } from '../kit/widgets';
 
-export const ABOUT_TEXT = `WebCockpit is a MUD client for MUME that runs in your browser. It connects straight to MUME, keeps nothing on a server, and aims to look and feel like Cockpit, the terminal client it is modelled on.
+export const ABOUT_TEXT = `WebCockpit is a MUD client for MUME, built for fast PvP. It runs in your browser from a link: nothing to install, no server in between, and nothing kept anywhere but this browser. It is modelled on Cockpit, a terminal client for MUME, and aims to look and feel the same.
+
+MUME — MULTI-USERS IN MIDDLE-EARTH
+MUME is a free, text-based multiplayer game set in Tolkien's Middle-earth in the late Third Age, the years before the War of the Ring. It has run continuously since 1991, is kept alive by a volunteer community, and is one of the oldest active DikuMUDs.
+
+Pick a side. The Free Peoples — Men, Elves, Hobbits, Dwarves and Beornings — hold the West. The forces of Sauron — Trolls, Black Númenóreans and Orcs — push from the East. Renegade Zaugurz orcs are hated by both. The war between the sides is the spine of the game.
+
+The world is wide and true to the books: the Shire, Bree, Rivendell, Moria, Lothlórien, Fangorn, Isengard, the Misty Mountains and much more, all there to explore. Roleplay is encouraged, and names that do not fit Middle-earth do not last.
+
+BUILT FOR PVP
+PvP is what sets MUME apart: towers and terrain to take, deep skill and spell systems, and constant skirmishes between the sides. Big raids draw a hundred players or more. The pace is high, and a fast client with reliable reflexes is what lets you keep up.
+
+WebCockpit is made for that. Keystrokes go to the game at once, macros and actions fire without delay, and the panes show what matters in a fight: your vitals, spell and debuff timers, your group, the channels and the map.
+
+MUME is free to play. No subscription, just connect.
+  Website         mume.org
+  Discord         discord.gg/XkZN55am9a
 
 GETTING STARTED
 Choose Enter MUME on the start page. Profile picks the set of aliases, actions and macros you play with. Options sets up the panes and the look; every change applies at once.
@@ -33,8 +50,15 @@ COMMANDS
 SETTINGS
 Settings and profiles are kept in this browser only. Use Profile → EXPORT to keep a copy of a profile. If a setting makes the page unusable, open the link with ?safe added to start with the default look.
 
+CREDITS
+  MMapper         The map is built on MMapper, the graphical mapper for MUME by the MMapper Authors. Its look, tiles and fonts come from MMapper, and the default map is an MMapper map. MMapper runs on Windows, macOS and Linux: github.com/MUME/MMapper
+  Cockpit         The terminal client for MUME that WebCockpit is modelled on.
+  MUME            The game, its world and its texts belong to the MUME team and the volunteers who have built it since 1991.
+  Fonts           DejaVu Sans Mono and JetBrains Mono.
+  Libraries       Preact and CodeMirror.
+
 LICENCE
-WebCockpit is free software under the GNU General Public License, version 3 or later. MUME is run by its own team; WebCockpit is an independent client.`;
+WebCockpit is free software under the GNU General Public License, version 3 or later. MUME is run by its own team; WebCockpit is an independent client and is not made or endorsed by MUME.`;
 
 interface Styled {
   key?: string;
@@ -47,7 +71,7 @@ export function aboutLines(width: number): Styled[] {
   const out: Styled[] = [];
   for (const raw of ABOUT_TEXT.split('\n')) {
     if (raw === '') out.push({ text: '', cls: '' });
-    else if (/^[A-Z][A-Z ]+$/.test(raw)) out.push({ text: raw, cls: 'wc-c-title' });
+    else if (/^[A-Z][A-Z —-]+$/.test(raw)) out.push({ text: raw, cls: 'wc-c-title' });
     else if (raw.startsWith('  ')) {
       const m = /^ {2}(\S+(?: \S+)*?) {2,}(.*)$/.exec(raw);
       if (!m) out.push({ text: raw, cls: 'wc-c-body' });
@@ -61,6 +85,19 @@ export function aboutLines(width: number): Styled[] {
     } else for (const l of wrapText(raw, width)) out.push({ text: l, cls: 'wc-c-body' });
   }
   return out;
+}
+
+const LINK = /\b((?:mume\.org|discord\.gg|github\.com)(?:\/[\w./-]*[\w/])?)/;
+
+/** Text with the web addresses in it as links that open in a new tab. */
+function linked(text: string): (string | VNode)[] {
+  return text.split(LINK).map((part, i) =>
+    i % 2 === 0 ? part : (
+      <a class="wc-about-link" href={`https://${part}`} target="_blank" rel="noopener noreferrer">
+        {part}
+      </a>
+    ),
+  );
 }
 
 export function AboutFrame(): VNode {
@@ -111,7 +148,7 @@ export function AboutFrame(): VNode {
         {lines.slice(t, t + visible).map((l, i) => (
           <Line at={at}>
             {l.key !== undefined && <span class="wc-c-accent">{l.key}</span>}
-            <span class={l.cls}>{l.text.padEnd(width - (l.key?.length ?? 0))}</span>
+            <span class={l.cls}>{linked(l.text.padEnd(width - (l.key?.length ?? 0)))}</span>
             {bar.length > 0 && <span class={bar[i] ? 'wc-scroll-thumb' : 'wc-scroll-track'}>{' ' + (bar[i] ? '█' : '░')}</span>}
           </Line>
         ))}

@@ -83,6 +83,8 @@ describe('About text', () => {
     const esc = lines.find((l) => l.key?.trim() === 'ESC');
     expect(esc?.cls).toBe('wc-c-body');
     for (const l of lines) expect((l.key?.length ?? 0) + l.text.length).toBeLessThanOrEqual(60);
+    expect(lines.find((l) => l.text.startsWith('MUME — MULTI-USERS'))?.cls).toBe('wc-c-title');
+    expect(lines.find((l) => l.key?.trim() === 'MMapper')).toBeDefined();
   });
 });
 
