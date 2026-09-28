@@ -22,6 +22,19 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: dead-key macros
+
+- **Done:** owner report (Firefox, Swedish): a macro on `´` left the accent
+  in the input, and `¨` after it did not fire (open composition). Dead
+  keys now reach macros during a composition, fire once per press, and
+  the composition is cancelled (blur/refocus, value and caret restored).
+  1114 unit, 188 e2e pass. Version 0.1.3.
+- **Next:** owner publishes 0.1.3 and retests ´ and ¨ in Firefox.
+- **Open issues:** a real Firefox/Linux composition has not been tested
+  (synthetic replay only); if the IME still holds the accent, the next
+  letter may come out accented.
+- **Commits:** 97eed28…0452ab5, plus the version and this one.
+
 ### 2026-09-28 — Stage 8: printable key macros
 
 - **Done:** ADR 0026. Macros can bind bare and Shift+ printable keys
