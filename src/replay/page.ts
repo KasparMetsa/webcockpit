@@ -18,6 +18,8 @@
 // IndexedDB, localStorage, sessionStorage, fetch or WebSocket: the settings
 // are an in-memory store holding the payload's settings, the player App
 // is built with every store and socket injected (src/app/app.ts `player`).
+// The Map pane shows the embedded map subset (src/replay/map-host.ts,
+// ADR 0020), started in the inline blob worker.
 
 import { PlayerHost } from '../app/player-host';
 import { type Settings, SettingsStore, migrateSettings } from '../settings';
@@ -28,6 +30,7 @@ import { type ReplayPayload, payloadEdits } from '../share/payload';
 import { applyTheme } from '../theme/apply';
 import { PAYLOAD_ELEMENT_ID, decodePayload } from './codec';
 import { fmtDate, replayTitle } from './title';
+import { replayMapHost } from './map-host';
 
 /** Header hints; all of them give way when narrow (Inv §7.7). */
 export const REPLAY_HINTS: ReadonlyArray<HeaderHint> = [
@@ -119,7 +122,7 @@ export function openReplay(doc: Document, root: HTMLElement, payload: ReplayPayl
   settings.update(() => s as never);
   applyTheme(settings.get());
   root.textContent = '';
-  const host = new PlayerHost({ root, settings, onClose: () => {} });
+  const host = new PlayerHost({ root, settings, onClose: () => {}, map: replayMapHost(payload.map) });
   host.openChain(
     payload.runs,
     [],

@@ -51,6 +51,7 @@ import {
 import { buildReplayPayload } from '../../share/payload';
 import { buildTextExport } from '../../share/text';
 import { buildReplayHtml } from '../../replay/export';
+import { bundledMapSource } from '../../map/store';
 import { downloadBlob } from '../kit/download';
 import { useGrid, useServices } from '../kit/hooks';
 import { cellLen, centreLeft, step, truncate } from '../kit/nav';
@@ -119,7 +120,7 @@ interface Loaded {
 }
 
 export function ExportEditorFrame(p: { session: Session }): VNode {
-  const { runs, settings } = useServices();
+  const { runs, settings, maps } = useServices();
   const nav = useNav();
   const { cols } = useGrid();
   const bodyRows = useBodyRows();
@@ -274,7 +275,9 @@ export function ExportEditorFrame(p: { session: Session }): VNode {
         blob = new Blob([buildTextExport(data.chain, d)], { type: 'text/plain;charset=utf-8' });
       } else {
         nav.flash('Building the replay…');
-        blob = await buildReplayHtml(buildReplayPayload(data.chain, data.events, d, settings.get()));
+        blob = await buildReplayHtml(buildReplayPayload(data.chain, data.events, d, settings.get()), {
+          map: maps ? await maps.source() : bundledMapSource(),
+        });
       }
       downloadBlob(blob, name);
       nav.flash(`Exported ${name}`);

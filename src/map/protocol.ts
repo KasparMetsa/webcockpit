@@ -26,11 +26,13 @@ export const MAP_PROTOCOL_VERSION = 1;
  *
  * - `base`: fetched from `url + path` (the app: `${BASE_URL}map/`).
  * - `inline`: looked up in `files` (the HTML replay embeds the files it
- *   needs as data URIs or Blobs); a missing path is an error.
+ *   needs as data URIs or Blobs); a missing path is an error, unless
+ *   `fallback` is set: a data URI answered for a missing `pixmaps/` path
+ *   (the replay embeds only the tiles its map subset uses; P3).
  */
 export type AssetSource =
   | { kind: 'base'; url: string }
-  | { kind: 'inline'; files: Record<string, string | Blob> };
+  | { kind: 'inline'; files: Record<string, string | Blob>; fallback?: string };
 
 // --------------------------------------------------------------- maps
 
@@ -151,12 +153,19 @@ export type WorkerToMain =
 // ------------------------------------------------------ pane host
 
 /**
- * What the Map pane loads (src/panes/map.ts). The app uses the bundled
- * map (`defaultMapHost`); the log player and the HTML replay pass their
- * own through `PaneContext.map` (P3). `source()` is read when the worker
- * starts; null loads nothing.
+ * What the Map pane loads (src/panes/map.ts). The app passes the current
+ * map (an import from IndexedDB, else the bundled arda.mm2; src/map/store.ts),
+ * the log player the same, the HTML replay its embedded subset, all through
+ * `PaneContext.map` (P3). `source()` is read when the worker starts (it may
+ * be async; a `bytes` source must be a fresh buffer each call, since it is
+ * transferred); null loads nothing. `subscribe` (optional): the map changed
+ * (an import, or back to the bundled map); the pane calls `source()` again
+ * and reloads.
  */
 export interface MapPaneHost {
-  source: () => MapSource | null;
+  source: () => MapSource | null | Promise<MapSource | null>;
   assets: AssetSource;
+  subscribe?: (fn: () => void) => () => void;
+  /** Persist learned server ids in IndexedDB (the live app's map only). */
+  persistIds?: boolean;
 }

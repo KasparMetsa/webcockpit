@@ -74,6 +74,7 @@ import { AppStatus, type AppStatusView, formatStatus } from './status';
 import { VariableWriteBack } from './writeback';
 import { attachUiMessages, uiMsg, uiValue } from './ui-messages';
 import { RunEventDeriver } from '../runs/events';
+import type { MapPaneHost } from '../map/protocol';
 import { LiveRuns } from '../runs/live';
 
 /** UI pane warnings for capture states that mean runs are not recorded. */
@@ -157,6 +158,12 @@ export interface AppOptions {
   clockUs?: () => number;
   /** A log player App (see the file header). */
   player?: boolean;
+  /**
+   * What the Map pane loads (ADR 0020): the shell's `MapStore.host()` (the
+   * imported map or the bundled one), the HTML replay's embedded subset.
+   * Default: the bundled map (`defaultMapHost`).
+   */
+  map?: MapPaneHost;
 }
 
 export class App {
@@ -290,6 +297,7 @@ export class App {
       now,
       game: this.game,
       ...(player ? { localStorage: null, sessionStorage: null } : {}),
+      ...(opts.map ? { map: opts.map } : {}),
     });
     this.cockpit = new Cockpit({
       root: this.el,

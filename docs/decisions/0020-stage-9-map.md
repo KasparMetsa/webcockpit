@@ -286,3 +286,55 @@ research §7. The existing `GroupModel` is not changed.
   describes Group.* as room-scoped), whether `look` sends a Room.Info
   (a queued `look` otherwise clears the queue on the next move, as in
   MMapper), and the exact Room.Info exit object shape.
+
+### P3 Options, log player, HTML replay (2026-09-28)
+
+- **Current map.** `src/map/store.ts` `MapStore` (one per page, owned by
+  the shell): the `maps` record `current` (now with optional `rooms`), else
+  the bundled `arda.mm2`. `host()` is the Map pane's `MapPaneHost`; it is
+  passed to the cockpit App and to every log player App
+  (`AppOptions.map`, `PlayerHostOptions.map`), so both show the same map
+  and the player reuses the bytes read once from IndexedDB (a copy per
+  load, since the pane transfers them). `MapPaneHost` gained, additively,
+  an async `source()` and `subscribe()`: the pane reloads when the map
+  changes. Other tabs pick up an import on reload only.
+- **Map tools worker.** `src/map/tools.ts` (pure) runs in a short-lived
+  module worker (`src/map/worker/tools.worker.ts`, started per request by
+  `src/map/tools-client.ts` and terminated after its answer; inline where
+  there are no workers). It validates an import (parse + hash) and cuts
+  replay subsets, so the page never parses a map on its main thread. It
+  is separate from the render worker, so the import works with the Map
+  pane off and does not touch P2's worker code.
+- **Options → Panes → Mapper** (`options-mapper.tsx`): the current map
+  (name, rooms, size, import date, or "arda.mm2 (bundled)"), `[X] Show map
+  pane` (the same `panes.map.on` as the General grid, where the Map row
+  appears automatically), `Import map file…` (hidden `.mm2` input; checked
+  in the tools worker, then stored; a bad file flashes the reason and the
+  old map stays) and `Use bundled map` (deletes the record).
+- **HTML replay.** At export (`buildReplayHtml(payload, { map })`,
+  `src/replay/map-embed.ts`) the chain's `Room.Info` (id, else name +
+  description: unique, or the candidate next to the previous room, or all
+  of ≤ 4 candidates) and `Group.*` `mapid`s give the visited rooms; the
+  subset is every room within 8 rooms (x/y, |Δz| ≤ 1) of a visited room
+  plus one exit ring (`SUBSET_MARGIN`, `SUBSET_RING`), written as `.mm2`.
+  Tiles: only those the subset draws (its terrains, road/trail indices
+  per MMapper's RoadIndex, the mob/load overlays it uses) plus the small
+  fixed set (walls, doors, exits, streams, markers) and all three
+  Cantarell sizes; `mellon.png` and unused terrain/road tiles are left
+  out and the page's `AssetSource.inline.fallback` (new, optional) answers
+  a missing `pixmaps/` path with a transparent 1×1 PNG, so a renderer that
+  loads a whole tile group never fails. The payload carries it as
+  `map: { name, rooms, visited, mm2 (base64), files (data URIs) }`
+  (inside the gzip + base64 payload, so the `.fnt` files compress). No
+  `Room.Info` → no map; an unreadable map → no map and a console warning.
+  The page (`src/replay/map-host.ts`) passes it to the pane.
+- **Sizes** (arda.mm2, shortest-path trips): 30 rooms → 321–394 rooms,
+  mm2 57–65 kB, tiles + fonts 350–360 kB raw; an exported HTML file grows
+  by about 495 kB (e2e: 708 kB → 1 204 kB). A 300-room trip → about 3 800
+  rooms and 1.6 MB of base64. All 125 map tiles would be 700 kB raw
+  (`mellon.png` alone 210 kB), fonts 149 kB. `replay.js` 320 536 bytes
+  (+0.8 kB; the export code is not in it).
+- **Replay layout.** VIEW records carry `panes.map` and the layout's
+  floating map entry (`auto` survives `migrateLayout`), so on/off, the auto
+  float and a moved rect replay like other panes (unit test). A VIEW from
+  before stage 9 turns the map off.

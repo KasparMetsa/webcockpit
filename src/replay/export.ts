@@ -9,6 +9,9 @@
 //   <body> <div id="app"> <script type="application/json" id="wc-replay-payload">
 //          <script> the bundle (an IIFE with its CSS) </script> </body></html>
 //
+// Map (ADR 0020): with `opts.map`, the payload gets the map subset around
+// the visited rooms and its tiles (src/replay/map-embed.ts).
+//
 // Fonts: the exporter's family plus any family a recorded VIEW switches to
 // (regular and bold woff2). URLs are relative to the page, so a subpath
 // deploy works. The bundle is only ever read here as text: the app never
@@ -20,6 +23,8 @@ import { captureEntries } from '../share/capture';
 import type { ReplayPayload } from '../share/payload';
 import { PAYLOAD_ELEMENT_ID, encodePayload, toBase64 } from './codec';
 import { replayTitle } from './title';
+import type { MapSource } from '../map/protocol';
+import type { EmbedMapOptions } from './map-embed';
 
 declare const __WC_VERSION__: string | undefined;
 
@@ -144,6 +149,14 @@ export interface BuildReplayOptions {
   fetch?: (url: string) => Promise<Response>;
   /** Base URL the bundle and font paths resolve against; default the document's. */
   base?: string;
+  /**
+   * The current map (ADR 0020 "Replays"): when set, the subset around the
+   * rooms the chain visited is embedded (src/replay/map-embed.ts), with its
+   * tiles from `map/` under `base`. Absent or null: no map.
+   */
+  map?: MapSource | null;
+  /** Runs the map tool (tests; default the map tools worker). */
+  runMapTool?: EmbedMapOptions['runTool'];
 }
 
 async function get(f: (url: string) => Promise<Response>, url: string): Promise<Response> {
@@ -157,6 +170,14 @@ export async function buildReplayHtml(payload: ReplayPayload, opts: BuildReplayO
   const f = opts.fetch ?? ((url: string) => fetch(url));
   const base = opts.base ?? globalThis.document?.baseURI ?? '';
   const url = (rel: string): string => (base ? new URL(rel, base).href : rel);
+  if (opts.map) {
+    const { embedReplayMap } = await import('./map-embed');
+    payload = await embedReplayMap(payload, opts.map, {
+      assetBase: url('map/'),
+      fetch: f,
+      ...(opts.runMapTool ? { runTool: opts.runMapTool } : {}),
+    });
+  }
   const files = replayFonts(payload).flatMap((id) => {
     const info = FONTS[id];
     return [

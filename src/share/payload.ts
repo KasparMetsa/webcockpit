@@ -55,6 +55,25 @@ export interface ReplayPayload {
    * print (it was excluded in the editor). Absent in older files: none.
    */
   hiddenSys?: number[];
+  /**
+   * The map subset around the rooms the chain visited (ADR 0020
+   * "Replays"; src/replay/map-embed.ts). Absent: no map (older files, or
+   * a chain without Room.Info).
+   */
+  map?: ReplayMap;
+}
+
+/** The HTML replay's embedded map (ADR 0020 "Replays"). */
+export interface ReplayMap {
+  /** The source map's file name. */
+  name: string;
+  /** Rooms in the subset, and visited rooms found in it. */
+  rooms: number;
+  visited: number;
+  /** The subset as a `.mm2` file, base64. */
+  mm2: string;
+  /** Asset path (`pixmaps/…`, `fonts/…`) → data URI; tiles not listed are drawn empty. */
+  files: Record<string, string>;
 }
 
 /** The capture text of a run with the excluded content removed. */

@@ -26,7 +26,7 @@
 //                src/share/edits.ts, src/runs/store.ts, ADR 0019)
 //   version 7 (stage 9)
 //     maps       keyPath 'key'; one record 'current', the imported map:
-//                { key, name, size, date, bytes: ArrayBuffer, hash }
+//                { key, name, size, date, bytes: ArrayBuffer, hash, rooms? }
 //                (absent = the bundled public/map/arda.mm2; ADR 0020)
 //     mapIds     keyPath ['mapHash', 'serverId']; server ids the locator
 //                learned: { mapHash, serverId, room } (room = index in
@@ -128,6 +128,8 @@ export interface StoredMap {
   bytes: ArrayBuffer;
   /** `mapHash` of the bytes (src/map/mm2.ts). */
   hash: string;
+  /** Rooms in the map (set by the import; absent in older records). */
+  rooms?: number;
 }
 
 /** A `mapIds` record: a server id the locator matched to a room of map `mapHash`. */
