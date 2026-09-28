@@ -38,6 +38,11 @@ Newest first.
 - **Open issues:** group `mapid` for mates outside the room and Room.Info
   on `look` unverified live; headless SwiftShader Chromium misses the
   burst budget with the map on (not a user path); pane default height.
+- **Owner test 1:** "everything seems to work"; a group mate shown on
+  the map live (Group `mapid` confirmed). Older map import failed (v36);
+  the reader now reads `.mm2` versions 17–42 like MMapper 26.06
+  (`arda(1).mm2` renders identically to the bundled map). 1069 unit.
+  Owner retests the import.
 - **Commits:** c852dc3…(this commit).
 
 ### 2026-09-28 — Stage 7 build
