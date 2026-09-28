@@ -1,7 +1,6 @@
 # Stage 9 — Map
 
-> Status: Owner testing (started 2026-09-28, before stage 8 by owner
-> request).
+> Status: Done 2026-09-28 (built before stage 8 by owner request).
 > Source: spec §2.9 as amended by ADR 0020; owner brief 2026-09-28
 > (screenshot of the owner's MMapper). Research:
 > `notes/research/mmapper-rendering.md`, `notes/research/mmapper-integration.md`.
@@ -122,3 +121,5 @@ users still run such files.
 page directly under Options (not Options → Panes), and the map pane on
 by default. Done (ADR 0020 amendment); a VIEW recorded before the map
 existed still replays with the map off. 1069 unit, 178 e2e.
+
+**Owner test 3 (2026-09-28):** approved ("looks good"). Stage closed.

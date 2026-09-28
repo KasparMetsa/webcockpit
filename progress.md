@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **9 — Map** (owner testing; built before stage 8 by owner request).
+Current stage: **8 — Hardening → v1** (not started; stage 9 done first by owner request).
 
 ## Stages
 
@@ -13,8 +13,8 @@ Current stage: **9 — Map** (owner testing; built before stage 8 by owner reque
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
 | 7 | Sharing | Done | `docs/stages/07-sharing.md` |
-| 8 | Hardening → v1 | Next after 9 | — |
-| 9 | Map | Owner testing | `docs/stages/09-map.md` |
+| 8 | Hardening → v1 | Next | — |
+| 9 | Map | Done | `docs/stages/09-map.md` |
 
 Statuses: Next, In progress, Owner testing, Done.
 
@@ -43,6 +43,14 @@ Newest first.
   the reader now reads `.mm2` versions 17–42 like MMapper 26.06
   (`arda(1).mm2` renders identically to the bundled map). 1069 unit.
   Owner retests the import.
+- **Owner test 2:** import works; Mapper page moved to Options → Mapper,
+  map pane on by default (old VIEW records keep it off). 178 e2e.
+- **Owner test 3:** approved ("looks good"). Stage 9 closed. Next
+  session: write `docs/stages/08-…md` from spec §5 (fixes from PvP
+  testing, perf pass, polish). Carry: map pane default height, replay
+  font subsetting (~0.3 MB/file), player paint after a long seek, JetBrains
+  Mono exports without DejaVu fallback glyphs, reel load time on a large
+  library, live checks of stage 7, `look` → Room.Info unverified.
 - **Commits:** c852dc3…(this commit).
 
 ### 2026-09-28 — Stage 7 build
