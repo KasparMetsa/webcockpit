@@ -22,6 +22,20 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: printable key macros
+
+- **Done:** ADR 0026. Macros can bind bare and Shift+ printable keys
+  (letters, digits, punctuation, Space); the editor warns "overrides the
+  input line (types text)" instead of refusing. Key labels follow the
+  keyboard layout (Keyboard Map API, else learned from unshifted
+  keydowns), so a Swedish keyboard shows `§`, `+`. Names stay code-based.
+  1107 unit, 186 e2e pass.
+- **Next:** owner tests on a Swedish keyboard (guide in the stage file);
+  publish needs a version bump first.
+- **Open issues:** dead key `´` untested in real browsers; Firefox shows
+  US labels until a key is pressed once unshifted.
+- **Commits:** 47129e4…0efc4d5, plus this one.
+
 ### 2026-09-28 — Stage 8: versioning and update notices
 
 - **Done:** ADR 0025. Version 0.1.0 (public release) with the commit in
