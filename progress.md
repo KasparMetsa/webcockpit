@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **8 — Hardening → v1** (part A done; 0.1.1 public, update notices approved; next: plan the rest of stage 8).
+Current stage: **8 — Hardening → v1** (part A done; 0.1.3 public, printable and dead-key macros approved; next: plan the rest of stage 8).
 
 ## Stages
 
@@ -32,9 +32,8 @@ Newest first.
 - **Published:** 631bcf2 (0.1.3); smoke test passes against the live URL.
 - **Owner test:** approved live in Firefox (0.1.3).
 - **Next:** plan the rest of stage 8.
-- **Open issues:** a real Firefox/Linux composition has not been tested
-  (synthetic replay only); if the IME still holds the accent, the next
-  letter may come out accented.
+- **Open issues:** Chrome with a real Swedish layout not tested (Firefox
+  verified by the owner).
 - **Commits:** 97eed28…0452ab5, plus the version and this one.
 
 ### 2026-09-28 — Stage 8: printable key macros
