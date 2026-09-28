@@ -86,6 +86,7 @@ Defaults (owner brief 2026-09-28):
 
 - [x] New-user defaults (ADR 0023): all panes None, right dock shared
       evenly with Character at 9 rows.
+- [x] Default map float 25 % × 27 % of the window (owner feedback).
 
 ## Test guide (part A)
 
@@ -114,3 +115,7 @@ to clicks in a way it should not.
 - 2026-09-28, test 1: "seems to work well". Sepia and Slate get FG
   silver instead of ink (black text was unreadable on the dark
   backgrounds); the other themes are fine. Part A approved.
+- 2026-09-28, defaults: new users start with black background, all panes
+  None, borders on, map floating, the other panes shared evenly on the
+  right. After the first publish: the map float was too large; now
+  25 % × 27 % of the window. Published as 99981b7.
