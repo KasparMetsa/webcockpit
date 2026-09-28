@@ -1,6 +1,14 @@
 // The map worker's logic (ADR 0020), apart from the worker globals so it
-// runs in Node tests: map loading, the view, on-demand rendering. The
+// runs in Node tests: map loading, the view, on-demand rendering, and
+// tracking (player, prespam path, group mates; src/map/tracking.ts). The
 // entry (map.worker.ts) feeds it `MainToWorker` messages.
+//
+// Tracking: every `events` batch goes through the Tracker. When the scene
+// changed, the renderer gets it (`setScene`) and a render is requested;
+// when a Room.Info was located the view re-centres on the player and
+// switches to the player's layer (MMapper behaviour); `status` is posted
+// when located / room / how changed. Learned server ids are saved through
+// `WorkerHost.ids` when `persistIds` is on, and loaded after every load.
 //
 // Rendering is on demand: every change calls `requestRender()`, which
 // draws once in the next animation frame (setTimeout fallback) and never
@@ -9,8 +17,10 @@
 import { type AssetResolver, assetResolver } from '../assets';
 import { buildIndexes, type MapData } from '../model';
 import { type Inflate, inflateZlib, mapHash, readMm2 } from '../mm2';
-import { MAP_PROTOCOL_VERSION, type MainToWorker, type MapSource, type WorkerToMain } from '../protocol';
+import { MAP_PROTOCOL_VERSION, type MainToWorker, type MapEvent, type MapSource, type WorkerToMain } from '../protocol';
 import { type Renderer, createRenderer } from '../render/renderer';
+import { Tracker } from '../tracking';
+import type { LearnedIdStore } from './ids';
 import { type View, centreOn, changeLayer, defaultView, pan, zoomAt } from '../view';
 
 export interface WorkerHost {
@@ -22,6 +32,8 @@ export interface WorkerHost {
   now(): number;
   /** Builds the renderer for a GL context (default `createRenderer`). */
   createRenderer?: (gl: WebGL2RenderingContext, assets: AssetResolver) => Renderer;
+  /** Where learned server ids persist (used only after `persistIds` on). */
+  ids?: LearnedIdStore;
 }
 
 export class MapWorkerCore {
@@ -37,6 +49,9 @@ export class MapWorkerCore {
   private loadReq = -1;
   /** Frames drawn (tests, debugging). */
   frames = 0;
+  readonly tracker = new Tracker();
+  private persistIds = false;
+  private lastStatus = '';
 
   constructor(private readonly host: WorkerHost) {}
 
@@ -65,7 +80,11 @@ export class MapWorkerCore {
         if (m.visible) this.requestRender();
         return;
       case 'events':
-        // P2: locator, prespam path, group mates.
+        this.events(m.events);
+        return;
+      case 'persistIds':
+        this.persistIds = m.on;
+        if (m.on) this.loadIds();
         return;
       default:
         // An unknown message from a newer client: ignore (protocol.ts).
@@ -154,6 +173,10 @@ export class MapWorkerCore {
       this.map = map;
       this.view = centreOn(this.view, map.selected.x, map.selected.y, map.selected.z);
       this.renderer?.setMap(map);
+      this.tracker.setMap(map, hash);
+      this.renderer?.setScene(this.tracker.current);
+      this.postStatus();
+      this.loadIds();
       this.host.post({
         t: 'loaded',
         req,
@@ -171,6 +194,51 @@ export class MapWorkerCore {
       if (req !== this.loadReq) return;
       this.host.post({ t: 'error', stage: 'load', req, message: err instanceof Error ? err.message : String(err) });
     }
+  }
+
+  /** Applies a batch of game events (tracking.ts). */
+  private events(events: readonly MapEvent[]): void {
+    const r = this.tracker.apply(events);
+    const map = this.map;
+    const room = this.tracker.current.room;
+    let draw = r.changed;
+    if (r.moved && map && room !== null) {
+      const v = centreOn(this.view, map.x[room]!, map.y[room]!, map.z[room]!);
+      if (v.x !== this.view.x || v.y !== this.view.y || v.layer !== this.view.layer) {
+        this.view = v;
+        draw = true;
+      }
+    }
+    if (r.changed) this.renderer?.setScene(this.tracker.current);
+    if (draw) this.requestRender();
+    this.postStatus();
+    if (r.learned.length > 0 && this.persistIds && this.host.ids && this.tracker.mapHash !== '') {
+      this.host.ids.save(this.tracker.mapHash, r.learned).catch(() => {});
+    }
+  }
+
+  private postStatus(): void {
+    const s = this.tracker.status;
+    const key = `${s.located}|${s.room}|${s.how}`;
+    if (key === this.lastStatus) return;
+    this.lastStatus = key;
+    this.host.post({ t: 'status', located: s.located, room: s.room, how: s.how });
+  }
+
+  /** Loads the stored ids of the current map (when persisting). */
+  private loadIds(): void {
+    const hash = this.tracker.mapHash;
+    const store = this.host.ids;
+    if (!this.persistIds || !store || hash === '') return;
+    store.load(hash).then(
+      (ids) => {
+        if (this.tracker.addLearned(hash, ids)) {
+          this.renderer?.setScene(this.tracker.current);
+          this.requestRender();
+        }
+      },
+      () => {},
+    );
   }
 
   /** Draws once in the next frame (coalesced; skipped while hidden). */

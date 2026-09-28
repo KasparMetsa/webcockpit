@@ -87,7 +87,13 @@ export type MapEvent =
   | { k: 'gmcp'; pkg: MapGmcpPackage; data: unknown }
   | { k: 'cmd'; text: string }
   | { k: 'fail'; kind: MoveFailureKind }
-  | { k: 'conn'; state: ConnState; replay?: boolean };
+  | { k: 'conn'; state: ConnState; replay?: boolean }
+  /**
+   * Forwarding (re)started after a gap (the pane was hidden): what was
+   * queued or pending may be stale, so the worker clears the prespam
+   * queue and the pending move. The position stays until the next Room.Info.
+   */
+  | { k: 'resync' };
 
 // ---------------------------------------------------- main → worker
 
@@ -114,7 +120,13 @@ export type MainToWorker =
   /** A batch of game events, in order. */
   | { t: 'events'; events: MapEvent[] }
   /** The pane was hidden or shown (the worker skips rendering while hidden). */
-  | { t: 'visible'; visible: boolean };
+  | { t: 'visible'; visible: boolean }
+  /**
+   * Whether the worker keeps the server ids its locator learns in
+   * IndexedDB (`mapIds`, keyed by the map hash). The app's own map pane
+   * turns it on; the log player and the HTML replay leave it off (default).
+   */
+  | { t: 'persistIds'; on: boolean };
 
 // ---------------------------------------------------- worker → main
 
@@ -128,7 +140,13 @@ export type WorkerToMain =
    */
   | { t: 'error'; stage: 'init' | 'load' | 'render'; req?: number; message: string }
   /** Locator state (P2): the player's room index, or null when unknown. */
-  | { t: 'status'; located: boolean; room: number | null };
+  | {
+      t: 'status';
+      located: boolean;
+      room: number | null;
+      /** How the last Room.Info was matched (src/map/locate.ts `LocateHow`). */
+      how?: 'id' | 'learned' | 'dir' | 'text' | 'none';
+    };
 
 // ------------------------------------------------------ pane host
 

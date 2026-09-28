@@ -4,6 +4,7 @@
 
 import type { MainToWorker, WorkerToMain } from '../protocol';
 import { MapWorkerCore } from './core';
+import { idbLearnedIds } from './ids';
 
 interface WorkerScope {
   postMessage(m: WorkerToMain): void;
@@ -19,6 +20,7 @@ const core = new MapWorkerCore({
   requestFrame: (cb) => void (raf ? raf(cb) : setTimeout(cb, 16)),
   fetch: (input, init) => fetch(input, init),
   now: () => performance.now(),
+  ids: idbLearnedIds(),
 });
 
 scope.addEventListener('message', (e) => core.handle(e.data));
