@@ -22,6 +22,18 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Public repository
+
+- **Done:** repository published at https://github.com/Khazdul/webcockpit
+  (public, full history, GPL-3.0 detected). Added README with six
+  screenshots (`docs/img/`, browser bar cropped), LICENSE, map assets in
+  THIRD_PARTY_NOTICES. The deployment host name is removed from current
+  files (still in old commits, by owner choice). `arda.mm2` stays public
+  (owner decision, noted in `public/map/README`). Remote is HTTPS.
+- **Next:** plan the rest of stage 8. Optional: topics, a v0.1.3 release.
+- **Open issues:** none.
+- **Commits:** a41e1c6, plus this one.
+
 ### 2026-09-28 — Stage 8: dead-key macros
 
 - **Done:** owner report (Firefox, Swedish): a macro on `´` left the accent
