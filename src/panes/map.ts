@@ -12,10 +12,18 @@
 // - Without OffscreenCanvas / module workers / WebGL2 the pane shows a
 //   notice instead.
 // - `content.dataset.mapState`: `idle` → `starting` → `ready` → `loaded`
-//   (or `unsupported` / `error`); `mapRooms` is set on `loaded` (browser
-//   tests, debugging).
+//   (or `unsupported` / `error`); `mapRooms` is set on `loaded`;
+//   `mapLocated` (`1`/`0`), `mapRoom` (room index or empty) and `mapHow`
+//   follow the worker's `status` (browser tests, debugging).
+// - Game events (gmcp, cmd.sent, text.line, conn.state) are forwarded only
+//   while the pane is shown and its map is loaded (MapEventForwarder:
+//   one array push per event, one postMessage per microtask). Turned on
+//   mid-session, the worker has no position until the next Room.Info.
+// - Learned server ids persist (worker-side IndexedDB) only for the app's
+//   own map; a pane with a `PaneContext.map` host (log player, HTML
+//   replay) keeps them in memory.
 
-import type { MapClient } from '../map/client';
+import type { MapClient, MapEventForwarder } from '../map/client';
 import type { MapPaneHost, WorkerToMain } from '../map/protocol';
 import { PaneShell, type PaneContext } from './pane';
 
@@ -50,6 +58,11 @@ export class MapPane extends PaneShell {
   private readonly notice: HTMLDivElement;
   private readonly host: MapPaneHost;
   private client: MapClient | null = null;
+  private forwarder: MapEventForwarder | null = null;
+  /** Unsubscribes the forwarder's bus handlers while forwarding. */
+  private unforward: (() => void) | null = null;
+  private loaded = false;
+  private readonly persistIds: boolean;
   private starting = false;
   private failed = false;
   private sizeKey = '';
@@ -61,6 +74,7 @@ export class MapPane extends PaneShell {
   constructor(ctx: PaneContext) {
     super(ctx, 'map');
     this.host = ctx.map ?? defaultMapHost();
+    this.persistIds = ctx.map === undefined && !IN_REPLAY;
     const doc = ctx.doc;
     this.content.classList.add('wc-map');
     this.content.dataset.mapState = 'idle';
@@ -90,9 +104,34 @@ export class MapPane extends PaneShell {
   }
 
   override dispose(): void {
+    this.forward(false);
     super.dispose();
     this.client?.dispose();
     this.client = null;
+  }
+
+  /** Starts or stops forwarding game events to the worker. */
+  private forward(on: boolean): void {
+    if (on === (this.unforward !== null)) return;
+    if (!on) {
+      this.unforward!();
+      this.unforward = null;
+      this.forwarder?.stop();
+      return;
+    }
+    const f = this.forwarder;
+    if (!f) return;
+    const bus = this.ctx.bus;
+    const offs = [bus.on('gmcp', f.onGmcp), bus.on('cmd.sent', f.onCmd), bus.on('text.line', f.onLine), bus.on('conn.state', f.onConn)];
+    this.unforward = () => {
+      for (const off of offs) off();
+    };
+    f.resync();
+  }
+
+  /** Forwarding follows "shown and loaded". */
+  private syncForward(): void {
+    this.forward(this.visible && this.loaded && this.client !== null);
   }
 
   private win(): (Window & typeof globalThis) | null {
@@ -119,6 +158,7 @@ export class MapPane extends PaneShell {
         this.sizeKey = 'hidden';
         this.client?.visible(false);
         this.watchDpr(false);
+        this.forward(false);
       }
       return;
     }
@@ -131,6 +171,7 @@ export class MapPane extends PaneShell {
     if (this.client) {
       if (wasHidden) this.client.visible(true);
       this.client.resize(w, h, dpr);
+      this.syncForward();
     } else {
       void this.start();
     }
@@ -158,7 +199,7 @@ export class MapPane extends PaneShell {
     this.starting = true;
     this.content.dataset.mapState = 'starting';
     try {
-      const { MapClient } = await import('../map/client');
+      const { MapClient, MapEventForwarder } = await import('../map/client');
       const { w, h } = this.cssSize();
       this.client = await MapClient.create({
         canvas: this.canvas,
@@ -168,8 +209,10 @@ export class MapPane extends PaneShell {
         assets: this.host.assets,
         onMessage: this.onWorker,
       });
+      this.forwarder = new MapEventForwarder((events) => this.client?.events(events));
       if (!this.visible) this.client.visible(false);
       this.sync();
+      if (this.persistIds) this.client.persistIds(true);
       const source = this.host.source();
       if (source) this.client.load(source);
     } catch (err) {
@@ -196,10 +239,20 @@ export class MapPane extends PaneShell {
         this.content.dataset.mapState = 'loaded';
         this.content.dataset.mapRooms = String(m.info.rooms);
         this.notice.hidden = true;
+        this.loaded = true;
+        this.syncForward();
         return;
+      case 'status': {
+        const d = this.content.dataset;
+        d.mapLocated = m.located ? '1' : '0';
+        d.mapRoom = m.room === null ? '' : String(m.room);
+        d.mapHow = m.how ?? '';
+        return;
+      }
       case 'error':
         if (m.stage === 'init') {
           this.failed = true;
+          this.forward(false);
           this.client?.dispose();
           this.client = null;
           this.fail('unsupported', `${m.message}.${NOTICE_SUFFIX}`);
