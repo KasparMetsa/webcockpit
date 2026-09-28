@@ -1,0 +1,40 @@
+WebCockpit map assets (ADR 0020)
+================================
+
+Files in this directory are fetched by the map worker only when the Map
+pane is switched on. They are not part of the app's cold start.
+
+arda.mm2
+--------
+The owner's MMapper map (MMapper schema v42), bundled as the default map
+by owner decision (ADR 0020, 2026-09-28). It contains MUME's room names
+and descriptions. Those texts belong to MUME (https://mume.org) and carry
+no licence; bundling them is an accepted risk to revisit before any
+public release. The file is read as is and never changed.
+
+pixmaps/
+--------
+The default tileset of MMapper 26.06.0, copied unmodified from
+src/resources/pixmaps/ of the release source tree.
+
+  MMapper: https://github.com/MUME/MMapper
+  Copyright (C) The MMapper Authors
+  Licence: GNU General Public License, version 2 or (at your option) any
+  later version (GPL-2.0-or-later). WebCockpit is distributed under
+  GPL-3.0-or-later, which this permits.
+
+fonts/Cantarell{18,27,36}.fnt, fonts/Cantarell{18,27,36}_0.png
+--------------------------------------------------------------
+Bitmap (BMFont) renderings of the Cantarell typeface at 18, 27 and 36 px,
+copied unmodified from src/resources/fonts/ of MMapper 26.06.0, which
+draws all map text with them.
+
+  Cantarell: https://gitlab.gnome.org/GNOME/cantarell-fonts
+  Copyright (c) 2009--2019, The Cantarell Authors
+  Licence: SIL Open Font License, Version 1.1 (fonts/OFL.txt). Cantarell
+  declares no Reserved Font Name.
+
+MMapper's own fonts/LICENSE covers only DejaVu Sans Mono and does not
+mention Cantarell. The licence above is the upstream Cantarell licence
+(verified against the cantarell-fonts package's COPYING, 2026-09-28;
+fonts/OFL.txt is that file).
