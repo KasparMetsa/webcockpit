@@ -1,12 +1,13 @@
 // Renderer seam (ADR 0020 "Modules"): the worker owns one Renderer and
-// calls it on demand. P0 ships `ClearRenderer`, which only clears to the
-// MMapper background; P1 replaces `createRenderer` with the WebGL2 tile
-// renderer (atlases, per-layer meshes, connections, text …).
+// calls it on demand. `createRenderer` builds the WebGL2 tile renderer
+// (webgl.ts: atlases, per-layer meshes, connections, text …);
+// `ClearRenderer` only clears to the MMapper background (tests).
 
 import type { AssetResolver } from '../assets';
 import type { MapData } from '../model';
 import type { Scene } from '../scene';
 import type { View } from '../view';
+import { WebGLMapRenderer } from './webgl';
 
 /** MMapper background (owner config `#2e3436`), 0…1 RGB. */
 export const MAP_BG: readonly [number, number, number] = [0x2e / 255, 0x34 / 255, 0x36 / 255];
@@ -43,7 +44,11 @@ export class ClearRenderer implements Renderer {
   dispose(): void {}
 }
 
-/** The renderer the worker uses (assets are read through `assets` only). */
-export function createRenderer(gl: WebGL2RenderingContext, _assets: AssetResolver): Renderer {
-  return new ClearRenderer(gl);
+/**
+ * The renderer the worker uses (assets are read through `assets` only).
+ * `onChange` is called when something that was loading (tiles, font)
+ * arrived and the map should be drawn again.
+ */
+export function createRenderer(gl: WebGL2RenderingContext, assets: AssetResolver, onChange?: () => void): Renderer {
+  return new WebGLMapRenderer(gl, assets, onChange);
 }

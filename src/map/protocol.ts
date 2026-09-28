@@ -13,6 +13,7 @@
 
 import type { ConnState } from '../core/types';
 import type { MapData } from './model';
+import type { Scene } from './scene';
 
 /** Bump when a change is not backwards compatible (checked in `init`). */
 export const MAP_PROTOCOL_VERSION = 1;
@@ -128,7 +129,18 @@ export type MainToWorker =
    * IndexedDB (`mapIds`, keyed by the map hash). The app's own map pane
    * turns it on; the log player and the HTML replay leave it off (default).
    */
-  | { t: 'persistIds'; on: boolean };
+  | { t: 'persistIds'; on: boolean }
+  /**
+   * Development and tests only: draw `scene` (P1 renderer checks without
+   * the tracking side), optionally centred on a room index or a
+   * position (current layer = its z) and at a zoom.
+   */
+  | {
+      t: 'debugScene';
+      scene?: Scene;
+      center?: { room: number } | { x: number; y: number; z: number };
+      zoom?: number;
+    };
 
 // ---------------------------------------------------- worker → main
 
