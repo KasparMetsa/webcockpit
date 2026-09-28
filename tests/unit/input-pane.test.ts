@@ -496,3 +496,175 @@ describe('InputPane macros on printable keys (ADR 0026)', () => {
     expect(t.fired).toEqual(['A']);
   });
 });
+
+describe('InputPane dead keys (ADR 0026 "Dead keys")', () => {
+  // Replays the owner's Firefox/Linux log (Swedish layout: ´ is Equal, ¨ is
+  // BracketRight). The browser's own text changes are simulated by setting
+  // the value before each `input` event.
+  function deadSetup(bound: string[]) {
+    document.body.innerHTML = '';
+    const bus = new Bus();
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const sender: Sender = { sendCommand: () => {}, sendGmcp: () => {} };
+    const fired: string[] = [];
+    const pane = new InputPane(bus, root, {
+      sender,
+      onMacroKey: (k) => {
+        if (!bound.includes(k)) return false;
+        fired.push(k);
+        return true;
+      },
+    });
+    pane.focus();
+    const i = pane.input;
+    const down = (code: string, key: string, isComposing = false) => {
+      const e = new KeyboardEvent('keydown', { code, key, isComposing, bubbles: true, cancelable: true });
+      i.dispatchEvent(e);
+      return e;
+    };
+    const up = (code: string, key: string, isComposing = false) =>
+      i.dispatchEvent(new KeyboardEvent('keyup', { code, key, isComposing, bubbles: true, cancelable: true }));
+    const comp = (type: string, data: string) =>
+      i.dispatchEvent(new CompositionEvent(type, { data, bubbles: true }));
+    /** The browser replaces the composition range [from, value end) with `text`. */
+    let from = 0;
+    const startAt = () => {
+      from = i.value.length;
+    };
+    const compText = (text: string, isComposing = true) => {
+      i.dispatchEvent(
+        new InputEvent('beforeinput', { inputType: 'insertCompositionText', data: text, isComposing, bubbles: true }),
+      );
+      i.value = i.value.slice(0, from) + text;
+      i.setSelectionRange(i.value.length, i.value.length);
+      i.dispatchEvent(new InputEvent('input', { inputType: 'insertCompositionText', data: text, isComposing, bubbles: true }));
+    };
+    const type = (s: string) => {
+      i.value = s;
+      i.setSelectionRange(s.length, s.length);
+      i.dispatchEvent(new Event('input'));
+    };
+    return { pane, i, fired, down, up, comp, compText, startAt, type };
+  }
+
+  /** The owner's log: ´ then ¨, each a dead key, then the composition ends. */
+  function ownerSequence(t: ReturnType<typeof deadSetup>) {
+    const first = t.down('Equal', 'Dead');
+    t.startAt();
+    t.comp('compositionstart', '');
+    const echo = t.down('Equal', 'Dead', true);
+    t.comp('compositionupdate', '´');
+    t.compText('´');
+    t.up('Equal', 'Dead', true);
+    const second = t.down('BracketRight', 'Dead', true);
+    t.comp('compositionupdate', '´¨');
+    t.compText('´¨');
+    t.up('BracketRight', 'Dead', true);
+    t.down('', 'Process', true);
+    t.comp('compositionupdate', '');
+    t.compText('');
+    t.comp('compositionend', '');
+    t.compText('', false);
+    return { first, echo, second };
+  }
+
+  it('a bound ´ fires once and leaves the line unchanged', () => {
+    const t = deadSetup(['Equal']);
+    t.type('kill');
+    t.i.setSelectionRange(2, 2);
+    const first = t.down('Equal', 'Dead');
+    expect(first.defaultPrevented).toBe(true);
+    t.startAt();
+    t.comp('compositionstart', '');
+    expect(t.down('Equal', 'Dead', true).defaultPrevented).toBe(true);
+    t.comp('compositionupdate', '´');
+    t.compText('´');
+    expect(t.i.value).toBe('kill');
+    t.up('Equal', 'Dead', true);
+    t.comp('compositionend', '´');
+    t.compText('´', false);
+    expect(t.fired).toEqual(['Equal']);
+    expect(t.i.value).toBe('kill');
+    expect([t.i.selectionStart, t.i.selectionEnd]).toEqual([2, 2]);
+    expect(document.activeElement).toBe(t.i);
+  });
+
+  it('´ then ¨ both fire (the owner log)', () => {
+    const t = deadSetup(['Equal', 'BracketRight']);
+    t.type('abc');
+    ownerSequence(t);
+    expect(t.fired).toEqual(['Equal', 'BracketRight']);
+    expect(t.i.value).toBe('abc');
+    // The guard ends with the next plain key; typing works again.
+    t.down('KeyE', 'e');
+    t.type('abce');
+    expect(t.i.value).toBe('abce');
+  });
+
+  it('an unbound ´ before a bound ¨ keeps composing', () => {
+    const t = deadSetup(['BracketRight']);
+    t.type('x');
+    ownerSequence(t);
+    expect(t.fired).toEqual(['BracketRight']);
+    // The ¨ macro snapshots the line with the open ´ composition in it.
+    expect(t.i.value).toBe('x´');
+  });
+
+  it('an unbound dead key still composes (´ + e → é)', () => {
+    const t = deadSetup(['BracketRight']);
+    t.type('caf');
+    expect(t.down('Equal', 'Dead').defaultPrevented).toBe(false);
+    t.startAt();
+    t.comp('compositionstart', '');
+    expect(t.down('Equal', 'Dead', true).defaultPrevented).toBe(false);
+    t.comp('compositionupdate', '´');
+    t.compText('´');
+    t.up('Equal', 'Dead', true);
+    expect(t.down('KeyE', 'e', true).defaultPrevented).toBe(false);
+    t.comp('compositionupdate', 'é');
+    t.compText('é');
+    t.comp('compositionend', 'é');
+    t.compText('é', false);
+    expect(t.i.value).toBe('café');
+    expect(t.fired).toEqual([]);
+  });
+
+  it('a bound dead key after a released one lets an unbound one compose', () => {
+    const t = deadSetup(['Equal']);
+    t.down('Equal', 'Dead');
+    t.startAt();
+    t.comp('compositionstart', '');
+    t.comp('compositionupdate', '´');
+    t.compText('´');
+    t.up('Equal', 'Dead', true);
+    t.comp('compositionend', '');
+    t.compText('', false);
+    expect(t.i.value).toBe('');
+    // ¨ is unbound: its composition is left alone.
+    t.down('BracketRight', 'Dead');
+    t.startAt();
+    t.comp('compositionstart', '');
+    t.comp('compositionupdate', '¨');
+    t.compText('¨');
+    expect(t.i.value).toBe('¨');
+    expect(t.fired).toEqual(['Equal']);
+  });
+
+  it('non-dead keys during a real IME composition are still ignored', () => {
+    const t = deadSetup(['A', 'Minus']);
+    expect(t.down('KeyA', 'a', true).defaultPrevented).toBe(false);
+    expect(t.down('Minus', '-', true).defaultPrevented).toBe(false);
+    expect(t.down('', 'Process', true).defaultPrevented).toBe(false);
+    expect(t.fired).toEqual([]);
+    expect(t.down('KeyA', 'a').defaultPrevented).toBe(true);
+    expect(t.fired).toEqual(['A']);
+  });
+
+  it('holding a bound dead key repeats its macro', () => {
+    const t = deadSetup(['Equal']);
+    t.down('Equal', 'Dead');
+    t.i.dispatchEvent(new KeyboardEvent('keydown', { code: 'Equal', key: 'Dead', repeat: true, bubbles: true, cancelable: true }));
+    expect(t.fired).toEqual(['Equal', 'Equal']);
+  });
+});

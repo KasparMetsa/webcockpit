@@ -28,6 +28,15 @@
 //   Printable keys can be bound too (ADR 0026): a bound `a` or `Shift+1`
 //   is consumed (preventDefault), so its character is never typed. Every
 //   keydown also teaches the key labels (`learnKeyLabel`).
+// - Dead keys (ADR 0026 "Dead keys"): a keydown with `key` = `Dead`
+//   reaches the macro lookup even while a composition is open, so `´`
+//   then `¨` both fire. Firefox sends the dead keydown twice (before and
+//   after compositionstart); the repeat of a consumed dead key is dropped
+//   until its keyup. preventDefault does not stop the composition, so a
+//   consumed dead key snapshots the line, and every composition event that
+//   follows ends the composition (blur + refocus) and restores the
+//   snapshot. The guard ends at the next plain keydown outside a
+//   composition, or at a compositionend once the key is released.
 
 import type { Bus } from '../core/bus';
 import type { Sender } from '../core/types';
@@ -134,6 +143,13 @@ export class InputPane {
 
   private password = false;
   private leaveGuard = false;
+  /** Line before the dead key a macro consumed; its composition is undone. */
+  private deadSnap: { value: string; start: number; end: number; dir: 'forward' | 'backward' | 'none' } | null =
+    null;
+  /** Code of a consumed dead key until its keyup (Firefox repeats the keydown). */
+  private deadEcho: string | null = null;
+  /** True while the pane itself blurs and refocuses to end a composition. */
+  private cancellingComposition = false;
   private readonly unsubs: Array<() => void> = [];
 
   constructor(bus: Bus, root: HTMLElement, opts: InputPaneOptions) {
@@ -180,6 +196,9 @@ export class InputPane {
     root.appendChild(this.el);
 
     this.input.addEventListener('input', this.onInput);
+    this.input.addEventListener('compositionstart', this.onComposition);
+    this.input.addEventListener('compositionupdate', this.onComposition);
+    this.input.addEventListener('compositionend', this.onCompositionEnd);
     this.input.addEventListener('paste', this.onPaste);
     this.input.addEventListener('copy', this.onCopyCut);
     this.input.addEventListener('cut', this.onCopyCut);
@@ -189,6 +208,7 @@ export class InputPane {
     this.input.addEventListener('select', this.scheduleCaret);
     doc.addEventListener('selectionchange', this.onSelectionChange);
     doc.addEventListener('keydown', this.onKeyDown, true);
+    doc.addEventListener('keyup', this.onKeyUp, true);
     doc.addEventListener('mouseup', this.onDocMouseUp);
     doc.defaultView?.addEventListener('focus', this.onWindowFocus);
 
@@ -251,6 +271,7 @@ export class InputPane {
     for (const u of this.unsubs) u();
     this.setLeaveGuard(false);
     this.doc.removeEventListener('keydown', this.onKeyDown, true);
+    this.doc.removeEventListener('keyup', this.onKeyUp, true);
     this.doc.removeEventListener('selectionchange', this.onSelectionChange);
     this.doc.removeEventListener('mouseup', this.onDocMouseUp);
     this.doc.defaultView?.removeEventListener('focus', this.onWindowFocus);
@@ -355,13 +376,25 @@ export class InputPane {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.defaultPrevented || e.isComposing) return;
+    if (e.defaultPrevented) return;
+    const dead = e.key === 'Dead';
+    if (!dead) {
+      // Real IME composition: the keys belong to the IME.
+      if (e.isComposing) return;
+      // A plain key outside a composition: any consumed dead key is over.
+      this.deadSnap = null;
+      this.deadEcho = null;
+    }
     learnKeyLabel(e);
     if (this.isOtherInteractive(e.target)) return;
-    if (this.doc.activeElement !== this.input) {
+    if (this.doc.activeElement !== this.input && !e.isComposing) {
       // Keystrokes typed while focus is elsewhere land in the input: moving
       // focus during keydown redirects the resulting character.
       this.input.focus({ preventScroll: true });
+    }
+    if (dead) {
+      this.onDeadKey(e);
+      return;
     }
     if (this.runMacro(e)) {
       e.preventDefault();
@@ -372,6 +405,95 @@ export class InputPane {
     // selection later and fires selectionchange, which schedules again.
     this.scheduleCaret();
   };
+
+  /**
+   * A dead keydown, composing or not. Firefox's second keydown for a
+   * dead key a macro already consumed is dropped. A bound one runs its
+   * macro and starts the guard that undoes the composition it opens. An
+   * unbound one composes as usual (´ then e → é).
+   */
+  private onDeadKey(e: KeyboardEvent): void {
+    if (this.deadEcho === e.code && !e.repeat) {
+      e.preventDefault();
+      return;
+    }
+    const snap = this.deadSnap ?? this.snapshot();
+    if (this.runMacro(e)) {
+      e.preventDefault();
+      this.deadSnap = snap;
+      this.deadEcho = e.code;
+      // Already composing (an earlier dead key): end it now.
+      if (e.isComposing) this.cancelComposition();
+      return;
+    }
+    if (this.deadSnap && this.deadEcho === null) {
+      // An unbound dead key after a consumed one was released: close what
+      // is left of the old composition and let this one compose.
+      if (e.isComposing) this.cancelComposition();
+      this.deadSnap = null;
+    }
+  }
+
+  private snapshot(): NonNullable<InputPane['deadSnap']> {
+    const i = this.input;
+    return {
+      value: i.value,
+      start: i.selectionStart ?? i.value.length,
+      end: i.selectionEnd ?? i.value.length,
+      dir: i.selectionDirection ?? 'none',
+    };
+  }
+
+  private readonly onKeyUp = (e: KeyboardEvent): void => {
+    if (e.code === this.deadEcho) this.deadEcho = null;
+  };
+
+  /** compositionstart/update: a consumed dead key's accent must not land. */
+  private readonly onComposition = (): void => {
+    if (this.deadSnap) this.cancelComposition();
+  };
+
+  private readonly onCompositionEnd = (): void => {
+    if (!this.deadSnap) return;
+    this.restoreSnapshot();
+    // Firefox may start another composition for the repeated keydown;
+    // keep guarding until the key is released. Firefox sends the final
+    // `input` after compositionend, so the guard ends a task later.
+    if (this.deadEcho === null && !this.cancellingComposition) {
+      const snap = this.deadSnap;
+      setTimeout(() => {
+        if (this.deadSnap === snap && this.deadEcho === null) this.deadSnap = null;
+      }, 0);
+    }
+  };
+
+  /**
+   * Ends the open composition and puts the line back. Blurring the field
+   * makes Firefox and Chrome end the composition; focus returns at once.
+   */
+  private cancelComposition(): void {
+    if (this.cancellingComposition) return;
+    this.cancellingComposition = true;
+    try {
+      if (this.doc.activeElement === this.input) {
+        this.input.blur();
+        this.input.focus({ preventScroll: true });
+      }
+    } finally {
+      this.cancellingComposition = false;
+    }
+    this.restoreSnapshot();
+  }
+
+  private restoreSnapshot(): void {
+    const s = this.deadSnap;
+    if (!s) return;
+    const i = this.input;
+    if (i.value !== s.value) i.value = s.value;
+    if (i.selectionStart !== s.start || i.selectionEnd !== s.end) i.setSelectionRange(s.start, s.end, s.dir);
+    this.updateMask();
+    this.scheduleCaret();
+  }
 
   /** Runs the macro bound to the key, if any. */
   private runMacro(e: KeyboardEvent): boolean {
@@ -507,7 +629,14 @@ export class InputPane {
     this.scheduleCaret();
   }
 
-  private readonly onInput = (): void => {
+  private readonly onInput = (e: Event): void => {
+    if (this.deadSnap) {
+      // The accent of a consumed dead key: undo it, and end the
+      // composition if one is still open.
+      if ((e as InputEvent).isComposing) this.cancelComposition();
+      else this.restoreSnapshot();
+      return;
+    }
     this.afterEdit();
   };
 
