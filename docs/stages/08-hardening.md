@@ -74,6 +74,13 @@ Part A:
       the replay; unit + e2e green; build.
 - [x] A6. Owner test.
 
+Deployment (owner brief 2026-09-28, spec §1.5):
+
+- [x] ADR 0022 private deployment (Tailscale Funnel, Caddy site dir).
+- [x] `npm run publish` (gate, staging build, site-root smoke test,
+      atomic swap, `--dry-run`, `--rollback`); `npm run test:prod`.
+- [ ] Owner: first publish once the system project's Caddy site is up.
+
 ## Test guide (part A)
 
 Open: History → a session with panes → RUN LOG. Then EXPORT the same

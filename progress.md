@@ -22,6 +22,19 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: private deployment
+
+- **Done:** ADR 0022 (Tailscale Funnel at `:8443/`, Caddy serves
+  `~/.local/share/tailweb/sajter/webcockpit/`, per-origin storage, headers).
+  `npm run publish`: clean tree, typecheck + unit, build to a staging
+  sibling, site-root smoke test (`tests/e2e-prod`, plain static server,
+  Chromium + Firefox), carry the live hashed assets one release, swap with
+  `mv --exchange`; `--dry-run`, `--rollback`. Tested against a scratch dir.
+- **Next:** owner publishes once the system project's Caddy site is up;
+  then plan the rest of stage 8.
+- **Open issues:** `replay/replay.js` is unhashed (ADR 0022 consequences).
+- **Commits:** (this commit).
+
 ### 2026-09-28 — Stage 8 part A (player viewer settings)
 
 - **Done:** owner brief → stage 8 part A. Stage file, ADR 0021. Gear in
