@@ -8,6 +8,7 @@ import type { RunLibrary } from '../../runs/library';
 import type { Session } from '../../runs/stitch';
 import type { Settings, SettingsStore } from '../../settings';
 import type { CellMetrics, CellSize } from '../../theme/cells';
+import type { MapStore } from '../../map/store';
 
 /** Everything the chrome needs from the rest of the app. */
 export interface ChromeServices {
@@ -33,6 +34,12 @@ export interface ChromeServices {
    * show when there is nothing to play, else null once the reel is up.
    */
   openSpotlights?: () => Promise<'no_data' | 'filtered' | null>;
+  /**
+   * The current map (ADR 0020; Options → Panes → Mapper, the HTML replay
+   * export). Absent: the Mapper page says the map store is not available
+   * and exports use the bundled map.
+   */
+  maps?: MapStore;
 }
 
 export const ServicesCtx = createContext<ChromeServices | null>(null);

@@ -34,6 +34,9 @@
 // (`show({ keep: true })`). Only from the start page, never over the
 // cockpit.
 //
+// Map (ADR 0020): `maps` (src/map/store.ts) is the current map, shared by
+// the cockpit's Map pane, the log player's and Options → Panes → Mapper.
+//
 // Spotlights (ADR 0019): `openSpotlights()` (the start page's Spotlights)
 // loads the reel (src/player/spotlight-reel.ts) and opens it in the same
 // player host (src/player/spotlight-mode.ts); ESC returns to the start
@@ -56,6 +59,8 @@ import { App, REASON_REPLAY_START } from './app';
 import { nowUs } from '../core/types';
 import { RunLibrary } from '../runs/library';
 import { uiValue } from './ui-messages';
+import { MapStore } from '../map/store';
+import { lazyDb } from '../panes/context';
 
 type ChromeModule = typeof import('../chrome');
 
@@ -76,6 +81,8 @@ export interface ShellOptions {
   probe?: BenchProbe | null;
   /** Profile store (tests inject one). */
   profiles?: ProfileStore;
+  /** Map store (tests inject one). */
+  maps?: MapStore;
 }
 
 export class Shell {
@@ -98,10 +105,13 @@ export class Shell {
   private swept = false;
   private player: PlayerHost | null = null;
   private playerOpening = false;
+  /** The current map (ADR 0020): the cockpit's and the log player's Map pane, Options → Mapper. */
+  readonly maps: MapStore;
 
   constructor(opts: ShellOptions) {
     this.opts = opts;
     this.profiles = opts.profiles ?? new ProfileStore();
+    this.maps = opts.maps ?? new MapStore({ openDb: lazyDb() });
     const doc = opts.root.ownerDocument;
     this.startHost = doc.createElement('div');
     this.startHost.className = 'wc-start-host';
@@ -219,6 +229,7 @@ export class Shell {
         root: this.opts.root,
         settings: this.opts.settings,
         onClose: () => this.closePlayer(),
+        map: this.maps.host(),
       });
       host.el.style.display = 'none';
       this.player = host;
@@ -274,6 +285,7 @@ export class Shell {
       cells,
       settings,
       profiles: this.profiles,
+      map: this.maps.host(),
       onEscape: () => void this.openMenu(),
       ...(probe ? { requestFrame: probe.requestFrame } : {}),
     });
@@ -309,6 +321,7 @@ export class Shell {
       runs: () => this.runLibrary(),
       openPlayer: (session) => void this.openPlayer(session),
       openSpotlights: () => this.openSpotlights(),
+      maps: this.maps,
     };
   }
 

@@ -73,6 +73,9 @@ export class MapPane extends PaneShell {
 
     this.onResize(() => this.sync());
     this.own(ctx.cells.subscribe(() => this.sync()));
+    // The current map changed (Options → Panes → Mapper): load the new one.
+    const unsubMap = this.host.subscribe?.(() => void this.reload());
+    if (unsubMap) this.own(unsubMap);
 
     const c = this.canvas;
     c.addEventListener('pointerdown', this.onPointerDown);
@@ -170,12 +173,23 @@ export class MapPane extends PaneShell {
       });
       if (!this.visible) this.client.visible(false);
       this.sync();
-      const source = this.host.source();
-      if (source) this.client.load(source);
+      const source = await this.host.source();
+      if (source) this.client?.load(source);
     } catch (err) {
       this.fail('error', `The map could not start: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       this.starting = false;
+    }
+  }
+
+  /** Loads the host's current map again (no-op before the worker runs). */
+  private async reload(): Promise<void> {
+    if (!this.client) return;
+    try {
+      const source = await this.host.source();
+      if (source) this.client?.load(source);
+    } catch (err) {
+      this.fail('error', `Map not loaded: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

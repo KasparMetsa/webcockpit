@@ -38,6 +38,7 @@ import { type ChainRun, type Timeline, type TimelineEdits, buildTimeline, playAt
 import { PlayerView, type PlayerViewOptions, runHeader } from '../player/view';
 import { commentLines } from '../share/edits';
 import type { ReplayClock } from '../player/clock';
+import type { MapPaneHost } from '../map/protocol';
 import { App } from './app';
 
 export interface PlayerHostOptions {
@@ -51,6 +52,12 @@ export interface PlayerHostOptions {
   wall?: Wall;
   /** Chrome auto-hide delay (tests). */
   hideMs?: number;
+  /**
+   * The Map pane's map (ADR 0020): the app's current map
+   * (`MapStore.host()`, the bytes are reused from memory), or the HTML
+   * replay's embedded subset. Default: the bundled map.
+   */
+  map?: MapPaneHost;
 }
 
 /** What the header shows besides the runs (from the History session). */
@@ -233,6 +240,7 @@ export class PlayerHost {
       clockUs: () => clock.nowUs(),
       requestFrame: gate.request,
       paneRequestFrame: gate.request,
+      ...(this.opts.map ? { map: this.opts.map } : {}),
     });
     this.appRef = app;
     const unsub = store.subscribe(() => this.relayout());
