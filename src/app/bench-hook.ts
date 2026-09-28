@@ -9,12 +9,16 @@
 // - A fake socket (`connectFake`) stands in for MUME: `inject` feeds bytes
 //   exactly like a WebSocket frame would, and `send` records its call time
 //   for the key → send measurement.
+// - Map (stage 9): `mapOn` turns the Map pane on; `startFeed` delivers a
+//   GMCP-only log (Room.Info, Event.Moved, Group.*) through the fake socket
+//   on a timer, looping, while the other measures run.
 
 import { Bus } from '../core/bus';
 import type { Line, Socketish } from '../core/types';
 import { logToFrames } from '../net/replay-socket';
 import { ScriptEngine } from '../script/engine';
 import { LineAssembler } from '../text/assembler';
+import type { SettingsStore } from '../settings/store';
 import type { App } from './app';
 
 export interface FlushRecord {
@@ -51,8 +55,12 @@ export class BenchProbe {
   private readonly channel = new MessageChannel();
   private postQueue: Array<() => void> = [];
   private frames: Uint8Array[] = [];
+  private feedFrames: Uint8Array[] = [];
+  private feedTimer = 0;
+  /** Frames delivered by the running feed. */
+  fed = 0;
 
-  constructor() {
+  constructor(private readonly settings: SettingsStore | null = null) {
     this.channel.port1.onmessage = () => {
       const q = this.postQueue;
       this.postQueue = [];
@@ -125,6 +133,34 @@ export class BenchProbe {
       t0 = performance.now();
       this.sock!.onData?.(bytes);
     });
+  }
+
+  /** Turns the Map pane on (Settings → panes.map.on). */
+  mapOn(): void {
+    this.settings!.update({ panes: { map: { on: true } } });
+  }
+
+  /** Splits a log into frames for `startFeed` (all its timestamps as one frame each). */
+  loadFeed(logText: string): number {
+    this.feedFrames = [...logToFrames(logText, { speed: 1 })].map((f) => f.bytes);
+    return this.feedFrames.length;
+  }
+
+  /** Delivers the next feed frame every `ms` through the fake socket, looping. */
+  startFeed(ms: number): void {
+    this.stopFeed();
+    let i = 0;
+    this.feedTimer = window.setInterval(() => {
+      if (!this.sock || this.feedFrames.length === 0) return;
+      this.sock.onData?.(this.feedFrames[i++ % this.feedFrames.length]!);
+      this.fed++;
+    }, ms);
+  }
+
+  stopFeed(): number {
+    window.clearInterval(this.feedTimer);
+    this.feedTimer = 0;
+    return this.fed;
   }
 
   /** Enter in the input with `text`; returns ms from keydown dispatch to socket send. */
@@ -250,8 +286,8 @@ declare global {
   }
 }
 
-export function installBenchProbe(): BenchProbe {
-  const p = new BenchProbe();
+export function installBenchProbe(settings: SettingsStore | null = null): BenchProbe {
+  const p = new BenchProbe(settings);
   window.__wcBench = p;
   return p;
 }

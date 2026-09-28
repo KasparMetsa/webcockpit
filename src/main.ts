@@ -57,7 +57,7 @@ const offline = benchMode || params.has('replay') || fixture !== null;
 let probe: BenchProbe | null = null;
 if (benchMode) {
   const { installBenchProbe } = await import('./app/bench-hook');
-  probe = installBenchProbe();
+  probe = installBenchProbe(settings);
 }
 
 const root = document.getElementById('app') ?? document.body;
