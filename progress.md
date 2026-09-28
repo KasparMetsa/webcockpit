@@ -30,8 +30,8 @@ Newest first.
   keyboard layout (Keyboard Map API, else learned from unshifted
   keydowns), so a Swedish keyboard shows `§`, `+`. Names stay code-based.
   1107 unit, 186 e2e pass.
-- **Next:** owner tests on a Swedish keyboard (guide in the stage file);
-  publish needs a version bump first.
+- **Published:** 1399d1e (0.1.2); smoke test passes against the live URL.
+- **Next:** owner tests on a Swedish keyboard (guide in the stage file).
 - **Open issues:** dead key `´` untested in real browsers; Firefox shows
   US labels until a key is pressed once unshifted.
 - **Commits:** 47129e4…0efc4d5, plus this one.
