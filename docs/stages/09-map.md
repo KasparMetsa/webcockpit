@@ -58,16 +58,17 @@ path finding, `.xml`/web JSON import.
       id `map` plumbing, `MapPane` + `MapClient` + worker skeleton
       (transfers the canvas, clears to `#2e3436`, answers load with
       room counts).
-- [ ] P1. Renderer (`src/map/render/*`): atlases, per-layer meshes, draw
+- [x] P1. Renderer (`src/map/render/*`): atlases, per-layer meshes, draw
       order, connections, infomarks, text, zoom/pan/layer, characters
       and arrows. Screenshot parity with the owner's screenshot area.
-- [ ] P2. Tracking: locator, prespam path, group mates, event
+- [x] P2. Tracking: locator, prespam path, group mates, event
       forwarding, `tests/fixtures/map-demo.log` from a real path.
-- [ ] P3. Options → Panes → Mapper (import, use bundled, status), pane
+- [x] P3. Options → Panes → Mapper (import, use bundled, status), pane
       default placement, log player loader, map subset embedded in the
       HTML replay.
-- [ ] P4. Merge; bench with the map on (ADR 0020 gates); main-session
-      verification with screenshots; test guide.
+- [x] P4. Merge; bench with the map on (ADR 0020 gates); verification
+      with screenshots (ADR 0020 "P4").
+- [ ] Test guide (main session).
 
 ## Test guide
 

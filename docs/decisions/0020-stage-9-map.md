@@ -394,3 +394,74 @@ research §7. The existing `GroupModel` is not changed.
   screenshot matches a DPR 2 render at zoom 1.0 scaled by 0.58 (51 px
   per room, Cantarell 36): tiles, walls, icons, connection lines and
   door-name labels line up.
+
+### P4 Integration and performance gate (2026-09-28)
+
+- **Checks.** typecheck, 1 049 unit tests, build, 178 e2e (Chromium and
+  Firefox) green. The flaky chromium `export.spec`/`player.spec` failure
+  (cursor on Gittan, not Rasta) was a load race, not a date bug: History
+  fills its list asynchronously and an `ArrowDown` sent before that was
+  lost. The specs now wait for the rows. (The fixture ages: its unsaved
+  Gittan runs pass the 14-day sweep cutoff from 2026-10-09; the sweep runs
+  when the start page first shows, before the tests restore the backup, so
+  it does not touch them today.)
+- **Replay tiles from the renderer's tables.** `neededAssets` maps the
+  subset's own room-mesh instances back through `ARRAY_FILES`
+  (`roomMeshPixmaps`), plus `CHARACTER_PIXMAPS` and `FONT_FILES`; its own
+  copies of the terrain/road/mob/load tables are gone. Nothing was
+  missing before; unused stream, climb and `room-highlight` tiles are no
+  longer embedded (e2e 30-room export: +491 kB). `CATEGORY_TEX` in
+  `rooms.ts` is the category → texture array table `drawLayer` uses. A
+  unit test checks arda.mm2 and eight subsets.
+- **Context restore.** The restored renderer now also gets the tracker's
+  current scene (it had the map only, so marker, path and mates were gone
+  until the next move), the old renderer is disposed, and the worker posts
+  `{t:'restored'}` (additive) so the pane drops its "context lost" notice.
+- **persistIds** verified: the cockpit's host has it, the log player's
+  (`MapStore.host()`) and the HTML replay (`IN_REPLAY`) do not;
+  `map-tracking.spec` checks the stored ids.
+- **Load timing** (additive): `loaded.info.stages` (fetch, inflate,
+  parse + indexes, hash, meshes + upload) and a once-per-load
+  `{t:'drawn', req, ms}` for the first frame with every tile and the font;
+  the pane mirrors them as `data-map-load` / `data-map-drawn-ms`.
+- **Bench** (`bench/browser-bench.ts`, `bench/results/latest.md`): a map-on
+  run of key → send, frame → paint, scrollback and burst (map-demo GMCP fed
+  every 100 ms; the burst log gets 2 158 GMCP lines, and its "off"
+  baseline replays the same log), a map-load run, and a `chromium-gpu`
+  configuration (ANGLE/Vulkan, the real GPU) next to the default headless
+  Chromium, which draws WebGL with SwiftShader. Off → on:
+
+  | | chromium (SwiftShader) | chromium-gpu | firefox |
+  |---|---|---|---|
+  | key → send p99 (ms) | 0.155 → 0.075 | 0.180 → 0.140 | 0.120 → 0.180 |
+  | paint: late frames; median (ms) | 0 → 4; 9.7 → 8.8 | 1 → 0; 9.4 → 9.2 | 0 → 0; 9.8 → 9.6 |
+  | scrollback at full (ms) | 3.18 → 1.82 | 4.99 → 5.05 | 3.58 → 4.04 |
+  | burst max frame (ms) | 20.9 → 650.7 | 21.2 → 26.4 | 24.6 → 22.7 |
+  | burst drain (ms) | 779 → 1 263 | 735 → 782 | 762 → 803 |
+
+  All budgets pass with the map on in `chromium-gpu` and Firefox. The
+  SwiftShader failures (4 late paints, one 0.65 s burst frame) are a
+  GPU-process artefact: a single WebGL flush of the map takes 0.3–0.7 s
+  on CPU (rare, early; most likely pipeline compiles), the worker waits in
+  its canvas readback and the page's frames wait on the same GPU thread,
+  while the main thread is idle (flush script < 1 ms). Chrome no longer
+  gives WebGL through SwiftShader by default, so users get a GPU or the
+  map's notice.
+- **Main thread, map on** (Chromium trace, every task from the settings
+  change to 1 s after the first complete frame): longest 2.3–4.7 ms. The
+  worst one is the cockpit's relayout rAF when a pane appears, and turning
+  the `ui` pane on costs the same (4–6.5 ms); the map's own JS (client
+  chunk, worker start, canvas transfer, messages) is under 2 ms per task.
+  Load, parse and mesh build run in the worker only.
+- **Load** (arda.mm2, 5.8 MB, localhost preview), turn on → first frame
+  with tiles and font: Chromium 535 ms, chromium-gpu 606 ms, Firefox
+  559 ms. In the worker (load start → that frame 480 / 521 / 460 ms):
+  fetch 188 / 226 / 167, inflate 61 / 63 / 70, parse + indexes 148 / 152 /
+  152, hash 5 / 5 / 4, meshes + upload 76 / 74 / 57 ms; tiles and font
+  arrive in the remaining ~60 ms.
+- **Visual check** (dev server, `map-demo.log` at speed 0.25): the map
+  follows every move (id, learned and direction matches), the marker, the
+  prespam path (`n;n;n`), group mates (squares in view, edge arrows off
+  view) and labels draw, and drag pans and the wheel zooms around the
+  cursor in all three configurations. `map.spec` now asserts that the
+  canvas changes on drag and on wheel.
