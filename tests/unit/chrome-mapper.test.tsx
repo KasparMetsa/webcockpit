@@ -73,7 +73,9 @@ async function pickFile(host: HTMLElement, name: string, bytes: Uint8Array): Pro
   expect(input.accept).toBe('.mm2');
   const file = new File([bytes as BlobPart], name);
   Object.defineProperty(input, 'files', { configurable: true, value: [file] });
-  await act(() => input.dispatchEvent(new Event('change')));
+  await act(() => {
+    input.dispatchEvent(new Event('change'));
+  });
   await settle();
 }
 
