@@ -4,12 +4,13 @@
 // there is no Apply and Back never discards.
 //
 //   Options hub:  Panes · Appearance · Spotlights · Back
-//   Panes hub:    General · Timers · Communication · Group · Back
-//                 (Cockpit's order)
+//   Panes hub:    General · Timers · Communication · Group · Mapper · Back
+//                 (Cockpit's order, then the map)
 //   General:      pane × colour grid with a Border column, reset layout
 //   Timers:       options-timers.tsx
 //   Communication: comm-options.tsx
 //   Group:        options-group.tsx
+//   Mapper:       options-mapper.tsx (ADR 0020)
 //   Appearance:   font, size, padding, cursor, colours, ANSI palette,
 //                 live preview box
 //   Spotlights:   options-spotlights.tsx
@@ -39,6 +40,7 @@ import {
 import { useGrid, useServices, useSettings } from '../kit/hooks';
 import { CommOptionsFrame } from './comm-options';
 import { GroupOptionsFrame } from './options-group';
+import { MapperOptionsFrame } from './options-mapper';
 import { SpotlightsOptionsFrame } from './options-spotlights';
 import { TimersOptionsFrame } from './options-timers';
 import { centreLeft, cycle, stepValue } from '../kit/nav';
@@ -90,6 +92,7 @@ export function PanesHub(): VNode {
     { key: 'timers', label: 'Timers', activate: () => nav.push(<TimersOptionsFrame />) },
     { key: 'comm', label: 'Communication', activate: () => nav.push(<CommOptionsFrame />) },
     { key: 'group', label: 'Group', activate: () => nav.push(<GroupOptionsFrame />) },
+    { key: 'mapper', label: 'Mapper', activate: () => nav.push(<MapperOptionsFrame />) },
     { key: 'sp', spacer: true },
     { key: 'back', label: 'Back', activate: () => nav.pop() },
   ];
