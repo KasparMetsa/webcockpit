@@ -227,3 +227,62 @@ research §7. The existing `GroupModel` is not changed.
 - **DB v7.** `maps` (keyPath `key`, record `current`: `StoredMap`) and
   `mapIds` (keyPath `['mapHash','serverId']`, `StoredMapId`). `mapHash` is
   a 32-hex SHA-256 prefix of the file bytes.
+
+### P2 Tracking (2026-09-28)
+
+- **Forwarding** (`MapEventForwarder`, `src/map/client.ts`). `MapPane`
+  subscribes its four handlers only while the pane is shown and its map is
+  loaded, and unsubscribes when hidden; each (re)start sends `{k:'resync'}`
+  (the worker drops its prespam queue and pending move). `cmd.sent` is one
+  push (secret commands skipped); `gmcp` is a lower-case lookup against
+  `MAP_GMCP_PACKAGES`; `text.line` runs one anchored regex
+  (`MOVE_FAILURE_RE`, MMapper's failure and death actions); `conn.state`
+  is forwarded as is. One `postMessage` per microtask. Measured in Node:
+  0.04–0.11 µs per event (unit test asserts < 0.05 ms); `postMessage` of a
+  move batch (cmd + Event.Moved + Room.Info) 2.4 µs Chromium, 4.7 µs
+  Firefox.
+- **Locator** (`src/map/locate.ts`) follows "Locating the player" and
+  adds two guards: a room whose own server id differs from `Room.Info.id`
+  is never matched by direction or text, and a learned id is used only
+  while its room's name equals `Room.Info.name` (else it is forgotten).
+  Besides direction/text matches it learns the exit ids Room.Info lists
+  for neighbours without a server id that the map reaches by exactly one
+  exit (as MMapper's path machine does). On `map-demo.log`: 29 of 29
+  Room.Infos located (8 by map id, 18 by learned id, 3 by direction +
+  name). Troll exit mapping only affects MMapper's sunlight flags while
+  mapping, so it is not used; Char.StatusVars gives the player's name.
+- **Event order.** `Event.Moved` is kept until the next `Room.Info`,
+  which is located with it (no Event.Moved = LOOK). A second
+  `Event.Moved` before a Room.Info steps blindly along a single-target
+  exit (MMapper fires the pending event there).
+- **Learned ids persist in the worker**: `src/map/worker/ids.ts` opens
+  the same `webcockpit` DB (`openWebcockpitDb` is worker-safe) and writes
+  `mapIds` records per batch, after `{t:'persistIds', on:true}`. The pane
+  sends it only for the app's own map (no `PaneContext.map` host, not the
+  replay build), so the log player and the HTML replay learn in memory
+  only. Stored ids are loaded after every map load. No main-thread cost.
+- **Prespam** (`src/map/path.ts`): MMapper's `isAbbrev` / first-word
+  rules, dequeue per Room.Info (mismatch clears), failure pops, death,
+  disconnect, connect and resync clear; `walkPath` as `walk_path`.
+- **Group** (`src/map/group.ts`): member table by Group.* id; `type:"you"`
+  is the player and gets no colour; Group.Set clears without releasing
+  hues (as MMapper's `resetChars`); ColorGenerator starts at the player
+  hue (60) and gives 198, 335, 113, …; members whose `text` equals the
+  Char.StatusVars name (non-NPC) are also hidden. A live disconnect or a
+  new connection clears the table; a finished replay keeps it.
+- **Worker**: on every located Room.Info the view re-centres on the
+  player and takes its layer; the renderer gets `setScene` only when the
+  scene changed; `status` (with an optional `how`) is posted on change.
+  Protocol additions: `MapEvent {k:'resync'}`, `MainToWorker
+  {t:'persistIds'}`, `status.how`. The pane mirrors status as
+  `data-map-located`, `data-map-room`, `data-map-how`.
+- **Fixture** `tests/fixtures/map-demo.log` (generator
+  `map-demo.gen.ts`, reads arda.mm2): 29 arrivals through Bree, invented
+  MUME ids (17 000 000 + room) for rooms the map has no id for, two rooms
+  with no id, one description that differs from the map, `n;n;n`
+  prespam, a failed move, a look, up/down, two mates with `mapid`.
+- **Unverified without live GMCP**: whether MUME's `Group.*` carries
+  `mapid` for members outside the player's room (Cockpit's gmcp.md
+  describes Group.* as room-scoped), whether `look` sends a Room.Info
+  (a queued `look` otherwise clears the queue on the next move, as in
+  MMapper), and the exact Room.Info exit object shape.
