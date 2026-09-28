@@ -31,7 +31,8 @@ Newest first.
   Never reloads by itself. Lost lazy chunks and a DB upgraded by a newer
   tab ("Storage: not saved") are reported instead of failing silently.
   1097 unit, 182 e2e, 10 prod e2e pass.
-- **Published:** 87eb347 (0.1.0); smoke test passes against the live URL.
+- **Published:** 87eb347 (0.1.0), then 75db548 (0.1.1, test publish of the
+  update notice); smoke test passes against the live URL.
 - **Next:** owner shares on Discord; every later publish bumps the version
   first (`npm version patch --no-git-tag-version`, commit).
 - **Open issues:** a failed map-worker load has no update hint (the Map
