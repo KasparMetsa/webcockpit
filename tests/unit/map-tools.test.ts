@@ -5,17 +5,17 @@ import { DIR_COUNT, type MapData, TERRAIN_ROAD } from '../../src/map/model';
 import { readMm2 } from '../../src/map/mm2';
 import { writeMm2 } from '../../src/map/mm2-write';
 import {
-  ALWAYS_PIXMAPS,
-  FONT_FILES,
   type MapVisits,
   extractVisits,
   neededAssets,
   replaySubset,
   resolveVisits,
-  roadSuffix,
   runMapToolRequest,
   spatialMargin,
 } from '../../src/map/tools';
+import { FONT_FILES, fontPagePath, FONT_SIZES, parseFnt } from '../../src/map/render/font';
+import { buildRoomMeshes, CATEGORIES, CATEGORY_TEX } from '../../src/map/render/rooms';
+import { ARRAY_FILES, CHARACTER_PIXMAPS, RENDERER_PIXMAPS, TEX } from '../../src/map/render/textures';
 import { gmcpLine, gridMap } from './map-grid';
 
 const inflate = async (z: Uint8Array): Promise<Uint8Array> => new Uint8Array(inflateSync(z));
@@ -114,22 +114,19 @@ describe('replaySubset', () => {
 });
 
 describe('neededAssets', () => {
-  it('lists the terrain, road and trail tiles, the flag overlays, the fixed tiles and the fonts', () => {
-    // Row 0 is road (road tiles), the rest field; room 12 has a road exit north (a trail).
+  it('lists the terrain, road and trail tiles, the flag overlays, the character tiles and the fonts', () => {
+    // Row 0 is road (road tiles), the rest field; room 4 has a road exit north (a trail).
     const map = gridMap(3, 3, { terrain: (i) => (i < 3 ? TERRAIN_ROAD : 3) });
     map.exitFlags[4 * DIR_COUNT + 0]! |= 4; // ROAD north on room 4
     map.mobFlags[5] = 1 << 12; // aggressive_mob
     map.loadFlags[6] = (1 << 15) | (1 << 9); // tower, pack_horse
-    expect(roadSuffix(map, 1)).toBe('ew');
-    expect(roadSuffix(map, 0)).toBe('e');
-    expect(roadSuffix(map, 4)).toBe('n');
     const a = neededAssets(map);
     for (const p of ['road-e.png', 'road-ew.png', 'road-w.png', 'terrain-field.png', 'trail-n.png', 'mob-aggmob.png', 'load-watch.png', 'load-pack.png']) {
       expect(a).toContain(`pixmaps/${p}`);
     }
     expect(a).not.toContain('pixmaps/terrain-road.png');
     expect(a).not.toContain('pixmaps/mellon.png');
-    for (const p of ALWAYS_PIXMAPS) expect(a).toContain(`pixmaps/${p}`);
+    for (const p of CHARACTER_PIXMAPS) expect(a).toContain(p);
     for (const f of FONT_FILES) expect(a).toContain(f);
   });
 
@@ -138,6 +135,54 @@ describe('neededAssets', () => {
     map.mobFlags.fill((1 << 19) - 1);
     map.loadFlags.fill((1 << 25) - 1);
     for (const p of neededAssets(map)) expect(existsSync(new URL(`../../public/map/${p}`, import.meta.url)), p).toBe(true);
+  });
+
+  it('every file the renderer loads exists, and the fonts name the pages the renderer falls back to', () => {
+    for (const p of [...RENDERER_PIXMAPS, ...FONT_FILES]) expect(existsSync(new URL(`../../public/map/${p}`, import.meta.url)), p).toBe(true);
+    for (const size of FONT_SIZES) {
+      const fnt = parseFnt(readFileSync(new URL(`../../public/map/fonts/Cantarell${size}.fnt`, import.meta.url), 'utf8'));
+      expect(fontPagePath(size, fnt.page)).toBe(fontPagePath(size));
+    }
+  });
+});
+
+// Every instance of the room meshes the renderer builds for arda.mm2 and
+// for replay subsets must sample a file the replay embeds (else the tile
+// is transparent in the HTML replay), and neededAssets only lists files
+// the renderer loads.
+describe('neededAssets matches the renderer (arda.mm2)', () => {
+  const ARDA_FILE = new URL('../../public/map/arda.mm2', import.meta.url);
+  const TEX_FILES: Record<number, readonly string[]> = {};
+  const check = (map: MapData): void => {
+    const need = new Set(neededAssets(map));
+    const loadable = new Set([...RENDERER_PIXMAPS, ...FONT_FILES]);
+    for (const p of need) expect(loadable.has(p), p).toBe(true);
+    for (const m of buildRoomMeshes(map)) {
+      for (const cat of CATEGORIES) {
+        if (cat === 'tintDark' || cat === 'tintNoSundeath' || cat === 'dotted') continue;
+        const files = TEX_FILES[CATEGORY_TEX[cat]]!;
+        const { first, count } = m.ranges[cat];
+        for (let i = first; i < first + count; i++) {
+          const f = `pixmaps/${files[m.inst[i * 4 + 3]! & 0xff]}`;
+          expect(need.has(f), `${cat} ${f}`).toBe(true);
+        }
+      }
+    }
+  };
+  it('full map and subsets around several areas', async () => {
+    TEX_FILES[TEX.A128] = ARRAY_FILES.A128.files;
+    TEX_FILES[TEX.A64] = ARRAY_FILES.A64.files;
+    TEX_FILES[TEX.A256] = ARRAY_FILES.A256.files;
+    const map = await readMm2(readFileSync(ARDA_FILE), inflate);
+    check(map);
+    // Eight areas spread over the rooms that have a server id.
+    const withId = [...Array(map.roomCount).keys()].filter((r) => map.serverId[r]! > 0);
+    for (let k = 0; k < 8; k++) {
+      const r = withId[Math.floor((k * withId.length) / 8)]!;
+      const s = replaySubset(map, { rooms: [{ id: map.serverId[r]! }], mapIds: [] });
+      expect(s, `room ${r}`).not.toBeNull();
+      check(s!.map);
+    }
   });
 });
 

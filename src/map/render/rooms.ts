@@ -9,7 +9,7 @@
 
 import { DIR_COUNT, EXIT_FLAG, LIGHT, type MapData, RIDABLE, SUNDEATH, TERRAIN_ROAD } from '../model';
 import { NC } from './palette';
-import { L128, L256 } from './textures';
+import { ARRAY_FILES, L128, L256, TEX, type TexArray } from './textures';
 
 export interface Range {
   first: number;
@@ -21,6 +21,26 @@ export const CATEGORIES = [
   'upDown', 'doors', 'walls', 'dotted',
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
+
+/**
+ * The texture array each category is drawn with (webgl.ts drawLayer).
+ * The tints are drawn white (the bound texture is not sampled).
+ */
+export const CATEGORY_TEX: Readonly<Record<Category, TexArray>> = {
+  terrain: TEX.A128,
+  tintDark: TEX.A128,
+  tintNoSundeath: TEX.A128,
+  streamIns: TEX.A128,
+  streamOuts: TEX.A128,
+  trails: TEX.A64,
+  overlays: TEX.A128,
+  upDown: TEX.A128,
+  doors: TEX.A256,
+  walls: TEX.A128,
+  dotted: TEX.DOTTED,
+};
+const UNTEXTURED: ReadonlySet<Category> = new Set(['tintDark', 'tintNoSundeath']);
+const FILE_ARRAYS: Partial<Record<TexArray, keyof typeof ARRAY_FILES>> = { [TEX.A128]: 'A128', [TEX.A64]: 'A64', [TEX.A256]: 'A256' };
 
 export interface RoomLayerMesh {
   z: number;
@@ -164,6 +184,25 @@ export function buildRoomMeshes(map: MapData, layers = roomsByLayer(map)): RoomL
       at += l.length;
     }
     out.push({ z, inst, ranges });
+  }
+  return out;
+}
+
+/**
+ * The pixmaps (paths relative to the asset root) these room meshes sample:
+ * each textured instance's layer mapped back through ARRAY_FILES. The HTML
+ * replay embeds exactly these, so the list cannot drift from the renderer.
+ */
+export function roomMeshPixmaps(meshes: readonly RoomLayerMesh[]): Set<string> {
+  const out = new Set<string>();
+  for (const m of meshes) {
+    for (const cat of CATEGORIES) {
+      const arr = FILE_ARRAYS[CATEGORY_TEX[cat]];
+      if (!arr || UNTEXTURED.has(cat)) continue;
+      const files = ARRAY_FILES[arr].files;
+      const { first, count } = m.ranges[cat];
+      for (let i = first; i < first + count; i++) out.add(`pixmaps/${files[m.inst[i * 4 + 3]! & 0xff]!}`);
+    }
   }
   return out;
 }

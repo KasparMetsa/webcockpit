@@ -16,7 +16,10 @@
 // it only has to find the area to embed.
 
 import { captureEntries } from '../share/capture';
-import { DIR_COUNT, DIR, EXIT_FLAG, LOAD_FLAGS, MOB_FLAGS, type MapData, TERRAIN, TERRAIN_ROAD, roomsByNameDesc } from './model';
+import { DIR_COUNT, type MapData, roomsByNameDesc } from './model';
+import { FONT_FILES } from './render/font';
+import { buildRoomMeshes, roomMeshPixmaps } from './render/rooms';
+import { CHARACTER_PIXMAPS } from './render/textures';
 import { type Inflate, inflateZlib, mapHash, readMm2 } from './mm2';
 import { type Deflate, deflateZlib, writeMm2 } from './mm2-write';
 import type { MapSource } from './protocol';
@@ -178,113 +181,16 @@ export function replaySubset(
 
 // ------------------------------------------------------------- assets
 
-/** Road / trail tile suffix of the NESW exits with the ROAD flag (research §3, `display/RoadIndex.cpp`). */
-export function roadSuffix(map: MapData, room: number): string {
-  const has = (d: number): boolean => (map.exitFlags[room * DIR_COUNT + d]! & EXIT_FLAG.ROAD) !== 0;
-  const s = (has(DIR.N) ? 'n' : '') + (has(DIR.E) ? 'e' : '') + (has(DIR.S) ? 's' : '') + (has(DIR.W) ? 'w' : '');
-  return s === '' ? 'none' : s === 'nesw' ? 'all' : s;
-}
-
-/** Tile file names of the mob flags (bit order of MOB_FLAGS; research §3.5). */
-const MOB_FILES: Readonly<Record<string, string>> = {
-  rent: 'rent',
-  shop: 'shop',
-  weapon_shop: 'weaponshop',
-  armour_shop: 'armourshop',
-  food_shop: 'foodshop',
-  pet_shop: 'petshop',
-  guild: 'guild',
-  scout_guild: 'scoutguild',
-  mage_guild: 'mageguild',
-  cleric_guild: 'clericguild',
-  warrior_guild: 'warriorguild',
-  ranger_guild: 'rangerguild',
-  aggressive_mob: 'aggmob',
-  quest_mob: 'questmob',
-  passive_mob: 'passivemob',
-  elite_mob: 'elitemob',
-  super_mob: 'smob',
-  milkable: 'milkable',
-  rattlesnake: 'rattlesnake',
-};
-
-/** Tile file names of the load flags (bit order of LOAD_FLAGS; research §3.5). */
-const LOAD_FILES: Readonly<Record<string, string>> = {
-  treasure: 'treasure',
-  armour: 'armour',
-  weapon: 'weapon',
-  water: 'water',
-  food: 'food',
-  herb: 'herb',
-  key: 'key',
-  mule: 'mule',
-  horse: 'horse',
-  pack_horse: 'pack',
-  trained_horse: 'trained',
-  rohirrim: 'rohirrim',
-  warg: 'warg',
-  boat: 'boat',
-  attention: 'attention',
-  tower: 'watch',
-  clock: 'clock',
-  mail: 'mail',
-  stable: 'stable',
-  white_word: 'whiteword',
-  dark_word: 'darkword',
-  equipment: 'equipment',
-  coach: 'coach',
-  ferry: 'ferry',
-  deathtrap: 'deathtrap',
-};
-
-const DIR_WORDS = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
-
-/** Tiles every map may draw (walls, doors, exits, streams, markers): always embedded. */
-export const ALWAYS_PIXMAPS: readonly string[] = [
-  'no-ride.png',
-  'char-room-sel.png',
-  'char-arrows.png',
-  'room-highlight.png',
-  ...DIR_WORDS.slice(0, 4).map((d) => `wall-${d}.png`),
-  ...DIR_WORDS.map((d) => `door-${d}.png`),
-  'exit-up.png',
-  'exit-down.png',
-  'exit-climb-up.png',
-  'exit-climb-down.png',
-  ...DIR_WORDS.flatMap((d) => [`stream-in-${d}.png`, `stream-out-${d}.png`]),
-];
-
-/** The Cantarell BMFont files (18 / 27 / 36 px, picked by the viewer's DPR). */
-export const FONT_FILES: readonly string[] = [18, 27, 36].flatMap((s) => [`fonts/Cantarell${s}.fnt`, `fonts/Cantarell${s}_0.png`]);
-
 /**
- * The asset paths (relative to the asset root) a map draws: the terrain,
- * road and trail tiles of its rooms, the overlays of the flags it uses,
- * `ALWAYS_PIXMAPS` and the fonts. Any other tile is left out of an HTML
- * replay; the replay's asset source answers it with a transparent 1×1 PNG.
+ * The asset paths (relative to the asset root) a map draws, taken from the
+ * renderer's own tables: the pixmaps its room meshes sample
+ * (`roomMeshPixmaps`), the characters' pixmaps and every font size. Any
+ * other tile is left out of an HTML replay; the replay's asset source
+ * answers it with a transparent 1×1 PNG.
  */
 export function neededAssets(map: MapData): string[] {
-  const px = new Set<string>(ALWAYS_PIXMAPS);
-  let mob = 0;
-  let load = 0;
-  for (let r = 0; r < map.roomCount; r++) {
-    const t = map.terrain[r]!;
-    if (t === TERRAIN_ROAD) px.add(`road-${roadSuffix(map, r)}.png`);
-    else {
-      px.add(`terrain-${TERRAIN[t] ?? 'undefined'}.png`);
-      const s = roadSuffix(map, r);
-      if (s !== 'none') px.add(`trail-${s}.png`);
-    }
-    mob |= map.mobFlags[r]!;
-    load |= map.loadFlags[r]!;
-  }
-  MOB_FLAGS.forEach((f, i) => {
-    if (mob & (1 << i)) px.add(`mob-${MOB_FILES[f]}.png`);
-  });
-  LOAD_FLAGS.forEach((f, i) => {
-    if (load & (1 << i)) px.add(`load-${LOAD_FILES[f]}.png`);
-  });
-  return [...[...px].sort().map((p) => `pixmaps/${p}`), ...FONT_FILES];
+  const px = new Set<string>([...roomMeshPixmaps(buildRoomMeshes(map)), ...CHARACTER_PIXMAPS]);
+  return [...[...px].sort(), ...FONT_FILES];
 }
 
 // --------------------------------------------------------- tool calls

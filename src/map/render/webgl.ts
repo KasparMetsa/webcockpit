@@ -18,11 +18,11 @@ import { EMPTY_SCENE, type Scene } from '../scene';
 import type { View } from '../view';
 import { buildScene, type SceneGeometry } from './characters';
 import { buildConnections, type ConnectionLayer, type MapText } from './connections';
-import { type FontMetrics, FontVerts, FONT_STRIDE, fontSizeForDpr, layoutText, parseFnt } from './font';
+import { type FontMetrics, FontVerts, FONT_STRIDE, fontFntPath, fontPagePath, fontSizeForDpr, layoutText, parseFnt } from './font';
 import { COLOR_STRIDE } from './geometry';
 import { buildInfomarks, type InfomarkLayer } from './infomarks';
 import { BACKGROUND, BLACK, GRAY70, NAMED_COLORS, type RGBA, WATER, WHITE, withAlpha } from './palette';
-import { buildRoomMeshes, type Category, roomsByLayer, type RoomLayerMesh } from './rooms';
+import { buildRoomMeshes, type Category, CATEGORY_TEX, roomsByLayer, type RoomLayerMesh } from './rooms';
 import * as S from './shaders';
 import { ARRAY_FILES, CHAR_ARROWS_FILE, dottedWallImages, TEX } from './textures';
 import type { Renderer } from './renderer';
@@ -225,9 +225,9 @@ export class WebGLMapRenderer implements Renderer {
   private async loadFont(size: number): Promise<void> {
     const req = ++this.fontLoading;
     try {
-      const fnt = await (await this.assets(`fonts/Cantarell${size}.fnt`)).text();
+      const fnt = await (await this.assets(fontFntPath(size))).text();
       const fm = parseFnt(fnt);
-      const img = await bitmap(this.assets, `fonts/${fm.page || `Cantarell${size}_0.png`}`);
+      const img = await bitmap(this.assets, fontPagePath(size, fm.page));
       if (req !== this.fontLoading || this.disposed || !img) return;
       const gl = this.gl;
       if (this.fontTex) gl.deleteTexture(this.fontTex);
@@ -431,10 +431,10 @@ export class WebGLMapRenderer implements Renderer {
     gl.useProgram(this.room.p);
     gl.bindVertexArray(l.roomVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, l.roomVbo);
-    const draw = (cat: Category, tex: number, c: RGBA, white = false) => {
+    const draw = (cat: Category, c: RGBA, white = false) => {
       const range = r.ranges[cat];
       if (!range.count) return;
-      const t = this.arrays[tex];
+      const t = this.arrays[CATEGORY_TEX[cat]];
       if (!white && !t) return; // still loading
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D_ARRAY, t ?? null);
@@ -443,27 +443,27 @@ export class WebGLMapRenderer implements Renderer {
       gl.vertexAttribIPointer(0, 4, gl.INT, 16, range.first * 16);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, range.count);
     };
-    if (noTex) draw('terrain', TEX.A128, withAlpha(WHITE, 0.2), true);
-    else draw('terrain', TEX.A128, color);
+    if (noTex) draw('terrain', withAlpha(WHITE, 0.2), true);
+    else draw('terrain', color);
     gl.blendFuncSeparate(gl.ZERO, gl.SRC_COLOR, gl.ZERO, gl.ONE);
-    draw('tintDark', TEX.A128, WHITE, true);
-    draw('tintNoSundeath', TEX.A128, WHITE, true);
+    draw('tintDark', WHITE, true);
+    draw('tintNoSundeath', WHITE, true);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     if (!noTex) {
       const stream: RGBA = [WATER[0] * color[0], WATER[1] * color[1], WATER[2] * color[2], color[3]];
-      draw('streamIns', TEX.A128, stream);
-      draw('streamOuts', TEX.A128, stream);
-      draw('trails', TEX.A64, color);
-      draw('overlays', TEX.A128, color);
+      draw('streamIns', stream);
+      draw('streamOuts', stream);
+      draw('trails', color);
+      draw('overlays', color);
     }
-    draw('upDown', TEX.A128, color);
-    draw('doors', TEX.A256, color);
-    draw('walls', TEX.A128, color);
-    draw('dotted', TEX.DOTTED, color);
+    draw('upDown', color);
+    draw('doors', color);
+    draw('walls', color);
+    draw('dotted', color);
     if (l.z !== cur) {
       const d = Math.abs(cur - l.z);
       const alpha = Math.min(1, Math.max(0, (l.z < cur ? 0.5 : 0.1) + 0.03 * d));
-      draw('terrain', TEX.A128, withAlpha(l.z < cur || noTex ? BLACK : WHITE, alpha), true);
+      draw('terrain', withAlpha(l.z < cur || noTex ? BLACK : WHITE, alpha), true);
     }
     gl.bindVertexArray(null);
   }

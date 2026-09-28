@@ -83,6 +83,17 @@ export const ARRAY_FILES: Readonly<Record<'A128' | 'A64' | 'A256', { size: numbe
 /** The off-screen arrow atlas (a plain 2D texture). */
 export const CHAR_ARROWS_FILE = 'char-arrows.png';
 
+/** Pixmaps the characters layer draws on any map (the room square, the edge arrows). */
+export const CHARACTER_PIXMAPS: readonly string[] = [`pixmaps/${ARRAY_FILES.A256.files[L256.charRoomSel]!}`, `pixmaps/${CHAR_ARROWS_FILE}`];
+
+/** Every pixmap path (relative to the asset root) the renderer loads. */
+export const RENDERER_PIXMAPS: readonly string[] = [
+  ...ARRAY_FILES.A128.files,
+  ...ARRAY_FILES.A64.files,
+  ...ARRAY_FILES.A256.files,
+  CHAR_ARROWS_FILE,
+].map((f) => `pixmaps/${f}`);
+
 /**
  * MMapper's generated dotted-wall mip chain for one direction
  * (display/Textures.cpp createDottedWallImages): 128 → 1 px, RGBA, rows

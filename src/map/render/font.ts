@@ -43,6 +43,15 @@ export interface FontMetrics {
 const MARGIN_X = 2;
 const MARGIN_Y = 1;
 
+/** The Cantarell sizes (MMapper's 18 / 27 / 36 px BMFonts). */
+export const FONT_SIZES = [18, 27, 36] as const;
+/** The `.fnt` file of a size, relative to the asset root. */
+export const fontFntPath = (size: number): string => `fonts/Cantarell${size}.fnt`;
+/** The page image of a size (`page` from the `.fnt`, else the file shipped with it). */
+export const fontPagePath = (size: number, page = ''): string => `fonts/${page || `Cantarell${size}_0.png`}`;
+/** Every font file the renderer may load (one size per DPR). */
+export const FONT_FILES: readonly string[] = FONT_SIZES.flatMap((s) => [fontFntPath(s), fontPagePath(s)]);
+
 /** The Cantarell size MMapper picks for a device pixel ratio (GLFont::getFontFilename). */
 export function fontSizeForDpr(dpr: number): 18 | 27 | 36 {
   return dpr > 1.75 ? 36 : dpr > 1.25 ? 27 : 18;
