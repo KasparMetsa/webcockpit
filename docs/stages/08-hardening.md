@@ -97,6 +97,13 @@ Public release (owner brief 2026-09-28):
       indicator and a `[SYSTEM]` line; lazy chunk and superseded-storage
       notices; unit + e2e-prod tests.
 
+Printable key macros (owner request 2026-09-28):
+
+- [x] Printable key macros (ADR 0026): bare and Shift+ letters, digits,
+      punctuation and Space bindable; the editor warns "types text";
+      the input line consumes a bound key; key labels follow the
+      keyboard layout (`§`, `+`); unit + e2e tests.
+
 ## Test guide (part A)
 
 Open: History → a session with panes → RUN LOG. Then EXPORT the same
@@ -118,6 +125,28 @@ Try:
 Feedback wanted: the gear's place and the fold-out's look; whether the
 theme and font choices are right; anything in a pane that still reacts
 to clicks in a way it should not.
+
+## Test guide (printable key macros)
+
+Open: Profile → EDIT → Macros (Swedish keyboard; Chrome and Firefox if
+you can).
+
+Try:
+
+1. `n`, then press `§`: the key cell shows `[ § ]` and the hint area says
+   "§ overrides the input line (types text)." Give it a body such as
+   `#showme paragraph`.
+2. Bind `Shift+1` (shows `Shift+1`), `+` (shows `+`) and `a` the same
+   way. In Firefox a punctuation key bound with Shift may show its US
+   name (`` Shift+` ``) until the key has been pressed once without
+   Shift (Chrome knows the layout from the start).
+3. Save, Enter MUME (or `?replay`), and press the keys in the input line:
+   each runs its macro and types nothing. An unbound key (`b`, `2`) still
+   types. `Shift+a` types `A` unless you bound it.
+4. In the password prompt at login, bound keys type normally.
+
+Feedback wanted: whether the labels match your keyboard; whether losing
+the character in the input line is ever a problem in play.
 
 ## Owner feedback
 
