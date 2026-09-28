@@ -79,7 +79,8 @@ Deployment (owner brief 2026-09-28, spec §1.5):
 - [x] ADR 0022 private deployment (Tailscale Funnel, Caddy site dir).
 - [x] `npm run publish` (gate, staging build, site-root smoke test,
       atomic swap, `--dry-run`, `--rollback`); `npm run test:prod`.
-- [ ] Owner: first publish once the system project's Caddy site is up.
+- [x] First publish (b7649b1); live site checked: headers, MIME types
+      and the smoke test via `WC_PROD_URL` all pass.
 
 ## Test guide (part A)
 

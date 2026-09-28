@@ -80,7 +80,8 @@ page error, `crossOriginIsolated` is true, the map worker loads
 `map/arda.mm2` and draws tiles, the fonts load, `replay/replay.js`,
 `map/arda.mm2` and the fonts have the right types and headers, and
 `/__fixtures/list` is 404. `npm run build && npm run test:prod` runs it
-by hand.
+by hand; `WC_PROD_URL=<site> npm run test:prod` runs it against a
+deployed site.
 
 ### Headers
 
