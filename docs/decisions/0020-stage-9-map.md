@@ -112,6 +112,9 @@ research §7. The existing `GroupModel` is not changed.
   The worker validates before the record is replaced; a bad file
   flashes an error and keeps the current map.
 - Only `.mm2` (v42) is supported now. `.xml` / web JSON stay open.
+  *Amended 2026-09-28 (owner test 1):* `.mm2` versions 17–42 are read
+  (every schema MMapper 26.06 reads; 37 was never released), converted
+  to the current MapData. See "Amendment: older `.mm2` versions" below.
 
 ### Pane
 
@@ -465,3 +468,42 @@ research §7. The existing `GroupModel` is not changed.
   view) and labels draw, and drag pans and the wheel zooms around the
   cursor in all three configurations. `map.spec` now asserts that the
   canvas changes on drag and on wheel.
+
+### Amendment: older `.mm2` versions (2026-09-28, owner test 1)
+
+The owner's `arda(1).mm2` is schema 36 (MMapper 19.10 … 25.03). The
+reader now takes every schema MMapper 26.06.0 accepts: 17, 24, 25, 32–36,
+38–42 (the same list as its `mapstorage.cpp`). Other versions fail with
+"Unsupported MMapper map version N: versions 17–42 (MMapper 2.0 to
+26.06, except 37) can be read, and …" (newer: "newer than this reader
+knows"). The conversions are ported from MMapper's loader, with an
+origin comment in `src/map/mm2.ts`:
+
+- Storage: v ≥ 34 qCompress (u32 length + zlib), 25–33 a bare zlib stream
+  after the 8-byte header, < 25 uncompressed. Strings are QString
+  (UTF-16BE) in every version.
+- Rooms: area from 42, server id from 40 (0 before), terrain 15 (death)
+  before 41 → INDOORS + DEATHTRAP load flag, an upToDate byte before 39,
+  ridable from 24, sundeath and 32-bit mob/load and 16-bit exit flags
+  from 33 (else 16/16/8 bits), 16-bit door flags from 32 (else 8),
+  NO_MATCH exit flags dropped for 25–34 (MMapper: corrupt in those),
+  y negated before 36 (south was +y), for the selected position too.
+- Exits: before 38 each exit also stores inbound links. As in
+  `WorldBuilder::sanitize`, an inbound link A → B without A's outgoing
+  link adds it; dangling ones are ignored. Incoming is rebuilt as before.
+- Infomarks: before 36 a name string and a QDateTime (9 bytes, Qt 4.8
+  stream) are skipped, the angle is stored ×100, and
+  `transformInfomarkOnLoad` applies (half-room offset, TEXT and ARROW
+  nudges, angle negated, y negated). Class and angle exist from 32.
+- All versions, as MMapper's `toEnum` / `bitmaskToFlags`: unknown
+  terrain, light, align, portable, ridable and sundeath values become 0
+  (UNDEFINED) and flags are masked to the defined bits.
+
+`mm2-write.ts` takes a schema version (tests only; the replay export
+keeps v42) and inverts these conversions. `arda(1).mm2` parses to 30 074
+rooms, 674 infomarks, the same bounds and positions as the bundled v42
+`arda.mm2`, 52 death rooms → DEATHTRAP, 85 921 links (one dangling
+dropped, one added from an inbound list), no server ids. Its render at
+the Orc Sleeping Warrens matches the bundled map pixel for pixel.
+With no server ids, the locator works from direction and text matches
+and learned ids (P2), as for the 84 % of arda.mm2 rooms without one.

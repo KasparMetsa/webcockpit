@@ -115,5 +115,5 @@ older map failed: `~/Downloads/arda(1).mm2` is version 36 ("only version
 42 can be read"). Wanted: import older `.mm2` versions too, since some
 users still run such files.
 
-- [ ] Read older `.mm2` versions (at least 36 → 42, as MMapper 26.06
-      does).
+- [x] Read older `.mm2` versions (at least 36 → 42, as MMapper 26.06
+      does). Done: versions 17–42, as MMapper 26.06 (ADR 0020 amendment).
