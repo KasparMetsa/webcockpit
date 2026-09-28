@@ -39,6 +39,26 @@ test('the default profile macros and a typed alias send to the game', async ({ p
   expect(await shown.locator('span').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 0, 0)');
 });
 
+test('macros on printable keys win over typing (ADR 0026)', async ({ page }) => {
+  await page.goto('/?replay');
+  await expect(rows(page).first()).toHaveText(/Offline replay mode/);
+  const r = await page.evaluate(() =>
+    window.__wc!.app.applyProfile(['#macro {a} {#showme bare-a}', '#macro {Shift+B} {#showme shift-b}', '#macro {Shift+1} {#showme shift-1}'].join('\n')),
+  );
+  expect(r).toEqual({ ok: true, warnings: [] });
+  const input = page.locator('.wc-input-field');
+  await input.focus();
+  await page.keyboard.press('KeyA');
+  await page.keyboard.press('Shift+KeyB');
+  await page.keyboard.press('Shift+Digit1');
+  await page.keyboard.press('KeyB');
+  await page.keyboard.press('Digit1');
+  await expect(rows(page).filter({ hasText: /^bare-a$/ })).toHaveCount(1);
+  await expect(rows(page).filter({ hasText: /^shift-b$/ })).toHaveCount(1);
+  await expect(rows(page).filter({ hasText: /^shift-1$/ })).toHaveCount(1);
+  await expect(input).toHaveValue('b1');
+});
+
 test('highlights, substitutes and gags change only the display in a replay', async ({ page }) => {
   await page.goto('/?replay');
   await expect(rows(page).first()).toHaveText(/Offline replay mode/);

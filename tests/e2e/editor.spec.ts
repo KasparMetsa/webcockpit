@@ -26,6 +26,13 @@ const bufferText = (page: Page) =>
 const stored = (page: Page, name = 'default') =>
   page.evaluate((n) => window.__wc!.shell.profiles.get(n).then((r) => r?.text ?? null), name);
 
+/** The hint area's warning, its wrapped lines joined. */
+const warnText = (page: Page) =>
+  ped(page)
+    .locator('.wc-ped-warn')
+    .allTextContents()
+    .then((l) => l.map((x) => x.trim()).join(' '));
+
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -149,8 +156,6 @@ test('macro key capture: F5 binds, Ctrl+W is rejected, ESC cancels a new entry',
   await expect(overlay).toContainText('Press the key to bind…');
   await page.keyboard.press('Control+w');
   await expect(overlay.locator('.wc-ped-capture-error')).toHaveText('The browser keeps that key.');
-  await page.keyboard.press('a');
-  await expect(overlay.locator('.wc-ped-capture-error')).toHaveText('That key types text; add Ctrl or Alt.');
   await page.keyboard.press('F5');
   await expect(overlay).toHaveCount(0);
   await expect(footer(page)).toHaveText('Bound to F5.');
@@ -178,6 +183,36 @@ test('macro key capture: F5 binds, Ctrl+W is rejected, ESC cancels a new entry',
   await page.keyboard.press('Escape');
   await expect(page.locator('.wc-start .wc-frame:not([hidden]) .wc-flash')).toHaveText('Saved default.');
   expect(await stored(page)).toBe('#macro {F1} {one}\n#macro {Ctrl+A} {draw}\n');
+});
+
+test('macro key capture: printable keys bind and warn (ADR 0026)', async ({ page }) => {
+  await openFromStart(page, '#macro {F1} {one}\n');
+  await kind(page, 'macro');
+  await page.keyboard.press('n');
+  const overlay = ped(page).locator('.wc-ped-overlay');
+  await expect(overlay).toContainText('Press the key to bind…');
+  await page.keyboard.press('a');
+  await expect(overlay).toHaveCount(0);
+  await expect(footer(page)).toHaveText('Bound to a.');
+  await expect(ped(page).locator('[data-field="key"]')).toHaveText('[ a ]');
+  await expect.poll(() => warnText(page)).toBe('a overrides the input line (types text).');
+  await page.keyboard.type('two');
+
+  // + New entry, Shift+1.
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(overlay).toBeVisible();
+  await page.keyboard.press('Shift+Digit1');
+  await expect(overlay).toHaveCount(0);
+  await expect(ped(page).locator('[data-field="key"]')).toHaveText('[ Shift+1 ]');
+  await expect.poll(() => warnText(page)).toBe('Shift+1 overrides the input line (types text).');
+  await page.keyboard.type('three');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.wc-start .wc-frame:not([hidden]) .wc-flash')).toHaveText('Saved default.');
+  expect(await stored(page)).toBe('#macro {F1} {one}\n#macro {A} {two}\n#macro {Shift+1} {three}\n');
 });
 
 test('highlight picker: styles, text and background swatches', async ({ page }) => {
