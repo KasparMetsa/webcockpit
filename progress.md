@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **8 — Hardening → v1** (not started).
+Current stage: **9 — Map** (in progress; built before stage 8 by owner request).
 
 ## Stages
 
@@ -13,8 +13,8 @@ Current stage: **8 — Hardening → v1** (not started).
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
 | 7 | Sharing | Done | `docs/stages/07-sharing.md` |
-| 8 | Hardening → v1 | Next | — |
-| 9 | Map (after v1) | — | — |
+| 8 | Hardening → v1 | Next after 9 | — |
+| 9 | Map | In progress | `docs/stages/09-map.md` |
 
 Statuses: Next, In progress, Owner testing, Done.
 
