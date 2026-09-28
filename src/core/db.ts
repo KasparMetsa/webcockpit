@@ -39,6 +39,12 @@
 // Every connection closes itself on `versionchange`, so a tab running newer
 // code can upgrade the database while this tab stays open. The module that
 // owns a connection must be ready for its transactions to fail afterwards.
+//
+// Superseded (ADR 0025): once a newer tab has upgraded the database past
+// DB_VERSION (a `versionchange` to a higher version, or an open that fails
+// with `VersionError`), this tab can no longer save anything; its stores
+// fall back to memory. `onDbSuperseded` tells the app so it can say so. Other
+// open failures (private mode, no IndexedDB) are not reported here.
 
 export const DB_NAME = 'webcockpit';
 export const DB_VERSION = 7;
@@ -58,6 +64,48 @@ export const STORE = {
 } as const;
 
 let persistAsked = false;
+
+let superseded = false;
+const supersededListeners = new Set<() => void>();
+
+/**
+ * Calls `fn` once when this page's database is superseded by a newer
+ * version (see the file header); at once if it already is. Returns the
+ * unsubscribe function.
+ */
+export function onDbSuperseded(fn: () => void): () => void {
+  if (superseded) {
+    fn();
+    return () => {};
+  }
+  supersededListeners.add(fn);
+  return () => supersededListeners.delete(fn);
+}
+
+/** True once a newer version has taken over the database. */
+export function isDbSuperseded(): boolean {
+  return superseded;
+}
+
+function markSuperseded(): void {
+  if (superseded) return;
+  superseded = true;
+  const fns = [...supersededListeners];
+  supersededListeners.clear();
+  for (const fn of fns) {
+    try {
+      fn();
+    } catch {
+      /* a listener's problem */
+    }
+  }
+}
+
+/** Tests: forget a superseded state. */
+export function resetDbSupersededForTests(): void {
+  superseded = false;
+  supersededListeners.clear();
+}
 
 /** Asks once per page for persistent storage (ADR 0006). Never throws. */
 export function requestPersistence(): void {
@@ -110,10 +158,17 @@ export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Pr
     };
     r.onsuccess = () => {
       const db = r.result;
-      db.onversionchange = () => db.close();
+      db.onversionchange = (ev) => {
+        db.close();
+        // null: the database is being deleted, not upgraded.
+        if (ev.newVersion !== null && ev.newVersion > DB_VERSION) markSuperseded();
+      };
       resolve(db);
     };
-    r.onerror = () => reject(r.error);
+    r.onerror = () => {
+      if (r.error?.name === 'VersionError') markSuperseded();
+      reject(r.error);
+    };
     r.onblocked = () => reject(new Error('database upgrade blocked by another tab'));
   });
 }
