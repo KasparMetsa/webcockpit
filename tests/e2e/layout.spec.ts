@@ -244,13 +244,16 @@ test('narrow window collapses the side dock and restores it when widened', async
   for (const id of ORDER) await expect(page.locator(`.wc-pane-${id}`)).toBeHidden();
   const { cols } = await metrics(page);
   expect((await box(page, '.wc-game')).width).toBe(cols * cw);
-  expect(await page.evaluate(() => Object.values(window.__wc!.settings.get().panes).every((p) => p.on))).toBe(true);
+  // The side panes stay on (the map is off by default).
+  expect(await page.evaluate(() => Object.entries(window.__wc!.settings.get().panes).every(([id, p]) => p.on === (id !== 'map')))).toBe(true);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.locator('.wc-cockpit')).toHaveAttribute('data-collapsed', '');
   for (const id of ORDER) await expect(page.locator(`.wc-pane-${id}`)).toBeVisible();
 });
 
-const floating = (page: Page) => page.evaluate(() => window.__wc!.settings.get().layout.floating);
+/** Floating panes other than the map (whose default entry stays backmost while it is off, ADR 0020). */
+const floating = (page: Page) =>
+  page.evaluate(() => window.__wc!.settings.get().layout.floating.filter((f) => f.id !== 'map'));
 
 test('floating pane: drop over the game, move, resize, reload, dock again', async ({ page }) => {
   const { cw, ch, cols, rows } = await open(page);
@@ -281,7 +284,7 @@ test('floating pane: drop over the game, move, resize, reload, dock again', asyn
     z: getComputedStyle(el).zIndex,
     bg: getComputedStyle(el).backgroundColor,
   }));
-  expect(style).toEqual({ z: '10', bg: 'rgb(14, 20, 28)' }); // the opaque blue tint
+  expect(style).toEqual({ z: '11', bg: 'rgb(14, 20, 28)' }); // the opaque blue tint (z 10: the map's slot)
   await expect(page.locator('.wc-input-field')).toBeFocused();
 
   // Move it by its title row.
@@ -358,12 +361,13 @@ test('floating panes come to front on a press and stay inside a smaller window',
       ];
     }),
   );
-  await expect(page.locator('.wc-pane-ui')).toHaveCSS('z-index', '11');
+  // z 10 is the map's slot (off).
+  await expect(page.locator('.wc-pane-ui')).toHaveCSS('z-index', '12');
   // A click on Comm's content (where UI does not cover it) brings it to front
   // and returns the focus to the input.
   await page.mouse.click(o.x + 62 * cw, o.y + 33 * ch);
   await expect.poll(() => floating(page).then((f) => f.map((p) => p.id))).toEqual(['ui', 'comm']);
-  await expect(page.locator('.wc-pane-comm')).toHaveCSS('z-index', '11');
+  await expect(page.locator('.wc-pane-comm')).toHaveCSS('z-index', '12');
   await expect(page.locator('.wc-input-field')).toBeFocused();
 
   // A smaller window: both are moved inside it; the stored places are kept.

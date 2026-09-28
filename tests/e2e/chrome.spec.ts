@@ -226,7 +226,7 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
   await expect.poll(async () => (await settings(page)).panes.comm.border).toBe(false);
   // No corner style row: the frames are always quadrant.
   await expect(page.locator('.wc-start')).not.toContainText('Corner style');
-  // Reset layout (the click moved the cursor to Comm; UI, then Reset).
+  // Reset layout (the click moved the cursor to Comm; UI, Map, then Reset).
   await page.evaluate(() =>
     window.__wc!.settings.update((d) => {
       d.layout.docks.right.size = 40;
@@ -234,13 +234,13 @@ test('Options → Panes toggles panes and borders live', async ({ page }) => {
       d.layout.floating = [{ id: 'comm', x: 5, y: 5, w: 30, h: 10 }];
     }),
   );
-  for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
   await expect(startSel(page)).toHaveText('<< Reset layout >>');
   await page.keyboard.press('Enter');
   await expect(startFlash(page)).toHaveText('Layout reset.');
   await expect.poll(async () => (await settings(page)).layout.docks.right.size).toBe(33);
-  // Every pane docked in the right column again.
-  expect((await settings(page)).layout.floating).toEqual([]);
+  // Every side pane docked in the right column again; the map floats (off).
+  expect((await settings(page)).layout.floating.map((f) => f.id)).toEqual(['map']);
   expect((await settings(page)).layout.docks.right.panes.map((p) => p.id)).toEqual(['character', 'timers', 'group', 'comm', 'ui']);
   await page.evaluate(() => window.__wc!.settings.reset());
 });
