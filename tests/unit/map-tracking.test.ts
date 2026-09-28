@@ -296,6 +296,7 @@ describe.skipIf(!HAS_ARDA)('map worker core tracking', () => {
       render: () => {},
       dispose: () => {},
     };
+    let current = renderer;
     const ids = memoryLearnedIds();
     ids.rows.set('abc|17026971', 26971);
     const core = new MapWorkerCore({
@@ -303,10 +304,16 @@ describe.skipIf(!HAS_ARDA)('map worker core tracking', () => {
       requestFrame: (cb) => void frames.push(cb),
       fetch: fetch,
       now: () => 0,
-      createRenderer: () => renderer,
+      createRenderer: () => current,
       ids,
     });
-    const canvas = { width: 0, height: 0, getContext: () => ({}) as WebGL2RenderingContext } as unknown as OffscreenCanvas;
+    const listeners = new Map<string, (e: Event) => void>();
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({}) as WebGL2RenderingContext,
+      addEventListener: (t: string, f: (e: Event) => void) => void listeners.set(t, f),
+    } as unknown as OffscreenCanvas;
     core.handle({ t: 'init', protocol: MAP_PROTOCOL_VERSION, canvas, width: 200, height: 100, dpr: 1, assets: { kind: 'base', url: '/map/' } });
     core.handle({ t: 'persistIds', on: true });
     // A parsed map (no hash for `data`); give the tracker a hash as a .mm2 load would.
@@ -325,6 +332,33 @@ describe.skipIf(!HAS_ARDA)('map worker core tracking', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(ids.rows.get('abc|17026440')).toBe(26440);
     expect(ids.rows.size).toBeGreaterThan(10);
+
+    // A lost and restored WebGL context: the new renderer gets the map,
+    // the tracker's current scene and the size again.
+    let maps = 0;
+    const restored: Scene[] = [];
+    const sizes: number[][] = [];
+    const again: Renderer = {
+      setMap: (m) => void (m === map && maps++),
+      setScene: (s) => void restored.push(s),
+      resize: (w, h, d) => void sizes.push([w, h, d]),
+      render: () => {},
+      dispose: () => {},
+    };
+    let disposed = 0;
+    renderer.dispose = () => void disposed++;
+    current = again;
+    listeners.get('webglcontextlost')!({ preventDefault: () => {} } as Event);
+    listeners.get('webglcontextrestored')!({} as Event);
+    expect(disposed).toBe(1);
+    expect(maps).toBe(1);
+    expect(restored.at(-1)).toBe(core.tracker.current);
+    expect(restored.at(-1)!.room).toBe(26971);
+    expect(sizes.at(-1)).toEqual([200, 100, 1]);
+    expect(out.slice(-2)).toEqual([
+      { t: 'error', stage: 'render', message: 'WebGL context lost' },
+      { t: 'restored' },
+    ]);
   });
 });
 

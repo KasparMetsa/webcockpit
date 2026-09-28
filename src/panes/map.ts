@@ -263,6 +263,13 @@ export class MapPane extends PaneShell {
         d.mapHow = m.how ?? '';
         return;
       }
+      case 'restored':
+        // The context came back: drop the "context lost" notice.
+        if (this.content.dataset.mapState === 'error' && this.loaded) {
+          this.content.dataset.mapState = 'loaded';
+          this.notice.hidden = true;
+        }
+        return;
       case 'error':
         if (m.stage === 'init') {
           this.failed = true;

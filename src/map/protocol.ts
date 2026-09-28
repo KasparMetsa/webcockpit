@@ -153,6 +153,8 @@ export type WorkerToMain =
    * (the previous map, if any, stays); `render`: a draw failed.
    */
   | { t: 'error'; stage: 'init' | 'load' | 'render'; req?: number; message: string }
+  /** The WebGL context came back after an `error` "context lost" (P4); drawing again. */
+  | { t: 'restored' }
   /** Locator state (P2): the player's room index, or null when unknown. */
   | {
       t: 'status';

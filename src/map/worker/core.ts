@@ -127,11 +127,15 @@ export class MapWorkerCore {
       e.preventDefault();
       this.host.post({ t: 'error', stage: 'render', message: 'WebGL context lost' });
     });
-    // Restored: everything on the GPU is gone; build the renderer again.
+    // Restored: everything on the GPU is gone; build the renderer again
+    // and give it the map and the tracker's current scene.
     m.canvas.addEventListener?.('webglcontextrestored', () => {
+      this.renderer?.dispose();
       this.renderer = build();
       this.renderer.setMap(this.map);
+      if (this.map) this.renderer.setScene(this.tracker.current);
       this.resize(this.css.w, this.css.h, this.css.dpr);
+      this.host.post({ t: 'restored' });
     });
     this.resize(m.width, m.height, m.dpr);
     this.host.post({ t: 'ready' });
