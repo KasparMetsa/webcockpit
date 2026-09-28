@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **8 — Hardening → v1** (not started; stage 9 done first by owner request).
+Current stage: **8 — Hardening → v1** (part A: player viewer settings).
 
 ## Stages
 
@@ -13,7 +13,7 @@ Current stage: **8 — Hardening → v1** (not started; stage 9 done first by ow
 | 5 | Timers and trackers | Done | `docs/stages/05-timers-and-trackers.md` |
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
 | 7 | Sharing | Done | `docs/stages/07-sharing.md` |
-| 8 | Hardening → v1 | Next | — |
+| 8 | Hardening → v1 | In progress | `docs/stages/08-hardening.md` |
 | 9 | Map | Done | `docs/stages/09-map.md` |
 
 Statuses: Next, In progress, Owner testing, Done.
