@@ -11,7 +11,7 @@ import { buildIndexes, type MapData } from '../model';
 import { type Inflate, inflateZlib, mapHash, readMm2 } from '../mm2';
 import { MAP_PROTOCOL_VERSION, type MainToWorker, type MapSource, type WorkerToMain } from '../protocol';
 import { type Renderer, createRenderer } from '../render/renderer';
-import { type View, centreOn, changeLayer, defaultView, pan, zoomAt } from '../view';
+import { type View, ZOOM_MAX, ZOOM_MIN, centreOn, changeLayer, defaultView, pan, zoomAt } from '../view';
 
 export interface WorkerHost {
   post(m: WorkerToMain): void;
@@ -20,8 +20,8 @@ export interface WorkerHost {
   fetch: typeof fetch;
   inflate?: Inflate;
   now(): number;
-  /** Builds the renderer for a GL context (default `createRenderer`). */
-  createRenderer?: (gl: WebGL2RenderingContext, assets: AssetResolver) => Renderer;
+  /** Builds the renderer for a GL context (default `createRenderer`); `onChange` asks for a redraw. */
+  createRenderer?: (gl: WebGL2RenderingContext, assets: AssetResolver, onChange: () => void) => Renderer;
 }
 
 export class MapWorkerCore {
@@ -67,6 +67,9 @@ export class MapWorkerCore {
       case 'events':
         // P2: locator, prespam path, group mates.
         return;
+      case 'debugScene':
+        this.debugScene(m);
+        return;
       default:
         // An unknown message from a newer client: ignore (protocol.ts).
         return;
@@ -97,10 +100,19 @@ export class MapWorkerCore {
       return;
     }
     const make = this.host.createRenderer ?? createRenderer;
-    this.renderer = make(gl, assetResolver(m.assets, this.host.fetch));
+    const assets = assetResolver(m.assets, this.host.fetch);
+    const glc = gl;
+    const build = () => make(glc, assets, () => this.requestRender());
+    this.renderer = build();
     m.canvas.addEventListener?.('webglcontextlost', (e) => {
       e.preventDefault();
       this.host.post({ t: 'error', stage: 'render', message: 'WebGL context lost' });
+    });
+    // Restored: everything on the GPU is gone; build the renderer again.
+    m.canvas.addEventListener?.('webglcontextrestored', () => {
+      this.renderer = build();
+      this.renderer.setMap(this.map);
+      this.resize(this.css.w, this.css.h, this.css.dpr);
     });
     this.resize(m.width, m.height, m.dpr);
     this.host.post({ t: 'ready' });
@@ -120,6 +132,22 @@ export class MapWorkerCore {
 
   private setView(v: View): void {
     if (v === this.view) return;
+    this.view = v;
+    this.requestRender();
+  }
+
+  /** `debugScene` (development and tests): a scene, a centre and a zoom without the tracking side. */
+  private debugScene(m: Extract<MainToWorker, { t: 'debugScene' }>): void {
+    if (m.scene) this.renderer?.setScene(m.scene);
+    let v = this.view;
+    const c = m.center;
+    if (c && 'room' in c) {
+      const map = this.map;
+      if (map && c.room >= 0 && c.room < map.roomCount) v = centreOn(v, map.x[c.room]!, map.y[c.room]!, map.z[c.room]!);
+    } else if (c) {
+      v = { ...v, x: c.x, y: c.y, layer: c.z };
+    }
+    if (m.zoom !== undefined) v = { ...v, zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, m.zoom)) };
     this.view = v;
     this.requestRender();
   }

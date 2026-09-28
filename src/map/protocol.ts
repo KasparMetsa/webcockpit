@@ -13,6 +13,7 @@
 
 import type { ConnState } from '../core/types';
 import type { MapData } from './model';
+import type { Scene } from './scene';
 
 /** Bump when a change is not backwards compatible (checked in `init`). */
 export const MAP_PROTOCOL_VERSION = 1;
@@ -114,7 +115,18 @@ export type MainToWorker =
   /** A batch of game events, in order. */
   | { t: 'events'; events: MapEvent[] }
   /** The pane was hidden or shown (the worker skips rendering while hidden). */
-  | { t: 'visible'; visible: boolean };
+  | { t: 'visible'; visible: boolean }
+  /**
+   * Development and tests only: draw `scene` (P1 renderer checks without
+   * the tracking side), optionally centred on a room index or a
+   * position (current layer = its z) and at a zoom.
+   */
+  | {
+      t: 'debugScene';
+      scene?: Scene;
+      center?: { room: number } | { x: number; y: number; z: number };
+      zoom?: number;
+    };
 
 // ---------------------------------------------------- worker → main
 
