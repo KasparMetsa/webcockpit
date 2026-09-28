@@ -382,10 +382,22 @@ describe('macros', () => {
     expect(t.sent).toEqual(['flee', 'draw', 'yes']);
   });
 
+  it('binds printable keys bare and with Shift (ADR 0026)', () => {
+    const t = setup();
+    t.e.input('#macro {a} {_send one};#macro {Shift+2} {_send two};#macro {Backquote} {_send three};#macro {shift+a} {_send four}');
+    expect(t.msgs).toEqual([]);
+    expect(t.e.runMacro('A')).toBe(true);
+    expect(t.e.runMacro('Shift+2')).toBe(true);
+    expect(t.e.runMacro('Backquote')).toBe(true);
+    expect(t.e.runMacro('Shift+A')).toBe(true);
+    expect(t.e.hasMacro('2')).toBe(false);
+    expect(t.sent).toEqual(['one', 'two', 'three', 'four']);
+  });
+
   it('refuses unbindable and unknown keys', () => {
     const t = setup();
-    t.e.input('#macro {a} {x};#macro {Ctrl+W} {x};#macro {\\e[99~} {x}');
-    expect(t.e.hasMacro('A')).toBe(false);
+    t.e.input('#macro {Escape} {x};#macro {Ctrl+W} {x};#macro {\\e[99~} {x}');
+    expect(t.e.hasMacro('Escape')).toBe(false);
     expect(t.msgs).toHaveLength(3);
     expect(t.msgs[0]).toMatch(/cannot be bound/);
   });

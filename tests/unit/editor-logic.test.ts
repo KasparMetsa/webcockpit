@@ -109,6 +109,14 @@ describe('hints and warnings', () => {
     expect(entryWarning({ kind: 'macro', pattern: 'F5' })).toBeNull();
   });
 
+  it('warns when a macro takes a key that types text (ADR 0026)', () => {
+    expect(entryWarning({ kind: 'macro', pattern: 'a' })).toBe('a overrides the input line (types text).');
+    expect(entryWarning({ kind: 'macro', pattern: 'Shift+A' })).toBe('Shift+A overrides the input line (types text).');
+    expect(entryWarning({ kind: 'macro', pattern: 'Shift+2' })).toBe('Shift+2 overrides the input line (types text).');
+    expect(entryWarning({ kind: 'macro', pattern: 'Backquote' })).toBe('` overrides the input line (types text).');
+    expect(entryWarning({ kind: 'macro', pattern: 'Ctrl+Shift+2' })).toBeNull();
+  });
+
   it('warns about aliases that can never run', () => {
     expect(entryWarning({ kind: 'alias', pattern: '_send %1' })).toBe('_send is built in; this alias never runs.');
     expect(entryWarning({ kind: 'alias', pattern: '#conn' })).toBe('#connect is a client command; this alias never runs.');

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { PROFILE_TEMPLATE } from '../../src/profiles';
 import { listEntries, parseProfile } from '../../src/script/doc';
 import {
@@ -7,8 +7,11 @@ import {
   compareKeys,
   displayKey,
   keyBindability,
+  initKeyLabels,
   keyNameFromEvent,
+  learnKeyLabel,
   normalizeKey,
+  resetKeyLabels,
   shadowedInputKey,
 } from '../../src/script/keys';
 
@@ -60,7 +63,26 @@ describe('bindability', () => {
     }
   });
 
-  it('rejects ESC, Enter, printable keys and browser keys, with a reason', () => {
+  it('accepts printable keys bare and with Shift (ADR 0026)', () => {
+    for (const [code, mods, name] of [
+      ['KeyA', {}, 'A'],
+      ['KeyA', { shiftKey: true }, 'Shift+A'],
+      ['Digit2', { shiftKey: true }, 'Shift+2'],
+      ['Digit5', {}, '5'],
+      ['Backquote', {}, 'Backquote'],
+      ['Minus', {}, 'Minus'],
+      ['Minus', { shiftKey: true }, 'Shift+Minus'],
+      ['Equal', {}, 'Equal'],
+      ['Backslash', {}, 'Backslash'],
+      ['Slash', { shiftKey: true }, 'Shift+Slash'],
+      ['IntlBackslash', {}, 'IntlBackslash'],
+      ['Space', {}, 'Space'],
+    ] as const) {
+      expect(bindability(ev(code, mods)), code).toEqual({ ok: true, name });
+    }
+  });
+
+  it('rejects ESC, Enter and browser keys, with a reason', () => {
     const no = (code: string, mods: Partial<KeyEventLike> = {}): string => {
       const b = bindability(ev(code, mods));
       expect(b.ok, code).toBe(false);
@@ -69,11 +91,6 @@ describe('bindability', () => {
     expect(no('Escape')).toMatch(/menu/);
     expect(no('Enter')).toMatch(/sends/);
     expect(no('Enter', { shiftKey: true })).toMatch(/sends/);
-    expect(no('KeyA')).toMatch(/Ctrl or Alt/);
-    expect(no('KeyA', { shiftKey: true })).toMatch(/Ctrl or Alt/);
-    expect(no('Digit5')).toMatch(/Ctrl or Alt/);
-    expect(no('Space')).toMatch(/Ctrl or Alt/);
-    expect(no('Minus', { shiftKey: true })).toMatch(/Ctrl or Alt/);
     for (const k of ['KeyW', 'KeyT', 'KeyN']) {
       expect(no(k, { ctrlKey: true })).toMatch(/browser/);
       expect(no(k, { ctrlKey: true, shiftKey: true })).toMatch(/browser/);
@@ -235,5 +252,68 @@ describe('input-line keys', () => {
     }
     expect(shadowedInputKey('F5')).toBeNull();
     expect(shadowedInputKey('Alt+A')).toBeNull();
+  });
+
+  it('says a printable key without Ctrl/Alt/Meta types text', () => {
+    for (const k of ['A', 'Shift+A', '1', 'Shift+2', 'Backquote', 'Shift+Minus', 'Space', 'IntlBackslash']) {
+      expect(shadowedInputKey(k), k).toBe('types text');
+    }
+    for (const k of ['Ctrl+Shift+2', 'Alt+Minus', 'Meta+A', 'Numpad1', 'F5']) expect(shadowedInputKey(k), k).toBeNull();
+  });
+});
+
+describe('layout-aware labels (ADR 0026)', () => {
+  afterEach(() => resetKeyLabels());
+  const down = (code: string, key: string, mods: Partial<KeyEventLike> = {}) => ev(code, { key, ...mods });
+
+  it('learns what punctuation keys print from plain keydowns', () => {
+    expect(displayKey('Backquote')).toBe('`');
+    expect(learnKeyLabel(down('Backquote', '§'))).toBe(true);
+    expect(learnKeyLabel(down('Backquote', '§'))).toBe(false); // unchanged
+    learnKeyLabel(down('Minus', '+'));
+    learnKeyLabel(down('Slash', '-'));
+    learnKeyLabel(down('BracketLeft', 'Å')); // CapsLock
+    expect(displayKey('Backquote')).toBe('§');
+    expect(displayKey('Shift+Backquote')).toBe('Shift+§');
+    expect(displayKey('Ctrl+Minus')).toBe('Ctrl++');
+    expect(displayKey('Slash')).toBe('-');
+    expect(displayKey('BracketLeft')).toBe('å');
+    // Profile text keeps its physical meaning: `-` is still Minus.
+    expect(normalizeKey('-')).toBe('Minus');
+    expect(normalizeKey('Backquote')).toBe('Backquote');
+  });
+
+  it('ignores modified keys, dead keys, letters, digits and non-characters', () => {
+    expect(learnKeyLabel(down('Minus', '?', { shiftKey: true }))).toBe(false);
+    expect(learnKeyLabel(down('Minus', '\\', { altKey: true, ctrlKey: true }))).toBe(false);
+    expect(learnKeyLabel({ ...down('Minus', '\\'), getModifierState: (k: string) => k === 'AltGraph' })).toBe(false);
+    expect(learnKeyLabel(down('Equal', 'Dead'))).toBe(false);
+    expect(learnKeyLabel(down('KeyQ', 'a'))).toBe(false);
+    expect(learnKeyLabel(down('Digit1', '&'))).toBe(false);
+    expect(learnKeyLabel(down('Space', ' '))).toBe(false);
+    expect(learnKeyLabel(down('Quote', 'Unidentified'))).toBe(false);
+    expect(displayKey('Minus')).toBe('-');
+    expect(displayKey('Shift+A')).toBe('Shift+A');
+    expect(displayKey('A')).toBe('a');
+    expect(displayKey('Shift+2')).toBe('Shift+2');
+  });
+
+  it('fills labels from the Keyboard Map API and survives its absence', async () => {
+    const entries: [string, string][] = [
+      ['Backquote', '§'],
+      ['Minus', '+'],
+      ['Equal', '´'],
+      ['KeyA', 'a'],
+    ];
+    await initKeyLabels({ keyboard: { getLayoutMap: async () => new Map(entries.map(([c, v]) => [c, v])) } });
+    // A Map's forEach passes (value, key), as a KeyboardLayoutMap does.
+    expect(displayKey('Backquote')).toBe('§');
+    expect(displayKey('Equal')).toBe('´');
+    expect(displayKey('A')).toBe('a');
+    resetKeyLabels();
+    await initKeyLabels({});
+    await initKeyLabels(undefined);
+    await initKeyLabels({ keyboard: { getLayoutMap: () => Promise.reject(new Error('denied')) } });
+    expect(displayKey('Backquote')).toBe('`');
   });
 });

@@ -30,7 +30,7 @@ interface KeyInfo {
   /** Sort group (see `compareKeys`) and index inside it. */
   group: number;
   order: number;
-  /** A printable key: not bindable without Ctrl or Alt. */
+  /** A printable key: types text without Ctrl/Alt/Meta (ADR 0026: bindable, the editor warns). */
   printable: boolean;
 }
 
@@ -168,19 +168,18 @@ export function keyNameFromEvent(e: KeyEventLike): string | null {
 const BROWSER_RESERVED = new Set(['Ctrl+W', 'Ctrl+T', 'Ctrl+N', 'Ctrl+Shift+W', 'Ctrl+Shift+T', 'Ctrl+Shift+N', 'Ctrl+Tab', 'Ctrl+Shift+Tab']);
 
 /**
- * Whether a canonical key name can be bound to a macro (ADR 0015): bare
- * ESC, Enter without Ctrl/Alt/Meta, printable keys without Ctrl or Alt,
- * and the keys the browser keeps are not.
+ * Whether a canonical key name can be bound to a macro (ADR 0015, ADR
+ * 0026): bare ESC, Enter without Ctrl/Alt/Meta and the keys the browser
+ * keeps are not. Printable keys are, bare or with Shift; a bound one no
+ * longer types its character (`shadowedInputKey` says so).
  */
 export function keyBindability(name: string): Bindability {
   const p = parseCanonical(name);
   if (!p) return { ok: false, name: null, reason: 'Unknown key.' };
-  const info = BY_NAME.get(p.key)!;
   if (p.key === 'Escape' && !p.ctrl && !p.alt && !p.shift && !p.meta) {
     return { ok: false, name, reason: 'ESC opens the menu.' };
   }
   if (p.key === 'Enter' && !p.ctrl && !p.alt && !p.meta) return { ok: false, name, reason: 'Enter sends the input line.' };
-  if (info.printable && !p.ctrl && !p.alt) return { ok: false, name, reason: 'That key types text; add Ctrl or Alt.' };
   if (BROWSER_RESERVED.has(name)) return { ok: false, name, reason: 'The browser keeps that key.' };
   return { ok: true, name };
 }
@@ -361,16 +360,75 @@ export function normalizeKey(text: string): string | null {
   return p ? build(p) : null;
 }
 
+// Layout-aware labels (ADR 0026). Canonical names are physical keys
+// (`KeyboardEvent.code`), so a profile means the same keys on every
+// layout; only the label the UI shows follows the user's keyboard: on a
+// Swedish layout `Backquote` shows as `§` and `Minus` as `+`. Filled from
+// the Keyboard Map API where the browser has it (Chromium) and learned
+// from plain keydowns. Only punctuation keys are relabelled; letters and
+// digits keep their names. `normalizeKey` never looks at these labels.
+
+/** Learned label per punctuation key part (`Minus` → `+`). */
+const LEARNED = new Map<string, string>();
+
+function learn(code: string, ch: string): boolean {
+  const info = BY_NAME.get(code);
+  if (!info || info.group !== G_PUNCT) return false;
+  if ([...ch].length !== 1 || /[\s\p{C}]/u.test(ch)) return false;
+  const label = ch.toLowerCase();
+  if (LEARNED.get(code) === label) return false;
+  LEARNED.set(code, label);
+  return true;
+}
+
+/**
+ * Learns what a punctuation key prints on this keyboard from a keydown
+ * without Ctrl/Alt/Meta/Shift/AltGr whose `key` is one character. Dead
+ * keys (`key` = `Dead`) teach nothing. Returns true when a label changed.
+ */
+export function learnKeyLabel(e: KeyEventLike & { getModifierState?: (k: string) => boolean }): boolean {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return false;
+  if (e.getModifierState?.('AltGraph')) return false;
+  return learn(e.code, e.key);
+}
+
+interface KeyboardLayoutMapLike {
+  forEach(cb: (value: string, key: string) => void): void;
+}
+interface NavigatorKeyboardLike {
+  keyboard?: { getLayoutMap?: () => Promise<KeyboardLayoutMapLike> };
+}
+
+/**
+ * Fills the labels from `navigator.keyboard.getLayoutMap()` when the
+ * browser has it. Call once at start; failures are ignored.
+ */
+export async function initKeyLabels(nav: unknown = globalThis.navigator): Promise<void> {
+  try {
+    const map = await (nav as NavigatorKeyboardLike | undefined)?.keyboard?.getLayoutMap?.();
+    map?.forEach((value, code) => learn(code, value));
+  } catch {
+    // No layout map (Firefox, Safari, insecure context): keep the defaults.
+  }
+}
+
+/** Forgets every learned label (tests). */
+export function resetKeyLabels(): void {
+  LEARNED.clear();
+}
+
 /**
  * The name the UI shows for a canonical key (Inv §5.6): `F1`, `Numpad 0`,
  * `Numpad +`, `Alt+a`, `Ctrl+g`, `Ctrl+Shift+A`, `Up`, `PgDn`. A letter is
- * lower-case unless Shift is held. Non-canonical text is returned as is.
+ * lower-case unless Shift is held. A punctuation key shows what this
+ * keyboard prints when that is known (`§`, `Shift+§`, `Ctrl++`). Non-canonical
+ * text is returned as is.
  */
 export function displayKey(canonical: string): string {
   const p = parseCanonical(canonical);
   if (!p) return canonical;
   const info = BY_NAME.get(p.key)!;
-  const key = info.group === G_LETTER && !p.shift ? p.key.toLowerCase() : info.display;
+  const key = info.group === G_LETTER && !p.shift ? p.key.toLowerCase() : (LEARNED.get(p.key) ?? info.display);
   return build({ ...p, key });
 }
 
@@ -454,7 +512,15 @@ export const INPUT_LINE_KEYS: ReadonlyMap<string, string> = new Map([
   ['Alt+D', 'deletes a word'],
 ]);
 
-/** What the input line does with a canonical key a macro would take over, or null. */
+/**
+ * What the input line does with a canonical key a macro would take over,
+ * or null. A printable key without Ctrl/Alt/Meta (bare or with Shift)
+ * `types text` (ADR 0026).
+ */
 export function shadowedInputKey(canonical: string): string | null {
-  return INPUT_LINE_KEYS.get(canonical) ?? null;
+  const known = INPUT_LINE_KEYS.get(canonical);
+  if (known) return known;
+  const p = parseCanonical(canonical);
+  if (p && BY_NAME.get(p.key)!.printable && !p.ctrl && !p.alt && !p.meta) return 'types text';
+  return null;
 }
