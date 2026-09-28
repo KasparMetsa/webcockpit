@@ -155,4 +155,75 @@ research §7. The existing `GroupModel` is not changed.
 
 ## Package notes
 
-(Builders add details here.)
+### P0 Foundation (2026-09-28)
+
+- **Assets.** `public/map/`: `arda.mm2`, MMapper 26.06.0 `pixmaps/` (126
+  files, unmodified), Cantarell BMFont 18/27/36 (`fonts/`), `fonts/OFL.txt`
+  and `README` (origins, licences). Cantarell is SIL OFL 1.1 with no
+  Reserved Font Name (checked against the upstream COPYING); MMapper's own
+  fonts/LICENSE does not cover it.
+- **Reader.** `src/map/mm2.ts` reads v42 only (other versions: a clear
+  error naming the version). Inflate is injectable (`Inflate`; default
+  `DecompressionStream('deflate')`). It applies MMapper's exit invariants
+  (EXIT / UNMAPPED / DOOR), resolves file room ids to indices (dangling
+  targets dropped), and skips contents and notes. `src/map/mm2-write.ts` is
+  the inverse (tests, and the replay export's subset). arda.mm2 in Node:
+  inflate about 40 ms, parse about 60 ms, indexes about 50 ms.
+- **MapData** (`src/map/model.ts`). Typed arrays per room (x, y, z,
+  extId, serverId, terrain, light, align, portable, ridable, sundeath,
+  mob/load flags), `names`/`descs`/`areas`. Seven exit slots per room
+  (`room*7+dir`, N S E W U D UNKNOWN): exitFlags, doorFlags, doorNames
+  (a Map by slot), and CSR `outStart/outTo` plus rebuilt `inStart/inFrom`.
+  Infomarks are struct-of-arrays. Indexes: `byServerId`, `byNameDesc`
+  (FNV-1a of the whitespace-normalised name + desc → rooms; use
+  `roomsByNameDesc`, which verifies the text), `bounds`, `layers`. It is
+  structured-cloneable. `buildIndexes` rebuilds everything derived.
+- **Subsets for the HTML replay.** `subsetMap(map, rooms)` cuts a
+  MapData. `neighbourhood(map, rooms, depth)` adds rings of neighbours.
+  Exits that leave a subset keep their flags but lose their targets, and
+  a `.mm2` round trip turns them into UNMAPPED. So export a ring (depth ≥
+  1) around what is shown. The worker loads a subset as
+  `{kind:'data', map}` or as `.mm2` bytes (`{kind:'bytes'}`).
+- **Protocol** (`src/map/protocol.ts`). The unions are keyed by `t`, and
+  unknown `t` values are ignored on both sides. `init` carries the
+  transferred OffscreenCanvas, CSS size, dpr and an **AssetSource**
+  (`base` URL, or `inline` path → data URI / Blob). The worker reads
+  every asset through `assetResolver` (`src/map/assets.ts`) and never
+  through a hard-coded path. `load` has a `req` id that `loaded`/`error`
+  echo. `events` carries batched `MapEvent`s (gmcp subset, cmd, fail
+  kind, conn). The worker sends `ready`, `loaded` (counts, hash, ms),
+  `error` (stage init/load/render) and `status`.
+- **Worker.** `src/map/worker/core.ts` (`MapWorkerCore`, testable in
+  Node) and the entry `map.worker.ts`. Rendering is on demand, coalesced
+  per worker rAF (16 ms timeout fallback) and skipped while hidden. The
+  view lives in `src/map/view.ts` (MMapper's projection
+  `s(z)=2640·zoom/(60−7z)`, pan, zoom at the cursor, layer). The renderer
+  seam is `src/map/render/renderer.ts` (`Renderer`, `createRenderer`);
+  P0's `ClearRenderer` only clears to `#2e3436`.
+- **Worker start.** The app uses `src/map/spawn-worker.ts`, a module
+  worker (`worker.format: 'es'`), a separate ~10 kB asset. The HTML
+  replay build (`bundleReplay` in vite.config.ts) aliases `./spawn-worker`
+  to `spawn-worker-inline.ts`, which uses `?worker&inline`: the worker is
+  bundled as an IIFE, embedded as base64 and started from a blob: URL,
+  with Vite's data: URL fallback. Verified from file:// in Chromium and
+  Firefox (e2e `map.spec.ts`). The replay bundle grew from 302 179 to
+  319 755 bytes (+17.6 kB, +6.4 kB gzip). `__WC_REPLAY__` (defined only
+  there) makes the replay's default map host load nothing until P3
+  passes one in.
+- **Pane.** `PaneId` `map` has `blankWhenInactive` false, `MIN_ROWS` 3,
+  first in `LEFTOVER_PRIORITY` and first in `DROP_ORDER`. Default
+  placement is `FloatPane.auto`: until the user moves or resizes it, the
+  map floats at the game pane's top-right corner, 50 % × 35 % of the
+  window (`autoFloatRect`, recomputed on every layout). `defaultLayout`
+  and `migrateLayout` add `{id:'map', auto:true}` as the backmost
+  floating entry, so other floating panes' z-index moves up by one.
+  `MapPane` imports `src/map/client.ts` on the first show. Input is
+  coalesced per frame: drag → `pan`, wheel → `zoom` (pixel/100, line/3),
+  Ctrl+wheel → `layer` (wheel away = down). The canvas prevents
+  `mousedown`, so the input keeps the focus. `PaneContext.map`
+  (`MapPaneHost`: `source()` + `assets`) overrides what is loaded (the log
+  player and the replay, P3). `content.dataset.mapState` / `mapRooms`
+  are for tests.
+- **DB v7.** `maps` (keyPath `key`, record `current`: `StoredMap`) and
+  `mapIds` (keyPath `['mapHash','serverId']`, `StoredMapId`). `mapHash` is
+  a 32-hex SHA-256 prefix of the file bytes.

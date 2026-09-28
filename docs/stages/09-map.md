@@ -52,7 +52,7 @@ path finding, `.xml`/web JSON import.
 ## Tasks
 
 - [x] Research notes, ADR 0020, stage file.
-- [ ] P0. Foundation: `public/map` assets (arda.mm2, pixmaps, Cantarell,
+- [x] P0. Foundation: `public/map` assets (arda.mm2, pixmaps, Cantarell,
       licence README), `src/map/protocol.ts`, `mm2.ts` + `model.ts` with
       tests (synthetic and the real file), DB v7 `maps` + `mapIds`, pane
       id `map` plumbing, `MapPane` + `MapClient` + worker skeleton
