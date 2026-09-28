@@ -1,11 +1,18 @@
-// MMapper `.mm2` v42 writer (the inverse of src/map/mm2.ts). Pure; the
+// MMapper `.mm2` writer (the inverse of src/map/mm2.ts). Pure; the
 // deflate step is injectable. Used by the tests (synthetic maps) and by
 // the HTML replay export, which embeds a map subset as `.mm2` bytes
 // (ADR 0020 "Package notes"). Room contents and notes are written empty
 // (the reader does not keep them); exits refer to targets by `extId`.
+//
+// It writes v42 by default. Older schema versions (17 … 41) exist for the
+// reader's tests: fields a version lacks are dropped, flags are cut to the
+// version's width, and the reader's conversions are inverted (y flip and
+// infomark offsets before 36, death terrain before 41, inbound links from
+// `inStart/inFrom` before 38). A round trip therefore returns the map
+// minus what that version cannot hold.
 
-import { DIR_COUNT, type MapData } from './model';
-import { MM2_MAGIC, MM2_VERSION } from './mm2';
+import { DIR_COUNT, INFOMARK_SCALE, INFOMARK_TYPE, type MapData } from './model';
+import { MM2_MAGIC, MM2_SCHEMA as V, MM2_VERSION, mm2Compression } from './mm2';
 
 /** Compresses to a zlib (RFC 1950) stream. */
 export type Deflate = (raw: Uint8Array) => Promise<Uint8Array>;
@@ -61,72 +68,134 @@ class Writer {
   }
 }
 
-/** The uncompressed v42 payload of `map`. */
-export function encodeMm2Payload(map: MapData): Uint8Array {
+const DEATH_TERRAIN = 15;
+const INDOORS = 1;
+const LOAD_DEATHTRAP = 1 << 24;
+
+/** The uncompressed payload of `map` in schema `version` (default 42). */
+export function encodeMm2Payload(map: MapData, version = MM2_VERSION): Uint8Array {
   const w = new Writer();
   const n = map.roomCount;
   const im = map.infomarks;
+  const esu = version < V.newCoords;
+  const wide = version >= V.largerFlags;
+  const wideDoor = version >= V.doorFlags16;
+  const ySign = esu ? -1 : 1;
   w.u32(n);
   w.u32(im.count);
   w.i32(map.selected.x);
-  w.i32(map.selected.y);
+  w.i32(map.selected.y * ySign);
   w.i32(map.selected.z);
   for (let r = 0; r < n; r++) {
-    w.str(map.areas[r] ?? '');
+    if (version >= V.area) w.str(map.areas[r] ?? '');
     w.str(map.names[r] ?? '');
     w.str(map.descs[r] ?? '');
     w.str(''); // contents
     w.u32(map.extId[r]!);
-    w.u32(map.serverId[r]!);
+    if (version >= V.serverId) w.u32(map.serverId[r]!);
     w.str(''); // note
-    w.u8(map.terrain[r]!);
+    const death = version < V.deathFlag && map.terrain[r] === INDOORS && (map.loadFlags[r]! & LOAD_DEATHTRAP) !== 0;
+    w.u8(death ? DEATH_TERRAIN : map.terrain[r]!);
     w.u8(map.light[r]!);
     w.u8(map.align[r]!);
     w.u8(map.portable[r]!);
-    w.u8(map.ridable[r]!);
-    w.u8(map.sundeath[r]!);
-    w.u32(map.mobFlags[r]!);
-    w.u32(map.loadFlags[r]!);
+    if (version >= V.ridable) w.u8(map.ridable[r]!);
+    if (wide) {
+      w.u8(map.sundeath[r]!);
+      w.u32(map.mobFlags[r]!);
+      w.u32(map.loadFlags[r]!);
+    } else {
+      w.u16(map.mobFlags[r]! & 0xffff);
+      w.u16(map.loadFlags[r]! & 0xffff);
+    }
+    if (version < V.removeUpToDate) w.u8(1); // upToDate
     w.i32(map.x[r]!);
-    w.i32(map.y[r]!);
+    w.i32(map.y[r]! * ySign);
     w.i32(map.z[r]!);
     for (let d = 0; d < DIR_COUNT; d++) {
       const s = r * DIR_COUNT + d;
-      w.u16(map.exitFlags[s]!);
-      w.u16(map.doorFlags[s]!);
+      if (wide) w.u16(map.exitFlags[s]!);
+      else w.u8(map.exitFlags[s]! & 0xff);
+      if (wideDoor) w.u16(map.doorFlags[s]!);
+      else w.u8(map.doorFlags[s]! & 0xff);
       w.str(map.doorNames.get(s) ?? '');
+      if (version < V.noInboundLinks) {
+        for (let k = map.inStart[s]!; k < map.inStart[s + 1]!; k++) w.u32(map.extId[map.inFrom[k]!]!);
+        w.u32(0xffffffff);
+      }
       for (let k = map.outStart[s]!; k < map.outStart[s + 1]!; k++) w.u32(map.extId[map.outTo[k]!]!);
       w.u32(0xffffffff);
     }
   }
   for (let m = 0; m < im.count; m++) {
+    const type = im.type[m]!;
+    let angle = im.angle[m]!;
+    let x1 = im.x1[m]!;
+    let y1 = im.y1[m]!;
+    let x2 = im.x2[m]!;
+    let y2 = im.y2[m]!;
+    if (esu) {
+      // Inverse of the reader's transformInfomarkOnLoad.
+      const H = INFOMARK_SCALE / 2;
+      const T = INFOMARK_SCALE / 10;
+      y1 = -y1;
+      y2 = -y2;
+      angle = -angle * INFOMARK_SCALE;
+      if (type === INFOMARK_TYPE.TEXT) {
+        x1 -= T;
+        y1 -= 3 * T;
+        x2 -= T;
+        y2 -= 3 * T;
+      } else if (type === INFOMARK_TYPE.ARROW) {
+        y1 -= INFOMARK_SCALE / 20;
+        x2 -= T;
+        y2 -= T;
+      }
+      x1 -= H;
+      y1 += H;
+      x2 -= H;
+      y2 += H;
+      w.str(''); // name
+    }
     w.str(im.text[m] ?? '');
-    w.u8(im.type[m]!);
-    w.u8(im.cls[m]!);
-    w.i32(im.angle[m]!);
-    w.i32(im.x1[m]!);
-    w.i32(im.y1[m]!);
+    if (esu) for (let i = 0; i < 9; i++) w.u8(0); // QDateTime
+    w.u8(type);
+    if (wideDoor) {
+      w.u8(im.cls[m]!);
+      w.i32(angle);
+    }
+    w.i32(x1);
+    w.i32(y1);
     w.i32(im.z1[m]!);
-    w.i32(im.x2[m]!);
-    w.i32(im.y2[m]!);
+    w.i32(x2);
+    w.i32(y2);
     w.i32(im.z2[m]!);
   }
   return w.bytes();
 }
 
-/** Wraps a payload as a `.mm2` file: magic, version, length, zlib stream. */
-export async function wrapMm2(payload: Uint8Array, deflate: Deflate = deflateZlib): Promise<Uint8Array> {
-  const z = await deflate(payload);
-  const out = new Uint8Array(12 + z.byteLength);
+/**
+ * Wraps a payload as a `.mm2` file: magic, version, then (by version) a
+ * length + zlib stream (≥ 34), a bare zlib stream (25–33) or the raw payload.
+ */
+export async function wrapMm2(
+  payload: Uint8Array,
+  deflate: Deflate = deflateZlib,
+  version = MM2_VERSION,
+): Promise<Uint8Array> {
+  const mode = mm2Compression(version);
+  const body = mode === 'none' ? payload : await deflate(payload);
+  const head = mode === 'qcompress' ? 12 : 8;
+  const out = new Uint8Array(head + body.byteLength);
   const dv = new DataView(out.buffer);
   dv.setUint32(0, MM2_MAGIC);
-  dv.setUint32(4, MM2_VERSION);
-  dv.setUint32(8, payload.byteLength);
-  out.set(z, 12);
+  dv.setUint32(4, version);
+  if (mode === 'qcompress') dv.setUint32(8, payload.byteLength);
+  out.set(body, head);
   return out;
 }
 
-/** `map` as a complete `.mm2` v42 file. */
-export function writeMm2(map: MapData, deflate: Deflate = deflateZlib): Promise<Uint8Array> {
-  return wrapMm2(encodeMm2Payload(map), deflate);
+/** `map` as a complete `.mm2` file (schema `version`, default 42). */
+export function writeMm2(map: MapData, deflate: Deflate = deflateZlib, version = MM2_VERSION): Promise<Uint8Array> {
+  return wrapMm2(encodeMm2Payload(map, version), deflate, version);
 }

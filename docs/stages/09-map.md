@@ -109,4 +109,11 @@ place of the pane, group mates live, and anything that feels slower.
 
 ## Owner feedback
 
-(After testing.)
+**Owner test 1 (2026-09-28):** "Everything seems to work." A group mate
+was verified on the map live (Group `mapid` confirmed). Import of an
+older map failed: `~/Downloads/arda(1).mm2` is version 36 ("only version
+42 can be read"). Wanted: import older `.mm2` versions too, since some
+users still run such files.
+
+- [ ] Read older `.mm2` versions (at least 36 → 42, as MMapper 26.06
+      does).

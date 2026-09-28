@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
@@ -13,7 +14,7 @@ import {
   exitTargets,
   roomsByNameDesc,
 } from '../../src/map/model';
-import { MM2_MAGIC, Mm2Error, inflateZlib, mapHash, readMm2 } from '../../src/map/mm2';
+import { MM2_MAGIC, MM2_SCHEMA, Mm2Error, inflateZlib, mapHash, parseMm2Payload, readMm2 } from '../../src/map/mm2';
 import { encodeMm2Payload, wrapMm2, writeMm2 } from '../../src/map/mm2-write';
 import { neighbourhood, subsetMap } from '../../src/map/subset';
 
@@ -202,9 +203,13 @@ describe('mm2 reader (synthetic v42)', () => {
 
   it('rejects other versions, bad magic and damaged data with clear errors', async () => {
     const file = await writeMm2(tiny(), nodeDeflate);
-    const v41 = file.slice();
-    new DataView(v41.buffer).setUint32(4, 41);
-    await expect(readMm2(v41, nodeInflate)).rejects.toThrow(/version 41.*only version 42/);
+    const other = file.slice();
+    other[7] = 37; // never released
+    await expect(readMm2(other, nodeInflate)).rejects.toThrow(/version 37: versions 17–42/);
+    other[7] = 43;
+    await expect(readMm2(other, nodeInflate)).rejects.toThrow(/version 43.*newer/);
+    other[7] = 16;
+    await expect(readMm2(other, nodeInflate)).rejects.toThrow(/version 16: versions 17–42/);
     const bad = file.slice();
     bad[0] = 0;
     await expect(readMm2(bad, nodeInflate)).rejects.toThrow(Mm2Error);
@@ -231,6 +236,169 @@ describe('mm2 reader (synthetic v42)', () => {
     expect(s.infomarks.count).toBe(2);
     expect([...neighbourhood(m, [0], 1)].sort()).toEqual([0, 1]);
     expect([...neighbourhood(m, [0], 2)].sort()).toEqual([0, 1, 2]);
+  });
+});
+
+const V = MM2_SCHEMA;
+const VERSIONS = Object.values(MM2_SCHEMA);
+const DEATHTRAP = 1 << 24;
+const tail = (b: Uint8Array, n: number): number[] => {
+  const dv = new DataView(b.buffer, b.byteOffset + b.byteLength - 4 * n, 4 * n);
+  return Array.from({ length: n }, (_, i) => dv.getInt32(4 * i));
+};
+
+/** tiny() with fields every schema can hold round-trip, plus an angled mark and wide flags. */
+function tinyOld(): MapData {
+  const m = tiny();
+  m.infomarks.angle[0] = 45;
+  m.areas[0] = 'Bree';
+  m.sundeath[1] = 1;
+  m.mobFlags[1] = (1 << 18) | 1; // RATTLESNAKE needs 32-bit flags (v33)
+  m.exitFlags[1 * DIR_COUNT + DIR.U] = m.exitFlags[1 * DIR_COUNT + DIR.U]! | EXIT_FLAG.GUARDED; // bit 11: 16-bit exit flags (v33)
+  m.doorFlags[0 * DIR_COUNT + DIR.N] = m.doorFlags[0 * DIR_COUNT + DIR.N]! | DOOR_FLAG.MAGIC; // bit 8: 16-bit door flags (v32)
+  return m;
+}
+
+describe('mm2 reader (older schema versions, synthetic)', () => {
+  it.each(VERSIONS)('round-trips version %i minus what it cannot hold', async (v) => {
+    const src = tinyOld();
+    const file = await writeMm2(src, nodeDeflate, v);
+    expect(new DataView(file.buffer).getUint32(4)).toBe(v);
+    const m = await readMm2(file, nodeInflate);
+    expect(m.version).toBe(v);
+    expect(m.roomCount).toBe(3);
+    expect(m.selected).toEqual({ x: 1, y: 2, z: 0 });
+    expect([...m.x]).toEqual([0, 1, 1]);
+    expect([...m.y]).toEqual([0, 0, 0]);
+    expect([...m.z]).toEqual([0, 0, 1]);
+    expect(m.names).toEqual(src.names);
+    expect(m.descs).toEqual(src.descs);
+    expect(m.areas[0]).toBe(v >= V.area ? 'Bree' : '');
+    expect(m.byServerId.get(1234)).toBe(v >= V.serverId ? 0 : undefined);
+    expect(m.terrain[2]).toBe(13);
+    expect(m.ridable[0]).toBe(v >= V.ridable ? 2 : 0);
+    expect(m.sundeath[1]).toBe(v >= V.largerFlags ? 1 : 0);
+    expect(m.mobFlags[1]).toBe(v >= V.largerFlags ? (1 << 18) | 1 : 1);
+    expect(m.loadFlags[0]).toBe(32);
+    expect([...exitTargets(m, 0, DIR.E)]).toEqual([1]);
+    expect([...exitTargets(m, 1, DIR.W)]).toEqual([0]);
+    expect([...exitTargets(m, 1, DIR.U)]).toEqual([2]);
+    expect([...exitSources(m, 2, DIR.D)]).toEqual([1]);
+    const up = 1 * DIR_COUNT + DIR.U;
+    expect(m.exitFlags[up]! & EXIT_FLAG.CLIMB).toBeTruthy();
+    expect(Boolean(m.exitFlags[up]! & EXIT_FLAG.GUARDED)).toBe(v >= V.largerFlags);
+    const n = 0 * DIR_COUNT + DIR.N;
+    expect(m.doorNames.get(n)).toBe('gate');
+    expect(m.doorFlags[n]).toBe(DOOR_FLAG.HIDDEN | (v >= V.doorFlags16 ? DOOR_FLAG.MAGIC : 0));
+    expect(m.exitFlags[n]! & EXIT_FLAG.UNMAPPED).toBeTruthy();
+    const im = m.infomarks;
+    expect(im.count).toBe(2);
+    expect(im.text).toEqual(['Herbs here', '']);
+    expect([...im.cls]).toEqual(v >= V.doorFlags16 ? [1, 2] : [0, 0]);
+    expect(im.angle[0]).toBe(v >= V.doorFlags16 ? 45 : 0);
+    expect([im.x1[0], im.y1[0], im.x2[0], im.y2[0]]).toEqual([50, 50, 50, 50]);
+    expect([im.x1[1], im.y1[1], im.x2[1], im.y2[1]]).toEqual([0, 0, 200, 0]);
+  });
+
+  it('stores the payload per version: raw < 25, bare zlib 25–33, qCompress ≥ 34', async () => {
+    const m = tinyOld();
+    const raw = encodeMm2Payload(m, 24);
+    const f24 = await writeMm2(m, nodeDeflate, 24);
+    expect(f24.subarray(8)).toEqual(raw);
+    const f25 = await writeMm2(m, nodeDeflate, 25);
+    expect(f25[8]).toBe(0x78); // zlib header right after the version
+    expect(new Uint8Array(inflateSync(f25.subarray(8)))).toEqual(encodeMm2Payload(m, 25));
+    const f34 = await writeMm2(m, nodeDeflate, 34);
+    expect(new DataView(f34.buffer).getUint32(8)).toBe(encodeMm2Payload(m, 34).byteLength);
+    expect(f34[12]).toBe(0x78);
+    await expect(readMm2(f25.slice(0, 20), nodeInflate)).rejects.toThrow(/decompression failed|unexpected end/);
+  });
+
+  it('flips y before version 36 (south was +y)', () => {
+    const m = tinyOld();
+    m.y[1] = 3;
+    m.infomarks.count = 0;
+    const p35 = encodeMm2Payload(m, 35);
+    // 35 and 36 lay rooms out alike; read the same bytes both ways.
+    const as35 = parseMm2Payload(p35, 35);
+    const as36 = parseMm2Payload(p35, 36);
+    expect(as35.y[1]).toBe(3);
+    expect(as36.y[1]).toBe(-3);
+    expect(as36.selected.y).toBe(-2);
+  });
+
+  it('moves old infomarks as MMapper does (half-room offset, text/arrow nudges, y flip, angle)', () => {
+    const m = makeMap([{ id: 1, pos: [0, 0, 0] }], {
+      count: 2,
+      type: Uint8Array.from([INFOMARK_TYPE.TEXT, INFOMARK_TYPE.ARROW]),
+      cls: Uint8Array.from([3, 2]),
+      angle: Int32Array.from([0, -90]),
+      x1: Int32Array.from([60, 50]),
+      y1: Int32Array.from([20, 45]),
+      z1: Int32Array.from([0, 0]),
+      x2: Int32Array.from([60, 60]),
+      y2: Int32Array.from([20, 40]),
+      z2: Int32Array.from([0, 0]),
+      text: ['Here', ''],
+    });
+    const p = encodeMm2Payload(m, 35);
+    // transformInfomarkOnLoad maps stored (0,0) to these: the writer inverts it.
+    expect(tail(p, 6)).toEqual([0, 0, 0, 0, 0, 0]); // the arrow
+    const dv = new DataView(p.buffer, p.byteOffset + p.byteLength - 24 - 4);
+    expect(dv.getInt32(0)).toBe(9000); // stored angle in 1/100 degrees, sign flipped
+    const r = parseMm2Payload(p, 35);
+    expect([...r.infomarks.angle]).toEqual([0, -90]);
+    expect([...r.infomarks.y1]).toEqual([20, 45]);
+  });
+
+  it('turns death terrain into INDOORS + DEATHTRAP before 41, and clamps unknown enums', () => {
+    const m = tinyOld();
+    m.terrain[0] = 1;
+    m.loadFlags[0] = DEATHTRAP | 32;
+    const p40 = encodeMm2Payload(m, 40);
+    const r40 = parseMm2Payload(p40, 40);
+    expect(r40.terrain[0]).toBe(1);
+    expect(r40.loadFlags[0]).toBe(DEATHTRAP | 32);
+    // 40 and 41 lay rooms out alike: in 41, terrain 15 is simply invalid.
+    const r41 = parseMm2Payload(p40, 41);
+    expect(r41.terrain[0]).toBe(0);
+    expect(r41.loadFlags[0]).toBe(DEATHTRAP | 32);
+    const odd = tinyOld();
+    odd.terrain[1] = 99;
+    odd.light[1] = 7;
+    odd.mobFlags[1] = 0xffffffff;
+    const r = parseMm2Payload(encodeMm2Payload(odd), 42);
+    expect([r.terrain[1], r.light[1], r.mobFlags[1]]).toEqual([0, 0, (1 << 19) - 1]);
+  });
+
+  it('drops NO_MATCH exit flags written by versions 25–34', async () => {
+    for (const v of VERSIONS) {
+      const m = tinyOld();
+      m.exitFlags[DIR.E] = m.exitFlags[DIR.E]! | EXIT_FLAG.NO_MATCH;
+      const r = await readMm2(await writeMm2(m, nodeDeflate, v), nodeInflate);
+      const kept = Boolean(r.exitFlags[DIR.E]! & EXIT_FLAG.NO_MATCH);
+      expect([v, kept]).toEqual([v, v < V.zlib || v >= V.discardNoMatch]);
+    }
+  });
+
+  it('adds an outgoing link implied only by an inbound link before 38', async () => {
+    const m = makeMap([
+      { id: 1, pos: [0, 0, 0] },
+      { id: 2, pos: [1, 0, 0] },
+      { id: 3, pos: [2, 0, 0] },
+    ]);
+    // Room 2's west side says room 1 comes in (twice); room 1's east exit is empty.
+    const slots = 3 * DIR_COUNT;
+    const slot = 1 * DIR_COUNT + DIR.W;
+    m.inStart = Uint32Array.from({ length: slots + 1 }, (_, i) => (i <= slot ? 0 : 2));
+    m.inFrom = Uint32Array.from([0, 0]);
+    const r0 = parseMm2Payload(encodeMm2Payload(m, 36), 36);
+    expect([...exitTargets(r0, 0, DIR.E)]).toEqual([1]); // added once, not twice
+    expect(r0.exitFlags[DIR.E]! & EXIT_FLAG.EXIT).toBeTruthy();
+    expect(r0.exitFlags[DIR.E]! & EXIT_FLAG.UNMAPPED).toBeFalsy();
+    expect([...exitSources(r0, 1, DIR.W)]).toEqual([0]);
+    const v38 = parseMm2Payload(encodeMm2Payload(m, 38), 38);
+    expect(exitTargets(v38, 0, DIR.E).length).toBe(0); // 38 has no inbound lists
   });
 });
 
@@ -287,3 +455,43 @@ describe.skipIf(!existsSync(ARDA))('mm2 reader (public/map/arda.mm2)', () => {
   });
 });
 
+
+// An owner's v36 map (MMapper 19.10 … 25.03 schema), outside the repo:
+// $WEBCOCKPIT_OLD_MM2, default ~/Downloads/arda(1).mm2. Numbers
+// cross-checked with an independent Python parse of the same file.
+const OLD_ARDA = process.env.WEBCOCKPIT_OLD_MM2 ?? `${homedir()}/Downloads/arda(1).mm2`;
+
+describe.skipIf(!existsSync(OLD_ARDA))('mm2 reader (v36 arda(1).mm2)', () => {
+  it('reads an old owner map into the same MapData shape', async () => {
+    const m = await readMm2(new Uint8Array(readFileSync(OLD_ARDA)));
+    expect(m.version).toBe(36);
+    expect(m.roomCount).toBe(30074);
+    expect(m.infomarks.count).toBe(674);
+    expect(m.byServerId.size).toBe(0); // no server ids before v40
+    expect(m.bounds).toEqual({ minX: -28, maxX: 611, minY: -261, maxY: 12, minZ: -1, maxZ: 2, count: 30074 });
+    expect(m.layers.get(0)?.count).toBe(29826);
+    expect(m.selected).toEqual({ x: 36, y: -87, z: 0 });
+    expect(m.names[0]).toBe("Vig's Shop");
+    expect([m.x[0], m.y[0], m.z[0]]).toEqual([15, -52, 0]);
+    const types = [0, 0, 0];
+    for (let i = 0; i < m.infomarks.count; i++) types[m.infomarks.type[i]!]!++;
+    expect(types).toEqual([614, 17, 43]);
+    let death = 0;
+    for (let r = 0; r < m.roomCount; r++) if (m.loadFlags[r]! & DEATHTRAP) death++;
+    expect(death).toBe(52); // terrain 15 → INDOORS + DEATHTRAP
+    expect(m.terrain.filter((t) => t === 1).length).toBe(2850);
+    // 85 920 stored links (one dangling dropped) + 1 added from an inbound list.
+    expect(m.outTo.length).toBe(85921);
+    let multi = 0;
+    let northUp = 0;
+    for (let r = 0; r < m.roomCount; r++) {
+      for (let d = 0; d < DIR_COUNT; d++) {
+        const t = exitTargets(m, r, d as 0);
+        if (t.length > 1) multi++;
+        if (d === DIR.N) for (const o of t) if (m.x[o] === m.x[r] && m.y[o] === m.y[r]! + 1) northUp++;
+      }
+    }
+    expect(multi).toBe(160);
+    expect(northUp).toBe(19057);
+  });
+});
