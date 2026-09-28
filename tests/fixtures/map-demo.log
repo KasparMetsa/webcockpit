@@ -1,0 +1,214 @@
+1790535600000000 GMCP Char.Name {"name":"Rasta","fullname":"Rasta Fari the Wanderer"}
+1790535600000000 Reconnecting.
+1790535600000000 
+1790535600000000 GMCP Char.StatusVars {"name":"Rasta","fullname":"Rasta Fari the Wanderer","race":"Man","subrace":"Dunadan","subclass":"warrior","level":25}
+1790535600000000 GMCP Group.Set [{"id":1,"type":"you","name":"Rasta","label":0,"mapid":10599315,"room":"Old East Road","hp":140,"hp-string":"Healthy","maxhp":140,"mana":90,"mana-string":"Full","maxmana":90,"mp":110,"mp-string":"Rested","maxmp":110},{"id":2,"type":"ally","name":"Gibur","label":0,"mapid":8483210,"room":"Bazaar","hp":140,"hp-string":"Healthy","maxhp":140,"mana":90,"mana-string":"Full","maxmana":90,"mp":110,"mp-string":"Rested","maxmp":110},{"id":3,"type":"npc","name":"a citizen mercenary","label":"MERC","mapid":1963579,"room":"Brightly Lit Bakery","hp":140,"hp-string":"Healthy","maxhp":140,"mana":90,"mana-string":"Full","maxmana":90,"mp":110,"mp-string":"Rested","maxmp":110}]
+1790535600000000 GMCP Room.Info {"id":10599315,"area":"Bree","name":"Old East Road","desc":"The street of white sand and gravel widens towards the south, coming to a large\nbend. Houses align the street both to the east and west, with about six yards\nbetween them. A dark and narrow alley winds its way west between some of the\nshops, contrasting the bright blue and pretty shop to the east.\n","environment":"city","exits":{"n":{"id":4878120,"flags":["road"]},"s":{"id":1108641,"flags":["road"]},"e":{"id":9512230},"w":{"id":14742156}}}
+1790535600000000 [32mOld East Road[0m
+1790535600000000 Exits: north, south, east, west.
+1790535600000000 
+1790535600000000 *=>
+1790535601000000 > n
+1790535601150000 GMCP Event.Moved {"dir":"north"}
+1790535601150000 GMCP Room.Info {"id":4878120,"area":"Bree","name":"Old East Road","desc":"Slightly narrowing to the north and wider towards the south, the road passes\nbetween houses on either side. White sand with stones of marbled white and black\nmake the road surface nicely packed over years of use. From the west a constant\nsmell of baked goods fills the street.\n","environment":"city","exits":{"n":{"id":9545381,"flags":["road"]},"s":{"id":10599315,"flags":["road"]},"e":{"id":15299102},"w":{"id":1963579}}}
+1790535601150000 [32mOld East Road[0m
+1790535601150000 Exits: north, south, east, west.
+1790535601150000 
+1790535601150000 *=>
+1790535601750000 > n
+1790535601900000 GMCP Event.Moved {"dir":"north"}
+1790535601900000 GMCP Room.Info {"id":9545381,"area":"Bree","name":"Old East Road","desc":"The Old East Road travels north and south here, and is about three yards wide.\nThis nicely maintained road goes into the trade district in Bree. Several houses\non either side flank the road, their colours contrasting the white gravel and\nsand used to make an entirely flat road.\n","environment":"city","exits":{"n":{"id":15496063,"flags":["road"]},"s":{"id":4878120,"flags":["road"]},"e":{"id":8483210}}}
+1790535601900000 [32mOld East Road[0m
+1790535601900000 Exits: north, south, east.
+1790535601900000 
+1790535601900000 *=>
+1790535602500000 GMCP Group.Update {"id":2,"mapid":9545381,"room":"Old East Road"}
+1790535602500000 > n
+1790535602650000 GMCP Event.Moved {"dir":"north"}
+1790535602650000 GMCP Room.Info {"id":15496063,"area":"Bree","name":"Sign of the Prancing Pony Inn","desc":"This wide space has become the natural travelling hub of Bree. From the north\nmusic flows, and the pleasant smell of fresh food beckons. The Old East Road\ncomes from the west and continues south through the village. The Prancing Pony\nInn lies to the north.\n","environment":"city","exits":{"n":{"id":11103264},"s":{"id":9545381,"flags":["road"]},"e":{"flags":["road"]},"w":{"id":13430693,"flags":["road"]}}}
+1790535602650000 [32mSign of the Prancing Pony Inn[0m
+1790535602650000 Exits: north, south, east, west.
+1790535602650000 
+1790535602650000 *=>
+1790535603250000 > e
+1790535603400000 GMCP Event.Moved {"dir":"east"}
+1790535603400000 GMCP Room.Info {"area":"Bree","name":"Cobble Street","desc":"The Cobble Street narrows going west to east, almost twice as wide towards the\nlarge plaza to the west than continuing east. A large portion of the narrowing\nis the entrance to a tall stable north, built onto the large stone slabs the\nstreet is built from.\n","environment":"city","exits":{"n":{"id":17026919},"e":{"id":17026439,"flags":["road"]},"w":{"id":15496063,"flags":["road"]}}}
+1790535603400000 [32mCobble Street[0m
+1790535603400000 Exits: north, east, west.
+1790535603400000 
+1790535603400000 *=>
+1790535604000000 > e
+1790535604150000 GMCP Event.Moved {"dir":"east"}
+1790535604150000 GMCP Room.Info {"id":17026439,"area":"Bree","name":"Cobble Street","desc":"As the street made from large stone slabs packed with dirt between them sharply\nbends, it intersects with a smaller road heading north. Towards the south the\nCobble Street continues with a small incline towards a tall tower to the south\neast.\n","environment":"city","exits":{"n":{"id":17026440,"flags":["road"]},"s":{"id":17026443,"flags":["road"]},"w":{"flags":["road"]}}}
+1790535604150000 [32mCobble Street[0m
+1790535604150000 Exits: north, south, west.
+1790535604150000 
+1790535604150000 *=>
+1790535604750000 GMCP Group.Update {"id":3,"mapid":4878120,"room":"Old East Road"}
+1790535604750000 > n
+1790535604750000 > n
+1790535604750000 > n
+1790535605050000 GMCP Event.Moved {"dir":"north"}
+1790535605050000 GMCP Room.Info {"id":17026440,"area":"Bree","name":"Mill Road","desc":"The ground is made from packed dirt over years of travelling, with a cover of\nsawdust and ground rind from pine trees. The width of the road varies, wider to\nthe south but narrows slightly as it winds north up a gentle hill. Buildings\naccompany the road on both sides, and east lies a large open archery range.\nA cart rattles past you.\n","environment":"city","exits":{"n":{"flags":["road"]},"s":{"id":17026439,"flags":["road"]},"e":{"id":17026922}}}
+1790535605050000 [32mMill Road[0m
+1790535605050000 Exits: north, south, east.
+1790535605050000 
+1790535605050000 *=>
+1790535605350000 GMCP Event.Moved {"dir":"north"}
+1790535605350000 GMCP Room.Info {"area":"Bree","name":"Mill Road","desc":"As the road traverses slightly up towards the north it widens, the layer of\nsawdust and ground rind on the road is thick and bounces slightly when travelled\nupon. It passed between houses on the east side and a man height fence to the\nwest. Between the posts on the fence one can see a large animal market. Down a\nslight descent to the south, the road leads between the stables of Bree and an\narcher range.\n","environment":"city","exits":{"n":{"id":17026442,"flags":["road"]},"s":{"id":17026440,"flags":["road"]}}}
+1790535605350000 [32mMill Road[0m
+1790535605350000 Exits: north, south.
+1790535605350000 
+1790535605350000 *=>
+1790535605650000 GMCP Event.Moved {"dir":"north"}
+1790535605650000 GMCP Room.Info {"id":17026442,"area":"Bree","name":"Wide Part of Mill Road","desc":"The road is narrowing both south and west from here, the bend in the Mill Road\nis over thirty yards wide. All along the northern part of the road stacks of\nuntreated logs occupy most of the space, with just enough passing space to pass\nby the loggers' cabins and get to the Bree sawmill. A house with several furs\nhanging outside is seen to the east.\n","environment":"city","exits":{"n":{"id":17026925},"s":{"flags":["road"]},"e":{"id":17028854},"w":{"id":17026921,"flags":["road"]}}}
+1790535605650000 [32mWide Part of Mill Road[0m
+1790535605650000 Exits: north, south, east, west.
+1790535605650000 
+1790535605650000 *=>
+1790535606250000 > w
+1790535606400000 GMCP Event.Moved {"dir":"west"}
+1790535606400000 GMCP Room.Info {"id":17026921,"area":"Bree","name":"Mill Road","desc":"With a slight descent going west from the wide bend in the east, the road winds\nits way past an animal market to the south. Packed dirt makes most of the road,\nwith bits covered in sawdust and rind. Towards the west the road progressively\nturns more stone and gravel. In the western horizon the Bree-hill spreads out,\nwith peaks and valleys en masse.\n","environment":"city","exits":{"n":{"id":17027010},"s":{"id":17026920},"e":{"id":17026442,"flags":["road"]},"w":{"id":17026923,"flags":["road"]}}}
+1790535606400000 [32mMill Road[0m
+1790535606400000 Exits: north, south, east, west.
+1790535606400000 
+1790535606400000 *=>
+1790535607000000 > w
+1790535607150000 GMCP Event.Moved {"dir":"west"}
+1790535607150000 GMCP Room.Info {"id":17026923,"area":"Bree","name":"Stone Road","desc":"Turning north and east, the rough road of stone and gravel travels through a dip\nin the terrain. A steep hill towards the west bars any climb into the Bree hills\nand sliding track attempts to climb can be seen. The road continues northbound\ntowards a suburb of Bree and east towards the sawmill and the rest of Bree.\n","environment":"city","exits":{"n":{"id":17026924,"flags":["road"]},"e":{"id":17026921,"flags":["road"]}}}
+1790535607150000 [32mStone Road[0m
+1790535607150000 Exits: north, east.
+1790535607150000 
+1790535607150000 *=>
+1790535607750000 > w
+1790535607950000 Alas, you cannot go that way...
+1790535607950000 
+1790535607950000 *=>
+1790535608450000 > look
+1790535608650000 GMCP Room.Info {"id":17026923,"area":"Bree","name":"Stone Road","desc":"Turning north and east, the rough road of stone and gravel travels through a dip\nin the terrain. A steep hill towards the west bars any climb into the Bree hills\nand sliding track attempts to climb can be seen. The road continues northbound\ntowards a suburb of Bree and east towards the sawmill and the rest of Bree.\n","environment":"city","exits":{"n":{"id":17026924,"flags":["road"]},"e":{"id":17026921,"flags":["road"]}}}
+1790535608650000 [32mStone Road[0m
+1790535608650000 Exits: north, east.
+1790535608650000 
+1790535608650000 *=>
+1790535609150000 > e
+1790535609300000 GMCP Event.Moved {"dir":"east"}
+1790535609300000 GMCP Room.Info {"id":17026921,"area":"Bree","name":"Mill Road","desc":"With a slight descent going west from the wide bend in the east, the road winds\nits way past an animal market to the south. Packed dirt makes most of the road,\nwith bits covered in sawdust and rind. Towards the west the road progressively\nturns more stone and gravel. In the western horizon the Bree-hill spreads out,\nwith peaks and valleys en masse.\n","environment":"city","exits":{"n":{"id":17027010},"s":{"id":17026920},"e":{"id":17026442,"flags":["road"]},"w":{"id":17026923,"flags":["road"]}}}
+1790535609300000 [32mMill Road[0m
+1790535609300000 Exits: north, south, east, west.
+1790535609300000 
+1790535609300000 *=>
+1790535609900000 GMCP Group.Update {"id":2,"mapid":15299102,"room":"Spice Shop"}
+1790535609900000 > s
+1790535610050000 GMCP Event.Moved {"dir":"south"}
+1790535610050000 GMCP Room.Info {"id":17026920,"area":"Bree","name":"Animal Market","desc":"A dirt-packed plaza spreads out, housing several stalls and small stables\nhousing animals for sale. Tenders and owners occupy their own, all deals here\nare made through one broker. On the southern end, a tall opening leads into the\nBree stables, and a passing road can be seen north. The fence on the eastern\nside shows a large sign and an advisory on pets.\n","environment":"field","exits":{"n":{"id":17026921},"s":{"id":17026919}}}
+1790535610050000 [32mAnimal Market[0m
+1790535610050000 Exits: north, south.
+1790535610050000 
+1790535610050000 *=>
+1790535610650000 > s
+1790535610800000 GMCP Event.Moved {"dir":"south"}
+1790535610800000 GMCP Room.Info {"id":17026919,"area":"Bree","name":"Towering Stable","desc":"Equally tall as the neighbouring inn, the stables of Bree are large enough to\nhouse animals of all travellers coming through. Both west and east, eight foot\ntall stalls for animals cover the entire side. Above each stall a roof holding\nfood, equipment and tools for the trade is stored. South through an almost\ntwenty foot tall opening, a wide stone road can be seen. North lies a separate\nmarket for trading animals.\n","environment":"building","exits":{"n":{"id":17026920},"s":{}}}
+1790535610800000 [32mTowering Stable[0m
+1790535610800000 Exits: north, south.
+1790535610800000 
+1790535610800000 *=>
+1790535611400000 > s
+1790535611550000 GMCP Event.Moved {"dir":"south"}
+1790535611550000 GMCP Room.Info {"area":"Bree","name":"Cobble Street","desc":"The Cobble Street narrows going west to east, almost twice as wide towards the\nlarge plaza to the west than continuing east. A large portion of the narrowing\nis the entrance to a tall stable north, built onto the large stone slabs the\nstreet is built from.\n","environment":"city","exits":{"n":{"id":17026919},"e":{"id":17026439,"flags":["road"]},"w":{"id":15496063,"flags":["road"]}}}
+1790535611550000 [32mCobble Street[0m
+1790535611550000 Exits: north, east, west.
+1790535611550000 
+1790535611550000 *=>
+1790535612150000 > w
+1790535612300000 GMCP Event.Moved {"dir":"west"}
+1790535612300000 GMCP Room.Info {"id":15496063,"area":"Bree","name":"Sign of the Prancing Pony Inn","desc":"This wide space has become the natural travelling hub of Bree. From the north\nmusic flows, and the pleasant smell of fresh food beckons. The Old East Road\ncomes from the west and continues south through the village. The Prancing Pony\nInn lies to the north.\n","environment":"city","exits":{"n":{"id":11103264},"s":{"id":9545381,"flags":["road"]},"e":{"flags":["road"]},"w":{"id":13430693,"flags":["road"]}}}
+1790535612300000 [32mSign of the Prancing Pony Inn[0m
+1790535612300000 Exits: north, south, east, west.
+1790535612300000 
+1790535612300000 *=>
+1790535612900000 GMCP Group.Update {"id":3,"mapid":17026439,"room":"Cobble Street"}
+1790535612900000 > w
+1790535613050000 GMCP Event.Moved {"dir":"west"}
+1790535613050000 GMCP Room.Info {"id":13430693,"area":"Bree","name":"Old East Road","desc":"Paved with large stones, the Old East Road passes between the walls of the\nPrancing Pony inn and tall houses. A pleasant smell of food accompanied by the\nnoise of people come from the northeast. Straight to the east the road spreads\nout to a wide space with a large fountain.\n","environment":"city","exits":{"s":{"id":17026966},"e":{"id":15496063,"flags":["road"]},"w":{"id":5825144,"flags":["road"]}}}
+1790535613050000 [32mOld East Road[0m
+1790535613050000 Exits: south, east, west.
+1790535613050000 
+1790535613050000 *=>
+1790535613650000 > w
+1790535613800000 GMCP Event.Moved {"dir":"west"}
+1790535613800000 GMCP Room.Info {"id":5825144,"area":"Bree","name":"Old East Road","desc":"Narrowing slightly, the Old East Road runs both east and west, still a wide\nenough road for two wagons to pass each other. North of the road the Bree-hill\nrises up, winding through the landscape. Several doors painted in rich colours\nare spread out in the hills. South, an open yard spreads out towards a wooden\nhouse.\n","environment":"city","exits":{"s":{"id":17026967},"e":{"id":13430693,"flags":["road"]},"w":{"id":15177935,"flags":["road"]}}}
+1790535613800000 [32mOld East Road[0m
+1790535613800000 Exits: south, east, west.
+1790535613800000 
+1790535613800000 *=>
+1790535614400000 > w
+1790535614550000 GMCP Event.Moved {"dir":"west"}
+1790535614550000 GMCP Room.Info {"id":15177935,"area":"Bree","name":"Old East Road","desc":"Winding both east and south, the Old East Road has been paved with large stones,\ngiving echoes from nearby buildings when horses and wagons pass by. Heading\nnorth, a white gravelled road winds its way upwards into the Bree hills. To the\neast several buildings and most prominently the Prancing Pony Inn can be seen.\n","environment":"city","exits":{"n":{"id":17026969,"flags":["road"]},"s":{"id":6790524,"flags":["road"]},"e":{"id":5825144,"flags":["road"]}}}
+1790535614550000 [32mOld East Road[0m
+1790535614550000 Exits: north, south, east.
+1790535614550000 
+1790535614550000 *=>
+1790535615150000 > n
+1790535615300000 GMCP Event.Moved {"dir":"north"}
+1790535615300000 GMCP Room.Info {"id":17026969,"area":"Bree","name":"Hill Road","desc":"Rising from the Old East Road in the south this road traverses northbound in the\nhillsides. Even being over ten feet wide it is by no means straight, but winds\nits way towards some of the official offices of Bree further north. A small\nvalley opening westwards leads into an isolated garden further down.\n","environment":"city","exits":{"n":{"id":17026970,"flags":["road"]},"s":{"id":15177935,"flags":["road"]},"w":{"id":17026974}}}
+1790535615300000 [32mHill Road[0m
+1790535615300000 Exits: north, south, west.
+1790535615300000 
+1790535615300000 *=>
+1790535615900000 > w
+1790535616050000 GMCP Event.Moved {"dir":"west"}
+1790535616050000 GMCP Room.Info {"id":17026974,"area":"Bree","name":"Tranquil Garden","desc":"Both south and north, steep hillsides create a tranquil and secluded garden,\nwith a large flat area stretching in all directions. On the southern end of the\nflat area a large tent has been erected, and rising up to the west a looming\ntower dominates a nearby hilltop. A small opening between the hillsides leads to\na white road in the east.\n","environment":"field","exits":{"s":{"id":17026999},"e":{"id":17026969},"w":{"id":17027000}}}
+1790535616050000 [32mTranquil Garden[0m
+1790535616050000 Exits: south, east, west.
+1790535616050000 
+1790535616050000 *=>
+1790535616650000 > w
+1790535616800000 GMCP Event.Moved {"dir":"west"}
+1790535616800000 GMCP Room.Info {"id":17027000,"area":"Bree","name":"Sorcerer's Stone Tower","desc":"Built from a foundation of solid stone five feet high and continuing into a\ntimber frame this tower stands high. Through a tall arched opening eastwards a\nlarge garden can be seen downhill, and on the eastern wall a solid winding\nstaircase rises twenty feet up towards a platform.\n","environment":"building","exits":{"e":{"id":17026974},"u":{"id":17027001}}}
+1790535616800000 [32mSorcerer's Stone Tower[0m
+1790535616800000 Exits: east, up.
+1790535616800000 
+1790535616800000 *=>
+1790535617400000 > u
+1790535617550000 GMCP Event.Moved {"dir":"up"}
+1790535617550000 GMCP Room.Info {"id":17027001,"area":"Bree","name":"Shielded Balcony","desc":"A platform is formed from the inside of the tower, stretching close to the Bree\nhedge to the west. The balcony is solidly framed with a railing, walls and a\nroof stretching overhead. A few hanging potted plants frame the view west, where\nthe intersection between the Old East Road and the Greenway can be seen.\n","environment":"building","exits":{"d":{"id":17027000}}}
+1790535617550000 [32mShielded Balcony[0m
+1790535617550000 Exits: down.
+1790535617550000 
+1790535617550000 *=>
+1790535618150000 > d
+1790535618300000 GMCP Event.Moved {"dir":"down"}
+1790535618300000 GMCP Room.Info {"id":17027000,"area":"Bree","name":"Sorcerer's Stone Tower","desc":"Built from a foundation of solid stone five feet high and continuing into a\ntimber frame this tower stands high. Through a tall arched opening eastwards a\nlarge garden can be seen downhill, and on the eastern wall a solid winding\nstaircase rises twenty feet up towards a platform.\n","environment":"building","exits":{"e":{"id":17026974},"u":{"id":17027001}}}
+1790535618300000 [32mSorcerer's Stone Tower[0m
+1790535618300000 Exits: east, up.
+1790535618300000 
+1790535618300000 *=>
+1790535618900000 GMCP Group.Update {"id":2,"mapid":15177935,"room":"Old East Road"}
+1790535618900000 > e
+1790535619050000 GMCP Event.Moved {"dir":"east"}
+1790535619050000 GMCP Room.Info {"id":17026974,"area":"Bree","name":"Tranquil Garden","desc":"Both south and north, steep hillsides create a tranquil and secluded garden,\nwith a large flat area stretching in all directions. On the southern end of the\nflat area a large tent has been erected, and rising up to the west a looming\ntower dominates a nearby hilltop. A small opening between the hillsides leads to\na white road in the east.\n","environment":"field","exits":{"s":{"id":17026999},"e":{"id":17026969},"w":{"id":17027000}}}
+1790535619050000 [32mTranquil Garden[0m
+1790535619050000 Exits: south, east, west.
+1790535619050000 
+1790535619050000 *=>
+1790535619650000 > e
+1790535619800000 GMCP Event.Moved {"dir":"east"}
+1790535619800000 GMCP Room.Info {"id":17026969,"area":"Bree","name":"Hill Road","desc":"Rising from the Old East Road in the south this road traverses northbound in the\nhillsides. Even being over ten feet wide it is by no means straight, but winds\nits way towards some of the official offices of Bree further north. A small\nvalley opening westwards leads into an isolated garden further down.\n","environment":"city","exits":{"n":{"id":17026970,"flags":["road"]},"s":{"id":15177935,"flags":["road"]},"w":{"id":17026974}}}
+1790535619800000 [32mHill Road[0m
+1790535619800000 Exits: north, south, west.
+1790535619800000 
+1790535619800000 *=>
+1790535620400000 > n
+1790535620400000 > n
+1790535620700000 GMCP Event.Moved {"dir":"north"}
+1790535620700000 GMCP Room.Info {"id":17026970,"area":"Bree","name":"Hill Road","desc":"Almost twelve feet wide, this road naturally follows the hills of Bree. It is\nmade from an almost white gravel, bordered on the sides with larger blocks of\nthe same stone. Eastwards you can see the roof of the Prancing Pony Inn, and a\ndoor set between two windows in a hillside. To the west the Mayor of Bree and\nother official services can be found.\n","environment":"city","exits":{"n":{"id":17026971,"flags":["road"]},"s":{"id":17026969,"flags":["road"]},"e":{"id":17026998},"w":{"id":17026975,"flags":["road"]}}}
+1790535620700000 [32mHill Road[0m
+1790535620700000 Exits: north, south, east, west.
+1790535620700000 
+1790535620700000 *=>
+1790535621000000 GMCP Event.Moved {"dir":"north"}
+1790535621000000 GMCP Room.Info {"id":17026971,"area":"Bree","name":"Hill Road","desc":"The white gravelled road bordered with white stone blocks flows naturally though\nBree-hill, slightly narrowing where it intersects with an entrance to a large\ngrassy park to the east. Up on a hillside to the west the wooden wall of a large\nhouse rising up with several ornamented windows is on display.\n","environment":"city","exits":{"n":{"id":17026972,"flags":["road"]},"s":{"id":17026970,"flags":["road"]},"e":{"id":17026978}}}
+1790535621000000 [32mHill Road[0m
+1790535621000000 Exits: north, south, east.
+1790535621000000 
+1790535621000000 *=>
