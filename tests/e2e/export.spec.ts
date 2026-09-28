@@ -23,6 +23,8 @@ async function openHistory(page: Page): Promise<void> {
 }
 
 async function openEditor(page: Page): Promise<void> {
+  // History loads its sessions asynchronously; keys before that are lost.
+  await expect(frame(page).locator('.wc-tr:not(.is-empty)')).toHaveCount(3);
   await page.keyboard.press('Home');
   await page.keyboard.press('ArrowDown');
   await expect(cur(page)).toContainText('Rasta');

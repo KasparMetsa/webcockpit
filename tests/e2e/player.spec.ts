@@ -43,6 +43,8 @@ test('History → RUN LOG plays the Rasta session; pause, speed, seek, markers, 
   });
   await page.locator('.wc-start .wc-mrow[data-key="history"] .wc-label').click();
   await expect(frame(page).locator('.wc-title-row')).toHaveText('─── History ───');
+  // History loads its sessions asynchronously; keys before that are lost.
+  await expect(frame(page).locator('.wc-tr:not(.is-empty)')).toHaveCount(3);
   await page.keyboard.press('ArrowDown');
   await expect(cur(page)).toContainText('Rasta');
   await frame(page).locator('[data-btn="RUN LOG"]').click();
