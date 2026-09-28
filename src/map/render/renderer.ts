@@ -5,6 +5,7 @@
 
 import type { AssetResolver } from '../assets';
 import type { MapData } from '../model';
+import type { Scene } from '../scene';
 import type { View } from '../view';
 
 /** MMapper background (owner config `#2e3436`), 0…1 RGB. */
@@ -15,6 +16,8 @@ export interface Renderer {
   setMap(map: MapData | null): void;
   /** The drawing buffer size in device px and the CSS→device ratio. */
   resize(width: number, height: number, dpr: number): void;
+  /** Player, path and group state; cheap, called before a render. */
+  setScene(scene: Scene): void;
   /** Draws one frame of `view`. */
   render(view: View): void;
   dispose(): void;
@@ -26,6 +29,7 @@ export class ClearRenderer implements Renderer {
   private h = 1;
   constructor(private readonly gl: WebGL2RenderingContext) {}
   setMap(_map: MapData | null): void {}
+  setScene(_scene: Scene): void {}
   resize(width: number, height: number, _dpr: number): void {
     this.w = width;
     this.h = height;

@@ -114,6 +114,7 @@ function harness(files: Record<string, Uint8Array> = {}) {
   const draws: number[] = [];
   const renderer: Renderer = {
     setMap: () => {},
+    setScene: () => {},
     resize: () => {},
     render: (v) => void draws.push(v.zoom),
     dispose: () => {},
