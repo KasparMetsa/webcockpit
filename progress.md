@@ -29,7 +29,9 @@ Newest first.
   Group, Comm and UI (`EVEN_SHARE_DESIRED`). Black background, borders
   and the floating map were already default. Stored settings unchanged.
   Tests that need Cockpit's fixed heights pin them. 1078 unit, 182 e2e pass.
-- **Published:** f9c6080 live; smoke test passes against the live URL.
+- **Map size:** default map float 25 % × 27 % of the window (was 50 % ×
+  35 %), owner feedback after the first publish.
+- **Published:** f9c6080, then 99981b7; smoke test passes against the live URL.
 - **Next:** plan the rest of stage 8.
 - **Open issues:** none new.
 - **Commits:** (this commit).
