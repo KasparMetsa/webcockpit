@@ -45,8 +45,8 @@ describe('viewer overrides', () => {
       dark: ['#000000', '#c0c0c0'],
       teal: ['#002b36', '#c0c0c0'],
       paper: ['#f4ecd8', '#000000'],
-      sepia: ['#2b1b12', '#000000'],
-      slate: ['#1c2128', '#000000'],
+      sepia: ['#2b1b12', '#c0c0c0'],
+      slate: ['#1c2128', '#c0c0c0'],
     };
     for (const [theme, [bg, fg]] of Object.entries(want)) {
       const s = defaultSettings();

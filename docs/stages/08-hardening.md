@@ -1,6 +1,6 @@
 # Stage 8 — Hardening → v1
 
-> Status: In progress (part A).
+> Status: In progress (part A done 2026-09-28; later parts not planned yet).
 > Source: spec §5 row 8; owner brief 2026-09-28 (part A, viewer
 > settings in RUN LOG and the HTML replay). ADR 0021.
 
@@ -29,7 +29,7 @@ Part A — in:
   layout.
 - Font size: Default (as recorded) → Small → Medium → Large.
 - Colours: Default (as recorded) → Dark → Teal → Paper → Sepia → Slate,
-  with BG/FG black/silver, teal/silver, paper/ink, sepia/ink, slate/ink
+  with BG/FG black/silver, teal/silver, paper/ink, sepia/silver, slate/silver
   (the existing presets). Any theme but Default sets every pane's colour
   to None (the terminal background, as None works in Options → Panes).
 - The timers pane's `+` corner (herblore add-view) is gone in the
@@ -72,7 +72,7 @@ Part A:
       audit the other panes for state-changing clicks in players.
 - [x] A5. HTML replay and Spotlights reel wiring; e2e for RUN LOG and
       the replay; unit + e2e green; build.
-- [ ] A6. Owner test.
+- [x] A6. Owner test.
 
 ## Test guide (part A)
 
@@ -97,3 +97,7 @@ theme and font choices are right; anything in a pane that still reacts
 to clicks in a way it should not.
 
 ## Owner feedback
+
+- 2026-09-28, test 1: "seems to work well". Sepia and Slate get FG
+  silver instead of ink (black text was unreadable on the dark
+  backgrounds); the other themes are fine. Part A approved.

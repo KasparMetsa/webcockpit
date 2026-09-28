@@ -34,8 +34,8 @@ export const VIEWER_THEME_PRESETS: Readonly<Record<Exclude<ViewerTheme, 'default
   dark: { bg: 'black', fg: 'silver' },
   teal: { bg: 'teal', fg: 'silver' },
   paper: { bg: 'paper', fg: 'ink' },
-  sepia: { bg: 'sepia', fg: 'ink' },
-  slate: { bg: 'slate', fg: 'ink' },
+  sepia: { bg: 'sepia', fg: 'silver' },
+  slate: { bg: 'slate', fg: 'silver' },
 };
 
 const LABELS: Readonly<Record<ViewerFont | ViewerTheme, string>> = {

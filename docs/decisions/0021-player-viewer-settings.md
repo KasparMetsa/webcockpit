@@ -41,7 +41,7 @@ seeks). Reset clears `panes` and `layout`.
   the grid would be under the cockpit minimum.
 - Theme: Default = recorded fg/bg and pane colours. Otherwise bg/fg from
   the presets — dark black/silver, teal teal/silver, paper paper/ink,
-  sepia sepia/ink, slate slate/ink — and every pane's `color` is
+  sepia sepia/silver, slate slate/silver — and every pane's `color` is
   `black` (None). Borders stay as recorded; with None they take the
   terminal background's shade, as in the live client.
 - Layout: the player cockpit's own drag and resize write to the player
@@ -125,7 +125,7 @@ Part A build, 2026-09-28:
   gear (`PlayerOpenOptions.viewerSettings`, default true). In the reel
   every control makes sense (the overrides also survive the jumps between
   spotlights, which rebuild the App); its chrome starts hidden as before.
-- Themes as specified. Sepia/ink and Slate/ink draw default-colour text in
-  black on a dark background, which is hard to read (owner to confirm the
-  pairing); Paper is readable, with some bright ANSI colours (yellow) weak
-  on it, as in the live client.
+- Themes: Paper is readable, with some bright ANSI colours (yellow) weak
+  on it, as in the live client. Sepia and Slate were built with ink as
+  first briefed; black text on their dark backgrounds was unreadable, so
+  the owner changed both to silver (2026-09-28).
