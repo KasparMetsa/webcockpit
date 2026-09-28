@@ -52,6 +52,8 @@ export class MapWorkerCore {
   readonly tracker = new Tracker();
   private persistIds = false;
   private lastStatus = '';
+  /** The load whose first complete frame is still to be reported (`drawn`), and its start. */
+  private drawnPending: { req: number; t0: number } | null = null;
 
   constructor(private readonly host: WorkerHost) {}
 
@@ -178,15 +180,19 @@ export class MapWorkerCore {
   /** Loads a map; the previous one stays if this fails. */
   async load(req: number, source: MapSource): Promise<void> {
     this.loadReq = req;
-    const t0 = this.host.now();
+    const now = () => this.host.now();
+    const t0 = now();
+    const stages = { fetch: 0, inflate: 0, parse: 0, hash: 0, meshes: 0 };
     try {
       let map: MapData;
       let hash = '';
       let name: string;
       if (source.kind === 'data') {
+        const tp = now();
         map = source.map;
         buildIndexes(map);
         name = source.name;
+        stages.parse = now() - tp;
       } else {
         let bytes: Uint8Array;
         if (source.kind === 'url') {
@@ -198,13 +204,26 @@ export class MapWorkerCore {
           bytes = new Uint8Array(source.bytes);
           name = source.name;
         }
-        map = await readMm2(bytes, this.host.inflate ?? inflateZlib);
+        stages.fetch = now() - t0;
+        const inflate = this.host.inflate ?? inflateZlib;
+        const tp = now();
+        map = await readMm2(bytes, async (z) => {
+          const ti = now();
+          const out = await inflate(z);
+          stages.inflate = now() - ti;
+          return out;
+        });
+        stages.parse = now() - tp - stages.inflate;
+        const th = now();
         hash = await mapHash(bytes);
+        stages.hash = now() - th;
       }
       if (req !== this.loadReq) return;
       this.map = map;
       this.view = centreOn(this.view, map.selected.x, map.selected.y, map.selected.z);
+      const tm = now();
       this.renderer?.setMap(map);
+      stages.meshes = now() - tm;
       this.tracker.setMap(map, hash);
       this.renderer?.setScene(this.tracker.current);
       this.postStatus();
@@ -218,9 +237,17 @@ export class MapWorkerCore {
           infomarks: map.infomarks.count,
           serverIds: map.byServerId.size,
           hash,
-          ms: Math.round(this.host.now() - t0),
+          ms: Math.round(now() - t0),
+          stages: {
+            fetch: Math.round(stages.fetch),
+            inflate: Math.round(stages.inflate),
+            parse: Math.round(stages.parse),
+            hash: Math.round(stages.hash),
+            meshes: Math.round(stages.meshes),
+          },
         },
       });
+      this.drawnPending = { req, t0 };
       this.requestRender();
     } catch (err) {
       if (req !== this.loadReq) return;
@@ -283,6 +310,11 @@ export class MapWorkerCore {
       try {
         this.renderer.render(this.view);
         this.frames++;
+        const d = this.drawnPending;
+        if (d && this.map && this.renderer.complete !== false) {
+          this.drawnPending = null;
+          this.host.post({ t: 'drawn', req: d.req, ms: Math.round(this.host.now() - d.t0) });
+        }
       } catch (err) {
         this.host.post({ t: 'error', stage: 'render', message: err instanceof Error ? err.message : String(err) });
       }

@@ -60,8 +60,10 @@ export interface MapInfo {
   serverIds: number;
   /** SHA-256 prefix of the file bytes (hex, 32 chars); `''` for `data` sources. */
   hash: string;
-  /** Load time in the worker, ms (fetch + inflate + parse + index). */
+  /** Load time in the worker, ms (fetch + inflate + parse + index + mesh build and upload). */
   ms: number;
+  /** The load's stages in the worker, ms (P4; `parse` includes the indexes, `meshes` the GPU upload). */
+  stages?: { fetch: number; inflate: number; parse: number; hash: number; meshes: number };
 }
 
 // ------------------------------------------------------------- events
@@ -155,6 +157,8 @@ export type WorkerToMain =
   | { t: 'error'; stage: 'init' | 'load' | 'render'; req?: number; message: string }
   /** The WebGL context came back after an `error` "context lost" (P4); drawing again. */
   | { t: 'restored' }
+  /** Once per load (P4): the first frame drawn with the map, every tile and the font; ms since the load started. */
+  | { t: 'drawn'; req: number; ms: number }
   /** Locator state (P2): the player's room index, or null when unknown. */
   | {
       t: 'status';

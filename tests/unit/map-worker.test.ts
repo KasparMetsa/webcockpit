@@ -112,12 +112,13 @@ function harness(files: Record<string, Uint8Array> = {}) {
   const out: WorkerToMain[] = [];
   const frames: (() => void)[] = [];
   const draws: number[] = [];
-  const renderer: Renderer = {
+  const renderer: Renderer & { complete: boolean } = {
     setMap: () => {},
     setScene: () => {},
     resize: () => {},
     render: (v) => void draws.push(v.zoom),
     dispose: () => {},
+    complete: true,
   };
   const canvas = { width: 0, height: 0, getContext: () => ({}) as WebGL2RenderingContext } as unknown as OffscreenCanvas;
   const core = new MapWorkerCore({
@@ -134,7 +135,7 @@ function harness(files: Record<string, Uint8Array> = {}) {
     for (const cb of frames.splice(0)) cb();
   };
   core.handle({ t: 'init', protocol: MAP_PROTOCOL_VERSION, canvas, width: 200, height: 100, dpr: 2, assets: { kind: 'base', url: '/map/' } });
-  return { core, out, canvas, draws, runFrames };
+  return { core, out, canvas, draws, runFrames, renderer };
 }
 
 describe('map worker core', () => {
@@ -164,6 +165,24 @@ describe('map worker core', () => {
     expect(h.core.map?.roomCount).toBe(1);
     await h.core.load(3, { kind: 'bytes', bytes: new Uint8Array([1, 2, 3]).buffer, name: 'x.mm2' });
     expect(h.out.at(-1)).toMatchObject({ t: 'error', stage: 'load', message: expect.stringMatching(/too short/) });
+  });
+
+  it('reports load stages, and the first frame with every tile and the font once per load', async () => {
+    const h = harness({ '/map/a.mm2': await tinyFile() });
+    h.renderer.complete = false;
+    await h.core.load(1, { kind: 'url', url: '/map/a.mm2' });
+    expect(h.out.find((m) => m.t === 'loaded')).toMatchObject({
+      info: { stages: { fetch: 0, inflate: 0, parse: 0, hash: 0, meshes: 0 } },
+    });
+    h.runFrames();
+    expect(h.out.some((m) => m.t === 'drawn')).toBe(false); // tiles still loading
+    h.renderer.complete = true;
+    h.core.requestRender();
+    h.runFrames();
+    expect(h.out.filter((m) => m.t === 'drawn')).toEqual([{ t: 'drawn', req: 1, ms: 0 }]);
+    h.core.handle({ t: 'pan', dx: 1, dy: 0 });
+    h.runFrames();
+    expect(h.out.filter((m) => m.t === 'drawn')).toHaveLength(1);
   });
 
   it('loads parsed data (a subset sent by the main thread)', async () => {

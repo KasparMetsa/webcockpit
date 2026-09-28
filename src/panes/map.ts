@@ -14,7 +14,10 @@
 // - `content.dataset.mapState`: `idle` → `starting` → `ready` → `loaded`
 //   (or `unsupported` / `error`); `mapRooms` is set on `loaded`;
 //   `mapLocated` (`1`/`0`), `mapRoom` (room index or empty) and `mapHow`
-//   follow the worker's `status` (browser tests, debugging).
+//   follow the worker's `status` (browser tests, debugging); `mapLoad`
+//   (JSON: ms and the worker's load stages) on `loaded` and `mapDrawnMs`
+//   (load start → first frame with every tile and the font) on `drawn`
+//   (bench/browser-bench.ts).
 // - Game events (gmcp, cmd.sent, text.line, conn.state) are forwarded only
 //   while the pane is shown and its map is loaded (MapEventForwarder:
 //   one array push per event, one postMessage per microtask). Turned on
@@ -252,6 +255,7 @@ export class MapPane extends PaneShell {
       case 'loaded':
         this.content.dataset.mapState = 'loaded';
         this.content.dataset.mapRooms = String(m.info.rooms);
+        this.content.dataset.mapLoad = JSON.stringify({ ms: m.info.ms, ...m.info.stages });
         this.notice.hidden = true;
         this.loaded = true;
         this.syncForward();
@@ -263,6 +267,9 @@ export class MapPane extends PaneShell {
         d.mapHow = m.how ?? '';
         return;
       }
+      case 'drawn':
+        this.content.dataset.mapDrawnMs = String(m.ms);
+        return;
       case 'restored':
         // The context came back: drop the "context lost" notice.
         if (this.content.dataset.mapState === 'error' && this.loaded) {

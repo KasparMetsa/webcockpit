@@ -131,6 +131,11 @@ export class WebGLMapRenderer implements Renderer {
   private disposed = false;
   /** Milliseconds of the last setMap mesh build (tests, reports). */
   buildMs = 0;
+  private texturesLoaded = false;
+  /** Every tile array and the current font are loaded. */
+  get complete(): boolean {
+    return this.texturesLoaded && this.fontTex !== null;
+  }
 
   constructor(
     private readonly gl: GL,
@@ -193,6 +198,7 @@ export class WebGLMapRenderer implements Renderer {
       this.charArrows = t;
       a.close();
     }
+    this.texturesLoaded = true;
     this.onChange();
   }
 

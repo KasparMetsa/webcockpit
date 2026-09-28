@@ -22,6 +22,8 @@ export interface Renderer {
   /** Draws one frame of `view`. */
   render(view: View): void;
   dispose(): void;
+  /** False while tiles or the font are still loading (absent: nothing to load). */
+  readonly complete?: boolean;
 }
 
 /** P0 renderer: clears to MAP_BG. */
