@@ -24,6 +24,13 @@
 //     exports    keyPath 'sessionId'; one export editor record per session
 //                (ExportDoc, keyed by the chain's first run id;
 //                src/share/edits.ts, src/runs/store.ts, ADR 0019)
+//   version 7 (stage 9)
+//     maps       keyPath 'key'; one record 'current', the imported map:
+//                { key, name, size, date, bytes: ArrayBuffer, hash }
+//                (absent = the bundled public/map/arda.mm2; ADR 0020)
+//     mapIds     keyPath ['mapHash', 'serverId']; server ids the locator
+//                learned: { mapHash, serverId, room } (room = index in
+//                that map; src/map, ADR 0020)
 //
 // The upgrade handler is a chain of `if (oldVersion < N)` steps, so every
 // older database upgrades in order. Add a step (and bump DB_VERSION) for
@@ -34,7 +41,7 @@
 // owns a connection must be ready for its transactions to fail afterwards.
 
 export const DB_NAME = 'webcockpit';
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 /** Object store names, for callers outside this module. */
 export const STORE = {
@@ -46,6 +53,8 @@ export const STORE = {
   timers: 'timers',
   runEvents: 'runEvents',
   exports: 'exports',
+  maps: 'maps',
+  mapIds: 'mapIds',
 } as const;
 
 let persistAsked = false;
@@ -94,6 +103,10 @@ export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Pr
       if (ev.oldVersion < 6) {
         db.createObjectStore(STORE.exports, { keyPath: 'sessionId' });
       }
+      if (ev.oldVersion < 7) {
+        db.createObjectStore(STORE.maps, { keyPath: 'key' });
+        db.createObjectStore(STORE.mapIds, { keyPath: ['mapHash', 'serverId'] });
+      }
     };
     r.onsuccess = () => {
       const db = r.result;
@@ -103,6 +116,25 @@ export function openWebcockpitDb(factory: IDBFactory = globalThis.indexedDB): Pr
     r.onerror = () => reject(r.error);
     r.onblocked = () => reject(new Error('database upgrade blocked by another tab'));
   });
+}
+
+/** The one `maps` record (key `current`): an imported `.mm2` (ADR 0020). */
+export interface StoredMap {
+  key: 'current';
+  name: string;
+  size: number;
+  /** Import time, ms since the epoch. */
+  date: number;
+  bytes: ArrayBuffer;
+  /** `mapHash` of the bytes (src/map/mm2.ts). */
+  hash: string;
+}
+
+/** A `mapIds` record: a server id the locator matched to a room of map `mapHash`. */
+export interface StoredMapId {
+  mapHash: string;
+  serverId: number;
+  room: number;
 }
 
 /** Resolves with a request's result. */
