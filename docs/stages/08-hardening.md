@@ -61,16 +61,16 @@ glyphs, reel load time on a large library, live checks of stage 7,
 Part A:
 
 - [x] Stage file, ADR 0021.
-- [ ] A1. Viewer overrides model (pure) + tests: font, theme, panes,
+- [x] A1. Viewer overrides model (pure) + tests: font, theme, panes,
       layout; applied over every VIEW record and on every App rebuild
       (backward seek).
-- [ ] A2. PlayerHost applies the overrides; the viewer's drag/resize in
+- [x] A2. PlayerHost applies the overrides; the viewer's drag/resize in
       the player cockpit becomes a sticky layout override.
-- [ ] A3. Gear and the fold-out settings section in the control box
+- [x] A3. Gear and the fold-out settings section in the control box
       (PlayerView), keyboard/pointer handling, chrome stays while open.
-- [ ] A4. Timers `+` corner and herblore add-view off in player Apps;
+- [x] A4. Timers `+` corner and herblore add-view off in player Apps;
       audit the other panes for state-changing clicks in players.
-- [ ] A5. HTML replay and Spotlights reel wiring; e2e for RUN LOG and
+- [x] A5. HTML replay and Spotlights reel wiring; e2e for RUN LOG and
       the replay; unit + e2e green; build.
 - [ ] A6. Owner test.
 
