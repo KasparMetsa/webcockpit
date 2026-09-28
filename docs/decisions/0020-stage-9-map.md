@@ -128,10 +128,14 @@ research §7. The existing `GroupModel` is not changed.
 
 - The in-app log player shows the map: its App gets a map loader that
   fetches the same map (no DB needed for the bundled map).
-- The HTML replay does not include the map (5.8 MB of map data and a
-  worker cannot live in the single-file IIFE). The pane shows "Map not
-  included in replays". The map client is imported dynamically so the
-  replay bundle does not grow.
+- The HTML replay includes the map (owner, 2026-09-28, replacing the
+  first draft of this ADR). The export embeds a **map subset**: the rooms
+  visited in the exported chain plus a margin around them (and the
+  connections/infomarks among them), and only the tiles and font pages
+  that subset uses, inline in the file. The replay bundle starts the
+  same worker code as an inline blob worker (works from `file://`).
+  Target: the subset adds well under 1 MB for a normal fight.
+- The map used is the one active at export time.
 
 ### Performance gates
 
@@ -147,7 +151,7 @@ research §7. The existing `GroupModel` is not changed.
   (Chrome, Firefox, Safari ≥ 17). Without them the pane shows a notice;
   the client is unaffected.
 - `public/map` adds ~7 MB to the deploy, loaded only when the map is on.
-- The HTML replay has no map.
+- The replay bundle grows by the renderer and worker code.
 
 ## Package notes
 

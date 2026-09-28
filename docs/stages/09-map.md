@@ -33,10 +33,11 @@ In:
   from sent moves (MMapper queue rules).
 - Group mates from `Group.*` `mapid`, with MMapper colours and labels.
 - Map pane (`map`, off by default), Options → Panes → Mapper.
-- The in-app log player shows the map; the HTML replay shows a notice.
+- The in-app log player and the exported HTML replay show the map (the
+  replay embeds a map subset around the visited rooms).
 
 Out: editing, auto-mapping, weather, tilt/3D, room info panel, search,
-path finding, `.xml`/web JSON import, map in the HTML replay.
+path finding, `.xml`/web JSON import.
 
 ## Owner decisions
 
@@ -46,6 +47,7 @@ path finding, `.xml`/web JSON import, map in the HTML replay.
   MUME room texts).
 - 2026-09-28: read-only (no auto-mapping or editing).
 - 2026-09-28: group room data comes from GMCP (`mapid`), per the owner.
+- 2026-09-28: the map follows along in exported HTML replays.
 
 ## Tasks
 
@@ -62,7 +64,8 @@ path finding, `.xml`/web JSON import, map in the HTML replay.
 - [ ] P2. Tracking: locator, prespam path, group mates, event
       forwarding, `tests/fixtures/map-demo.log` from a real path.
 - [ ] P3. Options → Panes → Mapper (import, use bundled, status), pane
-      default placement, log player loader, HTML replay notice.
+      default placement, log player loader, map subset embedded in the
+      HTML replay.
 - [ ] P4. Merge; bench with the map on (ADR 0020 gates); main-session
       verification with screenshots; test guide.
 
