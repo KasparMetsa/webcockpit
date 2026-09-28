@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **9 — Map** (in progress; built before stage 8 by owner request).
+Current stage: **9 — Map** (owner testing; built before stage 8 by owner request).
 
 ## Stages
 
@@ -14,13 +14,31 @@ Current stage: **9 — Map** (in progress; built before stage 8 by owner request
 | 6 | Runs | Done | `docs/stages/06-runs.md` |
 | 7 | Sharing | Done | `docs/stages/07-sharing.md` |
 | 8 | Hardening → v1 | Next after 9 | — |
-| 9 | Map | In progress | `docs/stages/09-map.md` |
+| 9 | Map | Owner testing | `docs/stages/09-map.md` |
 
 Statuses: Next, In progress, Owner testing, Done.
 
 ## Session log
 
 Newest first.
+
+### 2026-09-28 — Stage 9 build (map)
+
+- **Done:** owner moved the map before stage 8 and changed it to tiles
+  (MMapper look, default tileset), arda.mm2 bundled, read-only, map in
+  HTML replays. Research (`mmapper-rendering.md`), ADR 0020, stage file.
+  P0 mm2 v42 reader, DB v7, pane `map`, worker + OffscreenCanvas; P1
+  WebGL2 renderer (side-by-side with the owner's screenshot matches);
+  P2 locator (id → direction+name → name+desc, learned ids persisted),
+  prespam path, group mates by `mapid`; P3 Options → Panes → Mapper,
+  log player map, replay map subset (+~0.5 MB for 30 rooms); P4 bench
+  map on/off (all budgets pass on GPU Chromium and Firefox), e2e race
+  fix in export/player specs. 1049 unit, 178 e2e.
+- **Next:** owner tests (guide in the stage file), then stage 8.
+- **Open issues:** group `mapid` for mates outside the room and Room.Info
+  on `look` unverified live; headless SwiftShader Chromium misses the
+  burst budget with the map on (not a user path); pane default height.
+- **Commits:** c852dc3…(this commit).
 
 ### 2026-09-28 — Stage 7 build
 

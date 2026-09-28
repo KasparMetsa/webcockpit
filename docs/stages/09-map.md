@@ -1,6 +1,6 @@
 # Stage 9 — Map
 
-> Status: In progress (started 2026-09-28, before stage 8 by owner
+> Status: Owner testing (started 2026-09-28, before stage 8 by owner
 > request).
 > Source: spec §2.9 as amended by ADR 0020; owner brief 2026-09-28
 > (screenshot of the owner's MMapper). Research:
@@ -68,11 +68,44 @@ path finding, `.xml`/web JSON import.
       HTML replay.
 - [x] P4. Merge; bench with the map on (ADR 0020 gates); verification
       with screenshots (ADR 0020 "P4").
-- [ ] Test guide (main session).
+- [x] Test guide (main session).
 
 ## Test guide
 
-(Written when the build is done.)
+**Start:** `cd ~/proj/webcockpit && npm run dev` (restart it if it was
+already running), then open http://localhost:5173/.
+
+1. **Turn the map on:** ESC → Options → Panes → Mapper → `[X] Show map
+   pane` (or the Map row in Options → Panes → General). The pane floats
+   top-right over the game text, with a border like the other panes. The
+   first load takes about half a second (5.8 MB).
+2. **Look:** compare with your MMapper at the same spot: tiles, walls,
+   doors and door names, flags, up/down icons, lines, the yellow square.
+   Anything that differs (colour, size, line, text) is wanted feedback,
+   ideally with a screenshot from both.
+3. **Mouse:** drag inside the map pans; the wheel zooms around the
+   pointer; Ctrl+wheel changes layer. Drag the title row to move the pane,
+   drop it in a dock, float it, resize it, turn the border off (Options →
+   Panes → General). Typing still goes to the input line.
+4. **Play live:** log in and walk. The map follows every move, also in
+   rooms your map has no server id for. Pre-spam `n;n;n` (or quick moves):
+   a yellow line shows the path ahead and shrinks as you arrive. A failed
+   move (closed door) drops it.
+5. **Group:** group with someone and split up: each mate should show on
+   their room in their own colour with a name label, or as an arrow at the
+   edge when outside the view. (This is the one thing we could not check
+   without live GMCP.)
+6. **Speed:** play as usual with the map on: sending and scrolling should
+   feel exactly as with it off. Tell me if anything feels slower.
+7. **Import:** Options → Panes → Mapper → Import map file… → another
+   `.mm2` (e.g. `~/Documents/MMapper/arda-copy.mm2`). The pane reloads.
+   `Use bundled map` goes back to arda.mm2.
+8. **Replays:** History → a run you played with the map on → PLAY: the
+   map follows along. EXPORT → HTML → open the file: the map is there too
+   (the rooms you visited and a margin around them).
+
+Feedback wanted: does it look like your MMapper, the default size and
+place of the pane, group mates live, and anything that feels slower.
 
 ## Owner feedback
 
