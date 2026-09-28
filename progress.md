@@ -22,6 +22,15 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-28 — Stage 8: About page
+
+- **Done:** About text grows sections on MUME, the PvP focus, website and
+  Discord, and CREDITS (MMapper first, Cockpit, MUME, fonts, libraries).
+  Web addresses are clickable links. 1080 unit tests pass.
+- **Next:** owner reads the About page; publish; plan the rest of stage 8.
+- **Open issues:** none new.
+- **Commits:** 8b11597.
+
 ### 2026-09-28 — Stage 8: bundled khazdul profile
 
 - **Done:** ADR 0024. First run seeds `khazdul` (the owner's PvP profile,
