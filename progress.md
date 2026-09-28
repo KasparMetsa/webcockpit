@@ -112,7 +112,7 @@ Newest first.
   sibling, site-root smoke test (`tests/e2e-prod`, plain static server,
   Chromium + Firefox), carry the live hashed assets one release, swap with
   `mv --exchange`; `--dry-run`, `--rollback`. Tested against a scratch dir.
-- **Published:** b7649b1 is live at `https://olexps.tail893822.ts.net:8443/`;
+- **Published:** b7649b1 is live on the private deployment (ADR 0022);
   headers/MIME checked with curl, smoke test passes against the live URL
   (`WC_PROD_URL`).
 - **Next:** plan the rest of stage 8.

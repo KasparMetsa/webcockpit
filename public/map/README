@@ -9,8 +9,9 @@ arda.mm2
 The owner's MMapper map (MMapper schema v42), bundled as the default map
 by owner decision (ADR 0020, 2026-09-28). It contains MUME's room names
 and descriptions. Those texts belong to MUME (https://mume.org) and carry
-no licence; bundling them is an accepted risk to revisit before any
-public release. The file is read as is and never changed.
+no licence. The owner decided to keep the file in the public repository
+(2026-09-28), on the same terms as MMapper, which distributes a MUME map
+with its releases. The file is read as is and never changed.
 
 pixmaps/
 --------

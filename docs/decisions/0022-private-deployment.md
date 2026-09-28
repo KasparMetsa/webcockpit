@@ -14,7 +14,8 @@ it and what the project does to publish.
 ### Hosting (owner's decision)
 
 - WebCockpit is served publicly through Tailscale Funnel at
-  `https://olexps.tail893822.ts.net:8443/`, shared only with close
+  a `*.ts.net` host on port 8443 (the address is shared privately and
+  kept out of this repository), shared only with close
   friends for now. The owner switches it on and off from their system
   (`tailweb`, a waybar menu; `~/proj/system`). This project does not touch
   Tailscale or the web server configuration.
@@ -31,7 +32,7 @@ it and what the project does to publish.
   still connects directly to `wss://mume.org/ws-play/` (ADR 0002); the
   host never sees game traffic or passwords.
 - **Storage is per origin.** IndexedDB, Web Locks and `localStorage`
-  belong to `https://olexps.tail893822.ts.net:8443`. The dev server
+  belong to the deployment's origin (`https://<host>:8443`). The dev server
   (`http://localhost:5173`) and production are separate: profiles, runs,
   settings and imported maps do not carry over (move them with the
   profile and runs export/import). If the host name or port ever changes,

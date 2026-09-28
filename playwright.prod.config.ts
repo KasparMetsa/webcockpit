@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
 //   WC_PROD_DIR   the directory to serve (default dist; publish uses its staging dir)
 //   WC_PROD_PORT  the port (default 4180)
 //   WC_PROD_URL   test a deployed site instead (no local server), e.g.
-//                 https://olexps.tail893822.ts.net:8443
+//                 https://example.ts.net:8443
 const port = Number(process.env.WC_PROD_PORT ?? 4180);
 const dir = process.env.WC_PROD_DIR ?? 'dist';
 const remote = process.env.WC_PROD_URL?.replace(/\/+$/, '');

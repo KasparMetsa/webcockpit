@@ -29,3 +29,12 @@ Sources, versions and the conversion are recorded in
   Copyright (C) 2018-2021 by Marijn Haverbeke and others. Used for the
   profile editor's text view (`src/editor/`), loaded as a separate chunk.
   Licence texts: `node_modules/<package>/LICENSE` (MIT, GPL-compatible).
+
+## Map assets (`public/map/`)
+
+- **MMapper** 26.06.0 default tileset (`pixmaps/`), GPL-2.0-or-later,
+  Copyright (C) The MMapper Authors.
+- **Cantarell** bitmap fonts (`fonts/`), SIL Open Font License 1.1.
+- **arda.mm2**, a MUME map whose room texts belong to MUME.
+
+Details and licence texts: `public/map/README`.
