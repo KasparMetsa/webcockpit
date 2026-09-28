@@ -32,7 +32,7 @@ In:
 - Current room marker, off-screen arrow, other-layer arrow; prespam path
   from sent moves (MMapper queue rules).
 - Group mates from `Group.*` `mapid`, with MMapper colours and labels.
-- Map pane (`map`, off by default), Options → Mapper.
+- Map pane (`map`, on by default since owner test 2), Options → Mapper.
 - The in-app log player and the exported HTML replay show the map (the
   replay embeds a map subset around the visited rooms).
 
