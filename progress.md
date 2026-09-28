@@ -29,7 +29,8 @@ Newest first.
   Group, Comm and UI (`EVEN_SHARE_DESIRED`). Black background, borders
   and the floating map were already default. Stored settings unchanged.
   Tests that need Cockpit's fixed heights pin them. 1078 unit, 182 e2e pass.
-- **Next:** plan the rest of stage 8; publish when the owner wants it live.
+- **Published:** f9c6080 live; smoke test passes against the live URL.
+- **Next:** plan the rest of stage 8.
 - **Open issues:** none new.
 - **Commits:** (this commit).
 
