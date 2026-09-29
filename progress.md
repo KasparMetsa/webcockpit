@@ -29,8 +29,9 @@ Newest first.
   README, About, replay notice. 15 MMapper-derived files under `src/map/`
   got SPDX, MMapper copyright and dated modification headers;
   THIRD_PARTY_NOTICES lists each with its MMapper sources and changes.
-- **Next:** publish a build so the live About shows the new licence; reply
-  to MMapper's author. Then plan the rest of stage 8.
+- **Published:** 6d2bfb4 (0.1.4); smoke test passes. Pushed to GitHub.
+  The owner replies to MMapper's author.
+- **Next:** plan the rest of stage 8.
 - **Open issues:** none.
 - **Commits:** see git log for 2026-09-29.
 
