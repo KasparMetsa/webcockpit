@@ -22,7 +22,7 @@ src/resources/pixmaps/ of the release source tree.
   Copyright (C) The MMapper Authors
   Licence: GNU General Public License, version 2 or (at your option) any
   later version (GPL-2.0-or-later). WebCockpit is distributed under
-  GPL-3.0-or-later, which this permits.
+  the same licence (ADR 0027).
 
 fonts/Cantarell{18,27,36}.fnt, fonts/Cantarell{18,27,36}_0.png
 --------------------------------------------------------------

@@ -1,6 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 The WebCockpit Authors
+// Derived from MMapper 26.06.0 (https://github.com/MUME/MMapper),
+// Copyright (C) 2019-2026 The MMapper Authors. Modified for WebCockpit
+// (2026-09-28): rewritten in TypeScript and WebGL2; see
+// THIRD_PARTY_NOTICES.md "MMapper-derived code".
+//
 // Colours of the map renderer (research §3–§7). Values are MMapper
 // 26.06.0's defaults, which the owner's config keeps
-// (configuration/configuration.cpp, global/Colors.h). Ported from
+// (configuration/configuration.cpp, global/Color.h). Ported from
 // MMapper (GPL-2.0-or-later).
 
 /** An RGBA colour, 0…1 per channel. */

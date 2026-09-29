@@ -98,7 +98,10 @@ edges. Bug reports and feature requests are welcome on
 
 ## License
 
-GPL-3.0-or-later. See [`LICENSE`](LICENSE) and, for bundled fonts,
+GPL-2.0-or-later, the same licence as MMapper, so code can move both
+ways. The map renderer and tracking are partly derived from MMapper
+(listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)). See
+[`LICENSE`](LICENSE) and, for bundled fonts,
 libraries and map assets,
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 

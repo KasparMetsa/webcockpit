@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 The WebCockpit Authors
+// Derived from MMapper 26.06.0 (https://github.com/MUME/MMapper),
+// Copyright (C) 2019-2026 The MMapper Authors. Modified for WebCockpit
+// (2026-09-28): rewritten in TypeScript and WebGL2; see
+// THIRD_PARTY_NOTICES.md "MMapper-derived code".
+//
 // Map text with MMapper's Cantarell BMFont (research §5): parse the
 // `.fnt` file and lay strings out as textured quads. Ported from MMapper
 // 26.06.0 opengl/Font.cpp (FontMetrics, FontBatchBuilder;

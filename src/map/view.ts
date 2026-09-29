@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 The WebCockpit Authors
+// Derived from MMapper 26.06.0 (https://github.com/MUME/MMapper),
+// Copyright (C) 2019-2026 The MMapper Authors. Modified for WebCockpit
+// (2026-09-28): rewritten in TypeScript and WebGL2; see
+// THIRD_PARTY_NOTICES.md "MMapper-derived code".
+//
 // The map view (research §2): scroll centre, zoom and layer, and the
 // pan / zoom-at-cursor / layer operations. Pure; owned by the worker.
 //

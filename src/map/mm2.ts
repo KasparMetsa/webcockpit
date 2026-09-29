@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 The WebCockpit Authors
+// Derived from MMapper 26.06.0 (https://github.com/MUME/MMapper),
+// Copyright (C) 2019-2026 The MMapper Authors. Modified for WebCockpit
+// (2026-09-28): rewritten in TypeScript and WebGL2; see
+// THIRD_PARTY_NOTICES.md "MMapper-derived code".
+//
 // MMapper `.mm2` reader, schema versions 17–42 (ADR 0020; research
 // notes/research/mmapper-rendering.md §1). Pure: runs in the map worker
 // and in Node tests. The inflate step is injectable; the default uses

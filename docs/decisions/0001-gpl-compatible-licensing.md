@@ -1,6 +1,6 @@
 # 0001 — GPL-compatible licensing
 
-- Status: Accepted
+- Status: Accepted; licence version superseded by ADR 0027
 - Date: 2026-09-27
 
 ## Context

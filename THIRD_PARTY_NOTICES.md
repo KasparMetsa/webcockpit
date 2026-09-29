@@ -1,7 +1,40 @@
 # Third-party notices
 
-WebCockpit is GPL-3.0-or-later (ADR 0001). It ships the following
+WebCockpit is GPL-2.0-or-later (ADR 0027). It ships the following
 third-party material, each under its own GPL-compatible licence.
+
+## MMapper-derived code
+
+Parts of the map are derived from **MMapper** 26.06.0
+(https://github.com/MUME/MMapper), Copyright (C) 2019-2026 The MMapper
+Authors, licensed under the GNU General Public License, version 2 or (at
+your option) any later version. No MMapper source file is included as is.
+The files below are new TypeScript (and GLSL ES 3.00) written for
+WebCockpit on 2026-09-28 that translate MMapper's C++ and GLSL algorithms,
+formulas and constants. Each carries MMapper's copyright notice and a
+modification notice in its header. General changes: C++/Qt/OpenGL
+rewritten as TypeScript/WebGL2 running in a Web Worker; read-only (no
+map editing); no Qt types; data kept in typed arrays.
+
+| WebCockpit file | Derived from (MMapper `src/`) | Changes |
+|---|---|---|
+| `src/map/mm2.ts` | `mapstorage/mapstorage.cpp`, `map/WorldBuilder.cpp` (sanitize) | Reader for schema 17–42 only; skips room contents and notes; typed-array output |
+| `src/map/mm2-write.ts` | inverse of the `.mm2` format above | Writer for tests and replay subsets |
+| `src/map/view.ts` | `display/ProjectionUtils.cpp`, `display/MapCanvasData.cpp` (2D camera) | Pan, zoom and layer only |
+| `src/map/path.ts` | `parser/AbstractParser-Commands.cpp`, `parser/Abbrev.cpp`, `parser/abstractparser.cpp`, `parser/mumexmlparser.cpp`, `parser/AbstractParser-Actions.cpp` | Prespam queue and path walk only |
+| `src/map/group.ts` | `group/mmapper2group.cpp`, `group/CGroupChar.cpp`, `group/ColorGenerator.cpp` | GMCP group table and colours only |
+| `src/map/render/rooms.ts` | `display/MapCanvasRoomDrawer.cpp` | Instanced quads per layer |
+| `src/map/render/connections.ts` | `display/Connections.cpp`, `display/ConnectionLineBuilder.cpp` | Triangle lists per layer |
+| `src/map/render/geometry.ts` | `opengl/LineRendering.cpp` | Plain arrays |
+| `src/map/render/infomarks.ts` | `display/Infomarks.cpp` | Draw only |
+| `src/map/render/font.ts` | `opengl/Font.cpp` | BMFont parse and layout |
+| `src/map/render/characters.ts` | `display/Characters.cpp`, `display/MapCanvasData.cpp` | Player, group, path |
+| `src/map/render/palette.ts` | `configuration/configuration.cpp`, `global/Color.h`, `global/Color.cpp` | Default colours only |
+| `src/map/render/textures.ts` | `display/Textures.cpp` | One array per tile size |
+| `src/map/render/shaders.ts` | `resources/shaders/legacy/{room,font,point}` | GLSL ES 3.00 |
+| `src/map/render/webgl.ts` | `display/mapcanvas_gl.cpp` (`actuallyPaintGL`, `renderMapBatches`), `display/MapCanvasRoomDrawer.cpp` (`LayerMeshes::render`) | WebGL2, on-demand rendering |
+
+The full history of every change is in this repository's git log.
 
 ## Fonts (`public/fonts/`)
 
