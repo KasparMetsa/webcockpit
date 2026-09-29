@@ -1,6 +1,6 @@
 # Progress
 
-Current stage: **8 — Hardening → v1** (part A done; 0.1.3 public, printable and dead-key macros approved; next: plan the rest of stage 8).
+Current stage: **8 — Hardening → v1** (part A done; 0.1.5 public under GPL-2.0-or-later, ADR 0027; waiting for MMapper author's reply on arda.mm2; next: plan the rest of stage 8).
 
 ## Stages
 
@@ -28,7 +28,7 @@ Newest first.
   now link the source (GPL-2 §3, ADR 0027). Published 1847920 (0.1.5).
 - **Next:** plan the rest of stage 8.
 - **Open issues (owner):** bundled `arda.mm2` is the owner's own map, not
-  MUME's official `MUME/arda` (asking MMapper's author, maybe MUME);
+  MUME's official `MUME/arda` (MMapper's author asked 2026-09-29, awaiting reply);
   README screenshots show other players' names; MUME not yet informed.
 - **Commits:** see git log for 2026-09-29.
 
