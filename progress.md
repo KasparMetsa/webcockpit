@@ -22,6 +22,18 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-29 — Licence: GPL-2.0-or-later, MMapper notices
+
+- **Done:** MMapper's author reminded us of the GPL terms. Relicensed to
+  GPL-2.0-or-later (owner decision, ADR 0027): LICENSE, package.json,
+  README, About, replay notice. 15 MMapper-derived files under `src/map/`
+  got SPDX, MMapper copyright and dated modification headers;
+  THIRD_PARTY_NOTICES lists each with its MMapper sources and changes.
+- **Next:** publish a build so the live About shows the new licence; reply
+  to MMapper's author. Then plan the rest of stage 8.
+- **Open issues:** none.
+- **Commits:** see git log for 2026-09-29.
+
 ### 2026-09-28 — Public repository
 
 - **Done:** repository published at https://github.com/Khazdul/webcockpit
