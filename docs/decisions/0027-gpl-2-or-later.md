@@ -28,6 +28,9 @@ copyright line or a modification notice (GPL-2 §2a, GPL-3 §5a).
 - `THIRD_PARTY_NOTICES.md` "MMapper-derived code" lists each derived file,
   the MMapper sources it comes from and what changed.
 - New code ported from MMapper gets the same header and a table row.
+- About and the replay file notice link the source code
+  (github.com/Khazdul/webcockpit), so every copy says where to get it
+  (GPL-2 §3).
 
 ## Consequences
 

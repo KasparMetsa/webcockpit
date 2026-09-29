@@ -92,6 +92,7 @@ describe('assembleReplayHtml', () => {
     const html = assembleReplayHtml(parts);
     expect(html.startsWith('<!doctype html>\n<!--\n  WebCockpit log replay (WebCockpit 1.2.3).')).toBe(true);
     expect(html).toContain('GNU General Public License');
+    expect(html).toContain('Source code: https://github.com/Khazdul/webcockpit');
     const notice = html.slice(html.indexOf('<!--') + 4, html.indexOf('-->'));
     expect(notice).not.toContain('--');
     expect(html).toContain('<title>A &#60;fight&#62; &#38; more</title>');

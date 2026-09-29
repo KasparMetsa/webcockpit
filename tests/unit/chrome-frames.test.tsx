@@ -85,6 +85,7 @@ describe('About text', () => {
     for (const l of lines) expect((l.key?.length ?? 0) + l.text.length).toBeLessThanOrEqual(60);
     expect(lines.find((l) => l.text.startsWith('MUME — MULTI-USERS'))?.cls).toBe('wc-c-title');
     expect(lines.find((l) => l.key?.trim() === 'MMapper')).toBeDefined();
+    expect(lines.some((l) => l.text.includes('github.com/Khazdul/webcockpit'))).toBe(true);
   });
 });
 

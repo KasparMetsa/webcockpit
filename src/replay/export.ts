@@ -81,6 +81,7 @@ function notice(version: string): string {
     '  Foundation, either version 2 of the License, or (at your option) any',
     '  later version. It is distributed WITHOUT ANY WARRANTY; see',
     '  https://www.gnu.org/licenses/old-licenses/gpl-2.0.html for details.',
+    '  Source code: https://github.com/Khazdul/webcockpit',
     '',
     '  Map code and tiles are derived from MMapper',
     '  (https://github.com/MUME/MMapper), Copyright (C) The MMapper Authors,',

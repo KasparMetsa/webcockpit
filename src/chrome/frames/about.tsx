@@ -58,7 +58,9 @@ CREDITS
   Libraries       Preact and CodeMirror.
 
 LICENCE
-WebCockpit is free software under the GNU General Public License, version 2 or later. Parts of the map are derived from MMapper (Copyright (C) The MMapper Authors). MUME is run by its own team; WebCockpit is an independent client and is not made or endorsed by MUME.`;
+WebCockpit is free software under the GNU General Public License, version 2 or later. Parts of the map are derived from MMapper (Copyright (C) The MMapper Authors). Source code: github.com/Khazdul/webcockpit
+
+MUME is run by its own team; WebCockpit is an independent client and is not made or endorsed by MUME.`;
 
 interface Styled {
   key?: string;
