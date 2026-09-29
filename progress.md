@@ -22,6 +22,16 @@ Statuses: Next, In progress, Owner testing, Done.
 
 Newest first.
 
+### 2026-09-29 — Source link, licence review
+
+- **Done:** licence and etiquette review. About and the replay file notice
+  now link the source (GPL-2 §3, ADR 0027). Published 1847920 (0.1.5).
+- **Next:** plan the rest of stage 8.
+- **Open issues (owner):** bundled `arda.mm2` is the owner's own map, not
+  MUME's official `MUME/arda` (asking MMapper's author, maybe MUME);
+  README screenshots show other players' names; MUME not yet informed.
+- **Commits:** see git log for 2026-09-29.
+
 ### 2026-09-29 — Licence: GPL-2.0-or-later, MMapper notices
 
 - **Done:** MMapper's author reminded us of the GPL terms. Relicensed to
